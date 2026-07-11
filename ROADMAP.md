@@ -24,13 +24,13 @@ module lain sebab semua perlukan role/user context.)
 
 **Keperluan:** Log masuk guna ID/No. Matrik. Dashboard berbeza ikut 5 role.
 
-- [ ] Setup `users` table + role enum (rujuk SCHEMA.md #1)
-- [ ] **[DECISION NEEDED]** Confirm auth provider (cadangan: Auth.js Credentials)
-- [ ] Login page (matric_id + password)
-- [ ] Role-based dashboard routing (`/(dashboard)/[role]`)
-- [ ] Profile settings page
-- [ ] Kad Maya display — static QR generated dari matric_id (lihat SCHEMA.md gap note)
-- [ ] RBAC guard function di `lib/rbac.ts`
+- [x] Setup `users` table + role enum (rujuk SCHEMA.md #1)
+- [x] ~~**[DECISION NEEDED]** Confirm auth provider (cadangan: Auth.js Credentials)~~ — guna Auth.js
+- [x] Login page (matric_id + password)
+- [x] Role-based dashboard routing (`/(dashboard)/[role]`)
+- [x] Profile settings page
+- [x] Kad Maya display — static QR generated dari matric_id (lihat SCHEMA.md gap note)
+- [x] RBAC guard function di `lib/rbac.ts`
 
 ## Epic 2: Tempahan Bilik & Rumah Tamu
 
