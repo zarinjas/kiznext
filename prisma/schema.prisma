@@ -30,5 +30,224 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
+  facilityBookings   FacilityBooking[]    @relation("UserFacilityBookings")
+  approvedBookings   FacilityBooking[]    @relation("ApprovedBookings")
+  guestHouseBookings GuestHouseBooking[]
+  approvedGhBookings GuestHouseBooking[]  @relation("ApprovedGHBookings")
+  helpdeskTickets    HelpdeskTicket[]      @relation("UserTickets")
+  assignedTickets    HelpdeskTicket[]      @relation("AssignedTickets")
+  helpdeskMessages   HelpdeskMessage[]    @relation("UserMessages")
+  announcements      Announcement[]
+  chatMessages       CommunityChatMessage[]
+  deletedChatMessages CommunityChatMessage[] @relation("DeletedMessages")
+  parcels            Parcel[]
+  lostFoundItems     LostFoundItem[]
+
   @@map("users")
+}
+
+enum BookingStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+model Block {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String
+  navigationNotes String?  @map("navigation_notes")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  facilities Facility[]
+
+  @@map("blocks")
+}
+
+model Facility {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  blockId          String   @map("block_id")
+  description      String
+  capacity         Int?
+  requiresApproval Boolean  @default(true) @map("requires_approval")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  block    Block              @relation(fields: [blockId], references: [id])
+  bookings FacilityBooking[]
+
+  @@map("facilities")
+}
+
+model FacilityBooking {
+  id           String        @id @default(uuid())
+  facilityId   String        @map("facility_id")
+  userId       String        @map("user_id")
+  timeSlotStart DateTime     @map("time_slot_start")
+  timeSlotEnd   DateTime     @map("time_slot_end")
+  status       BookingStatus @default(pending)
+  approvedById String?       @map("approved_by")
+  notes        String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  deletedAt    DateTime?     @map("deleted_at")
+
+  facility  Facility @relation(fields: [facilityId], references: [id])
+  user      User     @relation("UserFacilityBookings", fields: [userId], references: [id])
+  approvedBy User?   @relation("ApprovedBookings", fields: [approvedById], references: [id])
+
+  @@map("facility_bookings")
+}
+
+enum GuestHouseBookingStatus {
+  pending
+  approved
+  rejected
+  checked_in
+  checked_out
+  cancelled
+}
+
+enum PeriodType {
+  daily
+  weekly
+  monthly
+}
+
+enum PaymentStatus {
+  unpaid
+  paid_manual
+}
+
+model GuestHouseBooking {
+  id            String                    @id @default(uuid())
+  userId        String                    @map("user_id")
+  guestName     String                    @map("guest_name")
+  periodType    PeriodType                @map("period_type")
+  startDate     DateTime                  @map("start_date") @db.Date
+  endDate       DateTime                  @map("end_date") @db.Date
+  status        GuestHouseBookingStatus   @default(pending)
+  approvedById  String?                   @map("approved_by")
+  paymentStatus PaymentStatus             @default(unpaid) @map("payment_status")
+  notes         String?
+  createdAt     DateTime                  @default(now()) @map("created_at")
+  updatedAt     DateTime                  @updatedAt @map("updated_at")
+  deletedAt     DateTime?                 @map("deleted_at")
+
+  user       User   @relation(fields: [userId], references: [id])
+  approvedBy User?  @relation("ApprovedGHBookings", fields: [approvedById], references: [id])
+
+  @@map("guest_house_bookings")
+}
+
+enum HelpdeskStatus {
+  open
+  in_progress
+  closed
+}
+
+model HelpdeskTicket {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  status      HelpdeskStatus @default(open)
+  assignedTo  String?        @map("assigned_to")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  user     User              @relation("UserTickets", fields: [userId], references: [id])
+  assignee User?             @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  messages HelpdeskMessage[]
+
+  @@map("helpdesk_tickets")
+}
+
+model HelpdeskMessage {
+  id          String   @id @default(uuid())
+  ticketId    String   @map("ticket_id")
+  senderId    String   @map("sender_id")
+  message     String
+  isAutoReply Boolean  @default(false) @map("is_auto_reply")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  ticket HelpdeskTicket @relation(fields: [ticketId], references: [id])
+  sender User           @relation("UserMessages", fields: [senderId], references: [id])
+
+  @@map("helpdesk_messages")
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  tag       String   @default("umum")
+  postedBy  String   @map("posted_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  poster User @relation(fields: [postedBy], references: [id])
+
+  @@map("announcements")
+}
+
+model CommunityChatMessage {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  message   String
+  deletedBy String?   @map("deleted_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user    User   @relation(fields: [userId], references: [id])
+  deletedByUser User? @relation("DeletedMessages", fields: [deletedBy], references: [id])
+
+  @@map("community_chat_messages")
+}
+
+model Parcel {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  description String?
+  status      String    @default("arrived")
+  notifiedAt  DateTime? @map("notified_at")
+  collectedAt DateTime? @map("collected_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("parcels")
+}
+
+enum LostFoundStatus {
+  lost
+  found
+  claimed
+}
+
+model LostFoundItem {
+  id           String          @id @default(uuid())
+  reportedBy   String          @map("reported_by")
+  itemName     String          @map("item_name")
+  description  String
+  photoUrl     String?         @map("photo_url")
+  status       LostFoundStatus @default(lost)
+  locationFound String?        @map("location_found")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  deletedAt    DateTime?       @map("deleted_at")
+
+  reporter User @relation(fields: [reportedBy], references: [id])
+
+  @@map("lost_found_items")
 }
