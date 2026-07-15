@@ -14,24 +14,31 @@ export default async function HilangPage() {
     orderBy: { createdAt: "desc" },
   })
 
+  const isAhli = session.user.role === "ahli"
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-3xl"}>
+      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
         Lost & Found
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         Lapor barang hilang atau jumpa barang di KIZ.
       </p>
 
-      <div className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="font-heading text-lg text-primary-foreground mb-4">
+      <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
+        <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
           Laporan Baru
         </h2>
         <ReportForm role={session.user.role} />
       </div>
 
-      <div className="mt-8">
-        <LostFoundList items={items} userId={session.user.id} role={session.user.role} />
+      <div className={isAhli ? "mt-6" : "mt-8"}>
+        <LostFoundList
+          items={items}
+          userId={session.user.id}
+          role={session.user.role}
+          compact={isAhli}
+        />
       </div>
     </div>
   )

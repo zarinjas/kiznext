@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DashboardNav } from "@/components/shared/dashboard-nav"
+import { MobileTopBar } from "@/components/shared/mobile-top-bar"
+import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav"
 import { Role } from "@/lib/rbac"
 
 const roleLabels: Record<Role, string> = {
@@ -21,14 +23,30 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
+  const { role, name } = session.user
+
+  if (role === "ahli") {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <MobileTopBar
+          userName={name ?? ""}
+          roleLabel={roleLabels[role]}
+          role={role}
+        />
+        <main className="flex-1 pb-24">{children}</main>
+        <MobileBottomNav role={role} />
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen bg-background">
       <DashboardNav
-        role={session.user.role}
-        userName={session.user.name ?? ""}
-        roleLabel={roleLabels[session.user.role]}
+        role={role}
+        userName={name ?? ""}
+        roleLabel={roleLabels[role]}
       />
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-6 lg:p-8">{children}</main>
     </div>
   )
 }

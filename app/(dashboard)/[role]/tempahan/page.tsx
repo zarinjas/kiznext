@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { Building2, CheckCircle, Clock } from "lucide-react"
+import { Building2, CheckCircle, Clock, Users, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
 export default async function TempahanPage() {
@@ -26,36 +26,34 @@ export default async function TempahanPage() {
   })
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className="px-4 py-5">
+      <h1 className="font-heading text-xl text-primary-foreground">
         Tempahan Fasiliti
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         Tempah kemudahan kolej untuk kegunaan anda.
       </p>
 
       {bookings.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 font-heading text-lg text-primary-foreground">
+        <div className="mt-5">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">
             Tempahan Terkini
           </h2>
           <div className="space-y-2">
             {bookings.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
+              <div key={b.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 text-sm">
                 {b.status === "approved" ? (
                   <CheckCircle className="size-4 shrink-0 text-green-600" />
                 ) : (
                   <Clock className="size-4 shrink-0 text-amber-600" />
                 )}
-                <span className="flex-1">{b.facility.name}</span>
-                <span className="text-muted-foreground">
+                <span className="min-w-0 flex-1 truncate">{b.facility.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
                   {b.timeSlotStart.toLocaleDateString("ms-MY", { day: "numeric", month: "short" })}
                   {" "}
                   {b.timeSlotStart.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
-                  {" – "}
-                  {b.timeSlotEnd.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
                 </span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                   b.status === "approved" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
                 }`}>
                   {b.status === "approved" ? "Disahkan" : "Menunggu"}
@@ -66,32 +64,34 @@ export default async function TempahanPage() {
         </div>
       )}
 
-      <div className="mt-8 grid gap-6">
+      <div className="mt-6 space-y-6">
         {blocks.map((block) => (
           <div key={block.id}>
-            <h2 className="font-heading text-lg text-primary-foreground flex items-center gap-2">
-              <Building2 className="size-5 text-primary" />
+            <h2 className="font-heading text-base text-primary-foreground flex items-center gap-2">
+              <Building2 className="size-4 text-primary" />
               {block.name}
             </h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-3 space-y-2">
               {block.facilities.map((facility) => (
-                <div key={facility.id} className="rounded-lg border bg-card p-4">
-                  <h3 className="font-medium text-foreground">{facility.name}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                    {facility.description}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {facility.capacity ? `${facility.capacity} orang` : "Tiada had"}
-                    </span>
-                    <Link
-                      href={`/${session.user.role}/tempahan/${facility.id}`}
-                      className="inline-flex h-7 items-center justify-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80"
-                    >
-                      Tempah
-                    </Link>
+                <Link
+                  key={facility.id}
+                  href={`/${session.user.role}/tempahan/${facility.id}`}
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 active:bg-muted"
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-medium text-foreground">{facility.name}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                      {facility.description}
+                    </p>
+                    {facility.capacity && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Users className="size-3" />
+                        {facility.capacity} orang
+                      </p>
+                    )}
                   </div>
-                </div>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                </Link>
               ))}
             </div>
           </div>

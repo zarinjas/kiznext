@@ -41,7 +41,7 @@ export async function getChatMessages() {
 
   return prisma.communityChatMessage.findMany({
     where: { deletedAt: null },
-    include: { user: { select: { name: true, role: true } } },
+    include: { user: { select: { id: true, name: true, role: true } } },
     orderBy: { createdAt: "asc" },
   })
 }

@@ -13,6 +13,7 @@ interface Ticket {
 interface Props {
   tickets: Ticket[]
   role: string
+  compact?: boolean
 }
 
 const statusLabels: Record<string, string> = {
@@ -27,10 +28,10 @@ const statusColors: Record<string, string> = {
   closed: "bg-gray-100 text-gray-500",
 }
 
-export function HelpdeskList({ tickets, role }: Props) {
+export function HelpdeskList({ tickets, role, compact = false }: Props) {
   if (tickets.length === 0) {
     return (
-      <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+      <div className={compact ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
         Tiada ticket lagi.
       </div>
     )
@@ -44,9 +45,15 @@ export function HelpdeskList({ tickets, role }: Props) {
           <Link
             key={ticket.id}
             href={`/${role}/helpdesk/${ticket.id}`}
-            className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted"
+            className={
+              compact
+                ? "flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-sm active:bg-muted"
+                : "flex items-center gap-3 rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted"
+            }
           >
-            <MessageSquare className="size-4 shrink-0 text-primary" />
+            <span className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-foreground ${compact ? "size-8" : ""}`}>
+              <MessageSquare className="size-4" />
+            </span>
             <div className="flex-1 min-w-0">
               <p className="truncate font-medium text-foreground">
                 {lastMsg?.message || "(tiada mesej)"}

@@ -29,9 +29,11 @@ export default async function TicketPage({
     notFound()
   }
 
+  const isAhli = role === "ahli"
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-4">
+    <div className={isAhli ? "flex h-[calc(100vh-8.5rem)] flex-col px-4 py-4" : "mx-auto max-w-3xl"}>
+      <div className="mb-3 shrink-0">
         <a
           href={`/${role}/helpdesk`}
           className="text-sm text-muted-foreground hover:text-foreground"
@@ -39,12 +41,15 @@ export default async function TicketPage({
           ← Kembali
         </a>
       </div>
-      <TicketChat
-        ticketId={ticket.id}
-        ticketStatus={ticket.status}
-        messages={ticket.messages}
-        role={role}
-      />
+      <div className={isAhli ? "flex-1 overflow-hidden" : ""}>
+        <TicketChat
+          ticketId={ticket.id}
+          ticketStatus={ticket.status}
+          messages={ticket.messages}
+          role={role}
+          compact={isAhli}
+        />
+      </div>
     </div>
   )
 }

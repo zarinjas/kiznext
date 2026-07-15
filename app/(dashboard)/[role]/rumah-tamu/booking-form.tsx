@@ -41,7 +41,7 @@ export function GHBookingForm({ role }: Props) {
       <div className="text-center py-8">
         <p className="text-green-600 font-medium">Tempahan dihantar!</p>
         <p className="mt-1 text-sm text-muted-foreground">Menunggu kelulusan admin.</p>
-        <Button className="mt-4" onClick={() => router.push(`/${role}/rumah-tamu`)}>
+        <Button className="mt-4 w-full" onClick={() => router.push(`/${role}/rumah-tamu`)}>
           Kembali
         </Button>
       </div>
@@ -99,7 +99,7 @@ export function GHBookingForm({ role }: Props) {
         </div>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Memproses..." : "Hantar Tempahan"}
       </Button>
     </form>

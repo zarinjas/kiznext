@@ -59,7 +59,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
             ? "Tempahan anda sedang menunggu kelulusan admin."
             : "Tempahan anda telah disahkan."}
         </p>
-        <Button className="mt-4" onClick={() => router.push(`/${role}/tempahan`)}>
+        <Button className="mt-4 w-full" onClick={() => router.push(`/${role}/tempahan`)}>
           Kembali
         </Button>
       </div>
@@ -110,7 +110,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
         </p>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Memproses..." : "Hantar Tempahan"}
       </Button>
     </form>

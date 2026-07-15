@@ -12,24 +12,30 @@ export default async function ParcelPage() {
     orderBy: { createdAt: "desc" },
   })
 
+  const isAhli = session.user.role === "ahli"
+
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
+      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
         Bungkusan Saya
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         Semak status bungkusan yang tiba di pejabat KIZ.
       </p>
 
-      <div className="mt-8 space-y-3">
+      <div className={isAhli ? "mt-5 space-y-2" : "mt-8 space-y-3"}>
         {parcels.map((p) => (
-          <div key={p.id} className="rounded-lg border bg-card p-4">
+          <div key={p.id} className={isAhli ? "rounded-2xl border border-border bg-card p-4" : "rounded-lg border bg-card p-4"}>
             <div className="flex items-start gap-3">
-              {p.status === "arrived" ? (
-                <Package className="mt-1 size-5 shrink-0 text-amber-600" />
-              ) : (
-                <CheckCircle className="mt-1 size-5 shrink-0 text-green-600" />
-              )}
+              <span className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full ${
+                p.status === "arrived" ? "bg-amber-100" : "bg-green-100"
+              } ${isAhli ? "size-9" : ""}`}>
+                {p.status === "arrived" ? (
+                  <Package className="size-4 text-amber-600" />
+                ) : (
+                  <CheckCircle className="size-4 text-green-600" />
+                )}
+              </span>
               <div>
                 <p className="font-medium text-foreground">
                   {p.status === "arrived" ? "Bungkusan Tiba" : "Sudah Diambil"}
@@ -50,7 +56,7 @@ export default async function ParcelPage() {
           </div>
         ))}
         {parcels.length === 0 && (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className={isAhli ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
             Tiada bungkusan.
           </div>
         )}

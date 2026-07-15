@@ -19,9 +19,10 @@ interface Props {
   ticketStatus: string
   messages: Message[]
   role: string
+  compact?: boolean
 }
 
-export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, role }: Props) {
+export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, role, compact = false }: Props) {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [text, setText] = useState("")
@@ -64,15 +65,15 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
   }
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card">
-      <div className="flex-1 space-y-3 overflow-y-auto p-4 max-h-[60vh]">
+    <div className={compact ? "flex h-full flex-col rounded-2xl border border-border bg-card" : "flex flex-col rounded-lg border bg-card"}>
+      <div className={compact ? "flex-1 space-y-3 overflow-y-auto p-3" : "flex-1 space-y-3 overflow-y-auto p-4 max-h-[60vh]"}>
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex ${msg.isAutoReply ? "justify-center" : msg.sender.role === role ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
+              className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
                 msg.isAutoReply
                   ? "bg-muted text-center text-xs text-muted-foreground italic"
                   : msg.sender.role === role
@@ -83,7 +84,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
               {!msg.isAutoReply && (
                 <p className="mb-1 text-xs opacity-70">{msg.sender.name}</p>
               )}
-              <p className={msg.isAutoReply ? "" : ""}>{msg.message}</p>
+              <p>{msg.message}</p>
             </div>
           </div>
         ))}
@@ -91,17 +92,17 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
       </div>
 
       {!isClosed && (
-        <div className="border-t p-4">
+        <div className={compact ? "border-t border-border p-3" : "border-t p-4"}>
           <div className="flex gap-2">
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
               placeholder="Taip mesej..."
-              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              className={compact ? "flex-1 rounded-full border border-input bg-background px-4 py-2.5 text-sm" : "flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"}
               disabled={sending}
             />
-            <Button size="icon" onClick={handleSend} disabled={sending || !text.trim()}>
+            <Button size="icon" className={compact ? "rounded-full" : ""} onClick={handleSend} disabled={sending || !text.trim()}>
               <Send className="size-4" />
             </Button>
           </div>
@@ -109,7 +110,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
       )}
 
       {!isClosed && !isAdmin && (
-        <div className="border-t px-4 py-2">
+        <div className={compact ? "border-t border-border px-3 py-2" : "border-t px-4 py-2"}>
           <Button
             variant="ghost"
             size="sm"

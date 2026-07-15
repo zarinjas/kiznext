@@ -21,14 +21,15 @@ interface Props {
   items: Item[]
   userId: string
   role: string
+  compact?: boolean
 }
 
-export function LostFoundList({ items, userId, role }: Props) {
+export function LostFoundList({ items, userId, compact = false }: Props) {
   const router = useRouter()
 
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+      <div className={compact ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
         Tiada laporan.
       </div>
     )
@@ -37,7 +38,7 @@ export function LostFoundList({ items, userId, role }: Props) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className="rounded-lg border bg-card p-4">
+        <div key={item.id} className={compact ? "rounded-2xl border border-border bg-card p-4" : "rounded-lg border bg-card p-4"}>
           <div className="flex items-start gap-3">
             <div className="mt-1 shrink-0">
               {item.status === "lost" ? (
@@ -67,7 +68,7 @@ export function LostFoundList({ items, userId, role }: Props) {
               </div>
               {item.photoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.photoUrl} alt={item.itemName} className="mt-2 max-h-32 rounded object-cover" />
+                <img src={item.photoUrl} alt={item.itemName} className="mt-2 max-h-32 rounded-lg object-cover" />
               )}
             </div>
             {item.status === "found" && item.reportedBy === userId && (

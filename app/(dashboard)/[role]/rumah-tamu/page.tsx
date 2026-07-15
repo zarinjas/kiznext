@@ -31,38 +31,40 @@ export default async function RumahTamuPage() {
     cancelled: "bg-gray-100 text-gray-500",
   }
 
+  const isAhli = session.user.role === "ahli"
+
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
+      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
         Tempahan Rumah Tamu
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         Tempah penginapan untuk tetamu luar, alumni, atau keluarga.
       </p>
 
-      <div className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="font-heading text-lg text-primary-foreground mb-4">
+      <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
+        <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
           Tempah Baru
         </h2>
         <GHBookingForm role={session.user.role} />
       </div>
 
       {bookings.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 font-heading text-lg text-primary-foreground">
+        <div className={isAhli ? "mt-6" : "mt-8"}>
+          <h2 className={isAhli ? "mb-2 text-sm font-semibold text-foreground" : "mb-3 font-heading text-lg text-primary-foreground"}>
             Tempahan Lepas
           </h2>
           <div className="space-y-2">
             {bookings.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
+              <div key={b.id} className={isAhli ? "flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-sm" : "flex items-center gap-3 rounded-lg border bg-card p-3 text-sm"}>
                 <Luggage className="size-4 shrink-0 text-primary" />
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{b.guestName}</p>
-                  <p className="text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-foreground">{b.guestName}</p>
+                  <p className="text-xs text-muted-foreground">
                     {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")}
                   </p>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[b.status]}`}>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[b.status]}`}>
                   {statusLabels[b.status]}
                 </span>
               </div>

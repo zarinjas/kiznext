@@ -56,10 +56,10 @@ export function ReportForm({ role }: Props) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="photo">Gambar (pilihan)</Label>
-        <input id="photo" name="photo" type="file" accept="image/*" className="text-sm" />
+        <input id="photo" name="photo" type="file" accept="image/*" className="w-full text-sm" />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Menghantar..." : "Lapor"}
       </Button>
     </form>

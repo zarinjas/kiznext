@@ -20,15 +20,15 @@ export default async function KadMayaPage() {
   if (!user) redirect("/login")
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col items-center">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className="flex flex-col items-center px-4 py-5">
+      <h1 className="self-start font-heading text-xl text-primary-foreground">
         Kad Maya
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 self-start text-sm text-muted-foreground">
         Kad Pengenalan Digital KIZ anda.
       </p>
 
-      <div className="mt-8">
+      <div className="mt-6">
         <KadMayaCard
           name={user.name}
           matricId={user.matricId}
@@ -36,6 +36,10 @@ export default async function KadMayaPage() {
           roomNumber={user.roomNumber}
         />
       </div>
+
+      <p className="mt-5 max-w-xs text-center text-xs text-muted-foreground">
+        Tunjukkan QR code ini kepada pegawai keselamatan atau kakitangan KIZ untuk pengesahan identiti.
+      </p>
     </div>
   )
 }

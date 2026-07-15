@@ -17,22 +17,26 @@ export default async function DirektoriPage() {
     orderBy: { name: "asc" },
   })
 
+  const isAhli = session.user.role === "ahli"
+
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-4xl"}>
+      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
         Direktori Blok & Fasiliti
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         Panduan lokasi blok dan kemudahan di KIZ.
       </p>
 
-      <div className="mt-8 grid gap-6">
+      <div className={isAhli ? "mt-5 space-y-4" : "mt-8 grid gap-6"}>
         {blocks.map((block) => (
-          <div key={block.id} className="rounded-lg border bg-card p-5">
+          <div key={block.id} className={isAhli ? "rounded-2xl border border-border bg-card p-4" : "rounded-lg border bg-card p-5"}>
             <div className="flex items-start gap-3">
-              <MapPin className="mt-1 size-5 shrink-0 text-primary" />
+              <span className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-foreground ${isAhli ? "size-9" : ""}`}>
+                <MapPin className="size-4" />
+              </span>
               <div className="flex-1">
-                <h2 className="font-heading text-lg text-primary-foreground">
+                <h2 className={isAhli ? "font-heading text-base text-primary-foreground" : "font-heading text-lg text-primary-foreground"}>
                   {block.name}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -47,7 +51,7 @@ export default async function DirektoriPage() {
             </div>
 
             {block.facilities.length > 0 && (
-              <div className="mt-4 border-t pt-4">
+              <div className="mt-4 border-t border-border pt-4">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Fasiliti
                 </p>

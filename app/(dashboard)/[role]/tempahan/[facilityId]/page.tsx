@@ -21,15 +21,15 @@ export default async function BookFacilityPage({
   if (!facility || facility.deletedAt) notFound()
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
+    <div className="px-4 py-5">
+      <h1 className="font-heading text-xl text-primary-foreground">
         Tempah: {facility.name}
       </h1>
-      <p className="mt-1 text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {facility.block.name} — {facility.description}
       </p>
 
-      <div className="mt-8 rounded-lg border bg-card p-6">
+      <div className="mt-5 rounded-2xl border border-border bg-card p-5">
         <BookingForm
           facilityId={facility.id}
           requiresApproval={facility.requiresApproval}

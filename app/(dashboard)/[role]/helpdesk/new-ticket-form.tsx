@@ -64,7 +64,7 @@ export function NewTicketForm({ role }: Props) {
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Menghantar..." : "Hantar"}
       </Button>
     </form>

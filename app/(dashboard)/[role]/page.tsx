@@ -1,6 +1,9 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Role } from "@/lib/rbac"
+import { prisma } from "@/lib/db"
+import { AhliHome } from "./ahli-home"
+import { AdminHome } from "./admin-home"
 
 const welcomeMessages: Record<Role, { title: string; description: string }> = {
   superadmin: {
@@ -34,23 +37,61 @@ export default async function RoleDashboardPage({
   const userRole = session.user.role as string
   if (role !== userRole) redirect(`/${userRole}`)
 
+  if (userRole === "ahli") {
+    const [user, announcements, bookings] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { name: true, matricId: true, block: true, roomNumber: true },
+      }),
+      prisma.announcement.findMany({
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      }),
+      prisma.facilityBooking.findMany({
+        where: { userId: session.user.id, deletedAt: null },
+        include: { facility: true },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      }),
+    ])
+
+    if (!user) redirect("/login")
+
+    return (
+      <AhliHome
+        user={user}
+        announcements={announcements}
+        bookings={bookings}
+        role={session.user.role}
+      />
+    )
+  }
+
   const info = welcomeMessages[session.user.role]
 
-  return (
-    <div>
-      <h1 className="font-heading text-2xl text-primary-foreground">
-        {info.title}
-      </h1>
-      <p className="mt-1 text-muted-foreground">{info.description}</p>
+  const [pendingFacility, pendingGuestHouse, openTickets, activeParcels, activeLostFound] =
+    await Promise.all([
+      prisma.facilityBooking.count({ where: { status: "pending", deletedAt: null } }),
+      prisma.guestHouseBooking.count({ where: { status: "pending", deletedAt: null } }),
+      prisma.helpdeskTicket.count({ where: { status: { not: "closed" }, deletedAt: null } }),
+      prisma.parcel.count({ where: { status: "arrived", deletedAt: null } }),
+      prisma.lostFoundItem.count({ where: { status: { not: "claimed" }, deletedAt: null } }),
+    ])
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Selamat datang,</p>
-          <p className="font-heading text-xl text-primary-foreground">
-            {session.user.name}
-          </p>
-        </div>
-      </div>
-    </div>
+  return (
+    <AdminHome
+      title={info.title}
+      description={info.description}
+      userName={session.user.name ?? ""}
+      role={session.user.role}
+      stats={{
+        pendingFacility,
+        pendingGuestHouse,
+        openTickets,
+        activeParcels,
+        activeLostFound,
+      }}
+    />
   )
 }

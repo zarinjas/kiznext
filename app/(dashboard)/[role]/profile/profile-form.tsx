@@ -98,7 +98,7 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
       {done && (
         <p className="text-sm text-green-600">Profil berjaya dikemaskini.</p>
       )}
-      <Button type="submit" disabled={saving}>
+      <Button type="submit" disabled={saving} className="w-full">
         {saving ? "Menyimpan..." : "Simpan"}
       </Button>
     </form>
