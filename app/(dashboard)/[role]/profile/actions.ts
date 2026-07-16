@@ -10,6 +10,7 @@ interface ProfileInput {
   block: string
   roomNumber: string
   phone: string
+  avatarUrl: string
 }
 
 export async function updateProfile(data: ProfileInput) {
@@ -26,8 +27,10 @@ export async function updateProfile(data: ProfileInput) {
       block: data.block || null,
       roomNumber: data.roomNumber || null,
       phone: data.phone || null,
+      avatarUrl: data.avatarUrl || null,
     },
   })
 
   revalidatePath(`/${session.user.role}/profile`)
+  revalidatePath(`/${session.user.role}/kad-maya`)
 }

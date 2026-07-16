@@ -23,6 +23,8 @@ interface Props {
     id: string
     title: string
     tag: string
+    isPinned: boolean
+    attachmentType: string | null
     createdAt: Date
   }[]
   bookings: {
@@ -35,12 +37,12 @@ interface Props {
 }
 
 const quickActions = [
-  { label: "Tempahan", href: "tempahan", icon: Calendar },
-  { label: "Rumah Tamu", href: "rumah-tamu", icon: Hotel },
+  { label: "Booking", href: "tempahan", icon: Calendar },
+  { label: "Guest House", href: "rumah-tamu", icon: Hotel },
   { label: "Helpdesk", href: "helpdesk", icon: LifeBuoy },
   { label: "Parcel", href: "parcel", icon: Package },
   { label: "Lost & Found", href: "hilang", icon: EyeOff },
-  { label: "Direktori", href: "direktori", icon: MapPin },
+  { label: "Directory", href: "direktori", icon: MapPin },
 ]
 
 const firstName = (name: string) => name.trim().split(" ")[0]
@@ -48,7 +50,7 @@ const firstName = (name: string) => name.trim().split(" ")[0]
 export function AhliHome({ user, announcements, bookings, role }: Props) {
   return (
     <div className="px-4 py-5">
-      <p className="text-sm text-muted-foreground">Selamat datang,</p>
+      <p className="text-sm text-muted-foreground">Welcome,</p>
       <h1 className="font-heading text-2xl text-primary-foreground">
         {firstName(user.name)} 👋
       </h1>
@@ -71,13 +73,13 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-white/15 pt-3">
           <p className="text-sm text-primary-foreground/80">
-            {[user.block, user.roomNumber].filter(Boolean).join(" • ") || "Blok belum ditetapkan"}
+            {[user.block, user.roomNumber].filter(Boolean).join(" • ") || "Block not assigned"}
           </p>
           <Link
             href={`/${role}/kad-maya`}
             className="flex items-center gap-1 text-sm font-medium underline-offset-2 hover:underline"
           >
-            Papar QR
+            Show QR
             <ChevronRight className="size-3.5" />
           </Link>
         </div>
@@ -85,7 +87,7 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
 
       {/* Quick actions */}
       <div className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Akses Pantas</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Quick Access</h2>
         <div className="grid grid-cols-3 gap-3">
           {quickActions.map((item) => {
             const Icon = item.icon
@@ -111,9 +113,9 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
       {bookings.length > 0 && (
         <div className="mt-6">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Tempahan Terkini</h2>
+            <h2 className="text-sm font-semibold text-foreground">Recent Bookings</h2>
             <Link href={`/${role}/tempahan`} className="text-xs font-medium text-primary-foreground">
-              Lihat semua
+              View All
             </Link>
           </div>
           <div className="space-y-2">
@@ -145,7 +147,7 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
                       : "bg-amber-100 text-amber-700"
                   }`}
                 >
-                  {b.status === "approved" ? "Disahkan" : "Menunggu"}
+                  {b.status === "approved" ? "Approved" : "Pending"}
                 </span>
               </div>
             ))}
@@ -156,14 +158,14 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
       {/* Announcements */}
       <div className="mt-6">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Pengumuman Terkini</h2>
+          <h2 className="text-sm font-semibold text-foreground">Latest Announcements</h2>
           <Link href={`/${role}/pengumuman`} className="text-xs font-medium text-primary-foreground">
-            Lihat semua
+            View All
           </Link>
         </div>
         {announcements.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-            Tiada pengumuman.
+            No announcements.
           </div>
         ) : (
           <div className="space-y-2">
@@ -171,10 +173,14 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
               <Link
                 key={a.id}
                 href={`/${role}/pengumuman`}
-                className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3.5 active:bg-muted"
+                className={`flex items-start gap-3 rounded-2xl border border-border bg-card p-3.5 active:bg-muted ${
+                  a.isPinned ? "ring-1 ring-primary/30" : ""
+                }`}
               >
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-foreground">
-                  <Megaphone className="size-4" />
+                <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-primary-foreground ${
+                  a.tag === "penting" ? "bg-red-500" : "bg-primary/10"
+                }`}>
+                  {a.isPinned ? "📌" : <Megaphone className="size-4" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{a.title}</p>

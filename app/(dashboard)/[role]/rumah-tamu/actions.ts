@@ -12,15 +12,16 @@ export async function createGHBooking(formData: FormData) {
   const periodType = formData.get("periodType") as string
   const startDate = formData.get("startDate") as string
   const endDate = formData.get("endDate") as string
+  const notes = formData.get("notes") as string | null
 
   if (!guestName || !periodType || !startDate || !endDate) {
-    throw new Error("Sila isi semua ruangan")
+    throw new Error("Please fill all required fields")
   }
 
   const start = new Date(startDate)
   const end = new Date(endDate)
 
-  if (start >= end) throw new Error("Tarikh tamat mesti selepas tarikh mula")
+  if (start >= end) throw new Error("End date must be after start date")
 
   const clash = await prisma.guestHouseBooking.findFirst({
     where: {
@@ -30,7 +31,7 @@ export async function createGHBooking(formData: FormData) {
       endDate: { gt: start },
     },
   })
-  if (clash) throw new Error("Tarikh sudah ditempah")
+  if (clash) throw new Error("Dates already booked")
 
   await prisma.guestHouseBooking.create({
     data: {
@@ -39,6 +40,7 @@ export async function createGHBooking(formData: FormData) {
       periodType: periodType as "daily" | "weekly" | "monthly",
       startDate: start,
       endDate: end,
+      notes: notes || null,
     },
   })
 
@@ -53,4 +55,28 @@ export async function getUserGHBookings(role: string) {
     where: { userId: session.user.id, deletedAt: null },
     orderBy: { createdAt: "desc" },
   })
+}
+
+export async function cancelGHBooking(bookingId: string) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const booking = await prisma.guestHouseBooking.findUnique({
+    where: { id: bookingId },
+  })
+
+  if (!booking || booking.userId !== session.user.id) {
+    throw new Error("Not your booking")
+  }
+
+  if (booking.status !== "pending") {
+    throw new Error("Only pending bookings can be cancelled")
+  }
+
+  await prisma.guestHouseBooking.update({
+    where: { id: bookingId },
+    data: { status: "cancelled" },
+  })
+
+  revalidatePath(`/${session.user.role}/rumah-tamu`)
 }

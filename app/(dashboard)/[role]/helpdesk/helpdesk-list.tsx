@@ -5,9 +5,11 @@ import { MessageSquare } from "lucide-react"
 
 interface Ticket {
   id: string
+  displayId: number
+  subject: string | null
   status: string
   createdAt: Date
-  messages: { sender: { name: string }; message?: string }[]
+  messages: { sender: { name: string; role?: string }; message?: string }[]
 }
 
 interface Props {
@@ -17,9 +19,9 @@ interface Props {
 }
 
 const statusLabels: Record<string, string> = {
-  open: "Terbuka",
-  in_progress: "Dalam Proses",
-  closed: "Ditutup",
+  open: "Open",
+  in_progress: "In Progress",
+  closed: "Closed",
 }
 
 const statusColors: Record<string, string> = {
@@ -32,7 +34,7 @@ export function HelpdeskList({ tickets, role, compact = false }: Props) {
   if (tickets.length === 0) {
     return (
       <div className={compact ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
-        Tiada ticket lagi.
+        No tickets yet.
       </div>
     )
   }
@@ -52,16 +54,21 @@ export function HelpdeskList({ tickets, role, compact = false }: Props) {
             }
           >
             <span className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-foreground ${compact ? "size-8" : ""}`}>
-              <MessageSquare className="size-4" />
+              <span className="text-xs font-bold">KIZ-{ticket.displayId}</span>
             </span>
             <div className="flex-1 min-w-0">
               <p className="truncate font-medium text-foreground">
-                {lastMsg?.message || "(tiada mesej)"}
+                {ticket.subject || lastMsg?.message || "(no messages)"}
               </p>
               <p className="text-xs text-muted-foreground">
-                {ticket.createdAt.toLocaleDateString("ms-MY", {
-                  day: "numeric", month: "short", year: "numeric",
-                })}
+                {ticket.subject && lastMsg?.message && (
+                  <span className="truncate block">{lastMsg.message}</span>
+                )}
+                <span>
+                  {ticket.createdAt.toLocaleDateString("ms-MY", {
+                    day: "numeric", month: "short", year: "numeric",
+                  })}
+                </span>
               </p>
             </div>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[ticket.status] || ""}`}>

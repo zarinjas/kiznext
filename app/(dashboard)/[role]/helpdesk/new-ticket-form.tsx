@@ -26,7 +26,7 @@ export function NewTicketForm({ role }: Props) {
     const message = form.get("message") as string
 
     if (!subject || !message) {
-      setError("Sila isi semua ruangan")
+      setError("Please fill all required fields")
       setLoading(false)
       return
     }
@@ -35,7 +35,7 @@ export function NewTicketForm({ role }: Props) {
       const ticketId = await createTicket(subject, message)
       router.push(`/${role}/helpdesk/${ticketId}`)
     } catch {
-      setError("Ralat berlaku. Sila cuba lagi.")
+      setError("An error occurred. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -44,28 +44,28 @@ export function NewTicketForm({ role }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="subject">Tajuk</Label>
+        <Label htmlFor="subject">Title</Label>
         <Input
           id="subject"
           name="subject"
-          placeholder="Contoh: Masalah WiFi di Blok A"
+          placeholder="Example: WiFi problem at Block A"
           required
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="message">Mesej</Label>
+        <Label htmlFor="message">Message</Label>
         <textarea
           id="message"
           name="message"
           rows={4}
           className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-          placeholder="Huraikan masalah atau pertanyaan anda..."
+          placeholder="Describe your issue or question..."
           required
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Menghantar..." : "Hantar"}
+        {loading ? "Sending..." : "Submit"}
       </Button>
     </form>
   )

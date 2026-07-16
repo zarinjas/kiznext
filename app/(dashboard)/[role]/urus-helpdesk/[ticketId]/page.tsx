@@ -38,7 +38,7 @@ export default async function AdminTicketPage({
           href={`/${role}/urus-helpdesk`}
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Kembali
+          ← Back
         </a>
       </div>
 

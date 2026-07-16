@@ -72,34 +72,43 @@ model Facility {
   name             String   @unique
   blockId          String   @map("block_id")
   description      String
+  featuredImage    String?  @map("featured_image")
+  gallery          String[] @map("gallery")
+  price            Float?
   capacity         Int?
+  timeSlotDuration Int?     @map("time_slot_duration")
+  maxPerDay        Int?     @default(3) @map("max_per_day")
   requiresApproval Boolean  @default(true) @map("requires_approval")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  block    Block              @relation(fields: [blockId], references: [id])
+  block    Block                       @relation(fields: [blockId], references: [id])
   bookings FacilityBooking[]
 
   @@map("facilities")
 }
 
 model FacilityBooking {
-  id           String        @id @default(uuid())
-  facilityId   String        @map("facility_id")
-  userId       String        @map("user_id")
-  timeSlotStart DateTime     @map("time_slot_start")
-  timeSlotEnd   DateTime     @map("time_slot_end")
-  status       BookingStatus @default(pending)
-  approvedById String?       @map("approved_by")
-  notes        String?
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-  deletedAt    DateTime?     @map("deleted_at")
+  id            String        @id @default(uuid())
+  facilityId    String        @map("facility_id")
+  userId        String        @map("user_id")
+  timeSlotStart DateTime      @map("time_slot_start")
+  timeSlotEnd   DateTime      @map("time_slot_end")
+  purpose       String?
+  status        BookingStatus @default(pending)
+  approvedById  String?       @map("approved_by")
+  bookingRef    String?       @unique @map("booking_ref")
+  pdfUrl        String?       @map("pdf_url")
+  adminNotes    String?       @map("admin_notes")
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?     @map("deleted_at")
 
-  facility  Facility @relation(fields: [facilityId], references: [id])
-  user      User     @relation("UserFacilityBookings", fields: [userId], references: [id])
-  approvedBy User?   @relation("ApprovedBookings", fields: [approvedById], references: [id])
+  facility   Facility @relation(fields: [facilityId], references: [id])
+  user       User     @relation("UserFacilityBookings", fields: [userId], references: [id])
+  approvedBy User?    @relation("ApprovedBookings", fields: [approvedById], references: [id])
 
   @@map("facility_bookings")
 }
@@ -153,7 +162,9 @@ enum HelpdeskStatus {
 
 model HelpdeskTicket {
   id          String         @id @default(uuid())
+  displayId   Int            @unique @default(autoincrement()) @map("display_id")
   userId      String         @map("user_id")
+  subject     String?
   status      HelpdeskStatus @default(open)
   assignedTo  String?        @map("assigned_to")
   createdAt   DateTime       @default(now()) @map("created_at")
@@ -184,14 +195,19 @@ model HelpdeskMessage {
 }
 
 model Announcement {
-  id        String   @id @default(uuid())
-  title     String
-  content   String
-  tag       String   @default("umum")
-  postedBy  String   @map("posted_by")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id             String    @id @default(uuid())
+  title          String
+  content        String
+  tag            String    @default("umum")
+  attachmentUrl  String?   @map("attachment_url")
+  attachmentType String?   @map("attachment_type")
+  isPinned       Boolean   @default(false) @map("is_pinned")
+  scheduledAt    DateTime? @map("scheduled_at")
+  expiresAt      DateTime? @map("expires_at")
+  postedBy       String    @map("posted_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
   poster User @relation(fields: [postedBy], references: [id])
 

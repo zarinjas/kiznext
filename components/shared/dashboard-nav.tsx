@@ -20,6 +20,9 @@ import {
   MessageCircle,
   Package,
   EyeOff,
+  Building2,
+  CalendarRange,
+  Settings,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -45,8 +48,16 @@ const roleNavGroups: Record<"admin_kiz" | "superadmin" | "pengetua", NavGroup[]>
     {
       label: "Kelulusan",
       items: [
-        { label: "Urus Tempahan", href: "/admin_kiz/urus-tempahan", icon: <CheckSquare className="size-4" /> },
+        { label: "Urus Tempahan Fasiliti", href: "/admin_kiz/urus-tempahan-fasiliti", icon: <CheckSquare className="size-4" /> },
+        { label: "Urus Tempahan (Lama)", href: "/admin_kiz/urus-tempahan", icon: <CalendarRange className="size-4" /> },
         { label: "Urus Rumah Tamu", href: "/admin_kiz/urus-rumah-tamu", icon: <Hotel className="size-4" /> },
+      ],
+    },
+    {
+      label: "Fasiliti",
+      items: [
+        { label: "Semua Fasiliti", href: "/admin_kiz/tempahan-fasiliti", icon: <Building2 className="size-4" /> },
+        { label: "Urus Fasiliti", href: "/admin_kiz/urus-fasiliti", icon: <Settings className="size-4" /> },
       ],
     },
     {
@@ -60,7 +71,7 @@ const roleNavGroups: Record<"admin_kiz" | "superadmin" | "pengetua", NavGroup[]>
     {
       label: "Operasi",
       items: [
-        { label: "Urus Parcel", href: "/admin_kiz/urus-parcel", icon: <Package className="size-4" /> },
+        { label: "Urus Parcel (Coming Soon)", href: "/admin_kiz/urus-parcel", icon: <Package className="size-4" /> },
         { label: "Lost & Found", href: "/admin_kiz/hilang", icon: <EyeOff className="size-4" /> },
         { label: "Direktori Blok", href: "/admin_kiz/direktori", icon: <MapPin className="size-4" /> },
       ],
@@ -83,8 +94,16 @@ const roleNavGroups: Record<"admin_kiz" | "superadmin" | "pengetua", NavGroup[]>
     {
       label: "Kelulusan",
       items: [
-        { label: "Urus Tempahan", href: "/superadmin/urus-tempahan", icon: <CheckSquare className="size-4" /> },
+        { label: "Urus Tempahan Fasiliti", href: "/superadmin/urus-tempahan-fasiliti", icon: <CheckSquare className="size-4" /> },
+        { label: "Urus Tempahan (Lama)", href: "/superadmin/urus-tempahan", icon: <CalendarRange className="size-4" /> },
         { label: "Urus Rumah Tamu", href: "/superadmin/urus-rumah-tamu", icon: <Hotel className="size-4" /> },
+      ],
+    },
+    {
+      label: "Fasiliti",
+      items: [
+        { label: "Semua Fasiliti", href: "/superadmin/tempahan-fasiliti", icon: <Building2 className="size-4" /> },
+        { label: "Urus Fasiliti", href: "/superadmin/urus-fasiliti", icon: <Settings className="size-4" /> },
       ],
     },
     {
@@ -98,7 +117,7 @@ const roleNavGroups: Record<"admin_kiz" | "superadmin" | "pengetua", NavGroup[]>
     {
       label: "Operasi",
       items: [
-        { label: "Urus Parcel", href: "/superadmin/urus-parcel", icon: <Package className="size-4" /> },
+        { label: "Urus Parcel (Coming Soon)", href: "/superadmin/urus-parcel", icon: <Package className="size-4" /> },
         { label: "Lost & Found", href: "/superadmin/hilang", icon: <EyeOff className="size-4" /> },
         { label: "Direktori Blok", href: "/superadmin/direktori", icon: <MapPin className="size-4" /> },
       ],

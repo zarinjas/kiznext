@@ -17,6 +17,7 @@ export default async function ProfilePage() {
       roomNumber: true,
       phone: true,
       role: true,
+      avatarUrl: true,
     },
   })
 
@@ -26,8 +27,8 @@ export default async function ProfilePage() {
 
   return (
     <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
-      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>Profil</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Kemaskini maklumat peribadi anda.</p>
+      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>Profile</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Update your personal information.</p>
 
       <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
         <ProfileForm user={user} />

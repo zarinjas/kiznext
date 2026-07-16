@@ -21,8 +21,8 @@ export function GHManageButtons({ bookingId, status }: Props) {
     <div className="flex flex-wrap gap-2">
       {status === "pending" && (
         <>
-          <Button size="xs" onClick={() => action(approveGH)}>Lulus</Button>
-          <Button size="xs" variant="destructive" onClick={() => action(rejectGH)}>Tolak</Button>
+          <Button size="xs" onClick={() => action(approveGH)}>Approve</Button>
+          <Button size="xs" variant="destructive" onClick={() => action(rejectGH)}>Reject</Button>
         </>
       )}
       {status === "approved" && (
@@ -32,7 +32,7 @@ export function GHManageButtons({ bookingId, status }: Props) {
         <>
           <Button size="xs" onClick={() => action(checkOutGH)}>Check-Out</Button>
           <Button size="xs" variant="outline" onClick={() => action(markPaidGH)}>
-            Tanda Bayar
+            Mark Paid
           </Button>
         </>
       )}

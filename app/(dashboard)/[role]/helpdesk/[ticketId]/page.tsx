@@ -38,7 +38,7 @@ export default async function TicketPage({
           href={`/${role}/helpdesk`}
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Kembali
+          ← Back
         </a>
       </div>
       <div className={isAhli ? "flex-1 overflow-hidden" : ""}>

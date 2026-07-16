@@ -19,10 +19,10 @@ export default async function PengumumanPage() {
   return (
     <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-3xl"}>
       <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Pengumuman
+        Announcements
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Info terkini dari pihak pengurusan KIZ.
+        Latest info from KIZ management.
       </p>
 
       <AnnouncementFeed announcements={announcements} tags={tags} compact={isAhli} />

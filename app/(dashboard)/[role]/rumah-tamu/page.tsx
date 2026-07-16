@@ -2,6 +2,8 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { GHBookingForm } from "./booking-form"
+import { AvailabilityCalendar } from "@/components/shared/availability-calendar"
+import { CancelGHButton } from "@/components/shared/cancel-gh-button"
 import { CheckCircle, Clock, Luggage } from "lucide-react"
 
 export default async function RumahTamuPage() {
@@ -13,13 +15,26 @@ export default async function RumahTamuPage() {
     orderBy: { createdAt: "desc" },
   })
 
+  const activeBookings = await prisma.guestHouseBooking.findMany({
+    where: {
+      deletedAt: null,
+      status: { notIn: ["rejected", "cancelled"] },
+    },
+    select: {
+      id: true,
+      guestName: true,
+      startDate: true,
+      endDate: true,
+    },
+  })
+
   const statusLabels: Record<string, string> = {
-    pending: "Menunggu",
-    approved: "Disahkan",
-    rejected: "Ditolak",
-    checked_in: "Check-In",
-    checked_out: "Check-Out",
-    cancelled: "Batal",
+    pending: "Pending",
+    approved: "Approved",
+    rejected: "Rejected",
+    checked_in: "Checked In",
+    checked_out: "Checked Out",
+    cancelled: "Cancelled",
   }
 
   const statusColors: Record<string, string> = {
@@ -36,15 +51,22 @@ export default async function RumahTamuPage() {
   return (
     <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
       <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Tempahan Rumah Tamu
+        Guest House Booking
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Tempah penginapan untuk tetamu luar, alumni, atau keluarga.
+        Book accommodation for guests, alumni, or family.
       </p>
 
       <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
         <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
-          Tempah Baru
+          Availability Calendar
+        </h2>
+        <AvailabilityCalendar bookings={activeBookings} />
+      </div>
+
+      <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
+        <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
+          New Booking
         </h2>
         <GHBookingForm role={session.user.role} />
       </div>
@@ -52,7 +74,7 @@ export default async function RumahTamuPage() {
       {bookings.length > 0 && (
         <div className={isAhli ? "mt-6" : "mt-8"}>
           <h2 className={isAhli ? "mb-2 text-sm font-semibold text-foreground" : "mb-3 font-heading text-lg text-primary-foreground"}>
-            Tempahan Lepas
+            Past Bookings
           </h2>
           <div className="space-y-2">
             {bookings.map((b) => (
@@ -67,6 +89,9 @@ export default async function RumahTamuPage() {
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[b.status]}`}>
                   {statusLabels[b.status]}
                 </span>
+                {b.status === "pending" && isAhli && (
+                  <CancelGHButton bookingId={b.id} />
+                )}
               </div>
             ))}
           </div>

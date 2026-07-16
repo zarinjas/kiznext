@@ -1,0 +1,174 @@
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib"
+import { format } from "date-fns"
+import { mkdir, writeFile } from "fs/promises"
+import path from "path"
+import { prisma } from "@/lib/db"
+
+interface BookingData {
+  bookingRef: string
+  facilityName: string
+  userName: string
+  userMatric: string
+  purpose: string
+  date: Date
+  timeStart: string
+  timeEnd: string
+  notes: string | null
+  price: number | null
+}
+
+export async function generateFacilityPdf(data: BookingData): Promise<string> {
+  const doc = await PDFDocument.create()
+  const page = doc.addPage([595.28, 841.89]) // A4
+  const { width, height } = page.getSize()
+
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold)
+
+  let y = height - 50
+  const left = 50
+  const lineHeight = 18
+
+  // Header — Logo + Tajuk
+  page.drawText("KOLEJ IBU ZAIN", {
+    x: left,
+    y,
+    size: 20,
+    font: fontBold,
+    color: rgb(0 / 255, 75 / 255, 35 / 255), // #004B23
+  })
+  y -= 10
+  page.drawText("Universiti Kebangsaan Malaysia", {
+    x: left,
+    y,
+    size: 10,
+    font,
+    color: rgb(0.4, 0.4, 0.4),
+  })
+  y -= 25
+
+  // Garis
+  page.drawLine({
+    start: { x: left, y },
+    end: { x: width - left, y },
+    thickness: 1.5,
+    color: rgb(145 / 255, 201 / 255, 83 / 255),
+  })
+  y -= 20
+
+  // Tajuk dokumen
+  page.drawText("BORANG TEMPAHAN FASILITI", {
+    x: left,
+    y,
+    size: 14,
+    font: fontBold,
+    color: rgb(0 / 255, 75 / 255, 35 / 255),
+  })
+  y -= 8
+  page.drawText(`No. Rujukan: ${data.bookingRef}`, {
+    x: left,
+    y,
+    size: 10,
+    font,
+    color: rgb(0.3, 0.3, 0.3),
+  })
+  y -= 30
+
+  // Detail section
+  function drawField(label: string, value: string, yPos: number) {
+    page.drawText(label, {
+      x: left,
+      y: yPos,
+      size: 9,
+      font: fontBold,
+      color: rgb(0.3, 0.3, 0.3),
+    })
+    page.drawText(value, {
+      x: left + 120,
+      y: yPos,
+      size: 10,
+      font,
+      color: rgb(0, 0, 0),
+    })
+    return yPos - lineHeight
+  }
+
+  const fields = [
+    ["Fasiliti:", data.facilityName],
+    ["Pemohon:", data.userName],
+    ["No. Matrik:", data.userMatric],
+    ["Tujuan:", data.purpose],
+    ["Tarikh:", format(data.date, "dd/MM/yyyy")],
+    ["Masa:", `${data.timeStart} – ${data.timeEnd}`],
+    ["Harga:", data.price ? `RM ${data.price.toFixed(2)}` : "Percuma"],
+  ]
+
+  for (const [label, value] of fields) {
+    y = drawField(label, value, y)
+  }
+
+  if (data.notes) {
+    y -= 5
+    page.drawText("Nota:", {
+      x: left,
+      y,
+      size: 9,
+      font: fontBold,
+      color: rgb(0.3, 0.3, 0.3),
+    })
+    y -= 14
+    page.drawText(data.notes, {
+      x: left,
+      y,
+      size: 10,
+      font,
+      color: rgb(0, 0, 0),
+    })
+    y -= lineHeight
+  }
+
+  y -= 30
+
+  // Garis
+  page.drawLine({
+    start: { x: left, y },
+    end: { x: width - left, y },
+    thickness: 0.5,
+    color: rgb(0.7, 0.7, 0.7),
+  })
+  y -= 20
+
+  // Status
+  page.drawText("Status: MENUNGGU KELULUSAN", {
+    x: left,
+    y,
+    size: 11,
+    font: fontBold,
+    color: rgb(212 / 255, 167 / 255, 0 / 255),
+  })
+  y -= 25
+
+  // Footer
+  page.drawText("Dokumen ini dijana secara automatik oleh Sistem KIZ Super App.", {
+    x: left,
+    y,
+    size: 8,
+    font,
+    color: rgb(0.6, 0.6, 0.6),
+  })
+
+  // Generate & save
+  const pdfBytes = await doc.save()
+  const filename = `${data.bookingRef}.pdf`
+  const dir = path.join(process.cwd(), "public", "uploads", "pdfs")
+  await mkdir(dir, { recursive: true })
+  await writeFile(path.join(dir, filename), pdfBytes)
+
+  return `/uploads/pdfs/${filename}`
+}
+
+// Helper untuk generate no rujukan
+export async function generateBookingRef(): Promise<string> {
+  const count = await prisma.facilityBooking.count()
+  return `KIZ-BKG-${String(count + 1).padStart(4, "0")}`
+}

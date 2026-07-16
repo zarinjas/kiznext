@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { adminReply, assignTicket, closeTicketAdmin } from "../actions"
 import { getTicketMessages } from "../../helpdesk/actions"
-import { Send, XCircle } from "lucide-react"
+import { ImageIcon, Send, XCircle } from "lucide-react"
+
+// Regex untuk detect image URL
+const ADMIN_IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
+
+function adminRenderMessage(msg: string) {
+  if (ADMIN_IMAGE_URL_RE.test(msg.trim())) {
+    return <img src={msg.trim()} alt="" className="max-w-full rounded-lg" loading="lazy" />
+  }
+  return <p>{msg}</p>
+}
 
 interface Message {
   id: string
@@ -86,7 +96,7 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
                 {!msg.isAutoReply && (
                   <p className="mb-1 text-xs opacity-70">{msg.sender.name}</p>
                 )}
-                <p>{msg.message}</p>
+                {adminRenderMessage(msg.message)}
               </div>
             </div>
           )
@@ -106,7 +116,7 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
                   router.refresh()
                 }}
               >
-                Ambil Ticket Ini
+                Take This Ticket
               </Button>
             </div>
           )}
@@ -115,7 +125,7 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
-              placeholder="Taip balasan..."
+              placeholder="Type your reply..."
               className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
               disabled={sending}
             />
@@ -138,7 +148,7 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
             }}
           >
             <XCircle className="mr-1 size-3" />
-            Tutup Ticket
+            Close Ticket
           </Button>
         </div>
       )}

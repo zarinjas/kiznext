@@ -38,23 +38,28 @@ module lain sebab semua perlukan role/user context.)
 *(Nota: doc asal letak modul ni bawah "Admin UKMRE" — role tu ditangguhkan untuk
 MVP, jadi kelulusan dipegang oleh admin_kiz buat sementara. Lihat AGENTS.md.)*
 
-- [ ] Setup `guest_house_bookings` table (rujuk SCHEMA.md #5)
-- [ ] Booking form — pilih period type (Harian/Mingguan/Bulanan)
-- [ ] Availability calendar view (overlap check untuk elak double-booking)
-- [ ] Approval flow — admin_kiz approve/reject (untuk MVP)
-- [ ] Check-in / check-out status update
-- [ ] `payment_status` field sebagai enum sahaja — **TIADA payment integration**
+- [x] Setup `guest_house_bookings` table (rujuk SCHEMA.md #5)
+- [x] Booking form — pilih period type (Harian/Mingguan/Bulanan)
+- [x] Availability calendar view (overlap check untuk elak double-booking)
+- [x] Approval flow — admin_kiz approve/reject (untuk MVP)
+- [x] Check-in / check-out status update
+- [x] Cancel button untuk pelajar (batalkan tempahan pending)
+- [x] Notes field dalam booking form
+- [x] `payment_status` field sebagai enum sahaja — **TIADA payment integration**
 
 ## Epic 3: Helpdesk & Sokongan Pengguna (Live Chat)
 
 **Keperluan:** Pusat bantuan pelajar ↔ Admin Staff KIZ.
 
-- [ ] Setup `helpdesk_tickets` + `helpdesk_messages` table (rujuk SCHEMA.md #6-7)
-- [ ] **[DECISION NEEDED]** Confirm realtime engine (cadangan: Pusher/Supabase Realtime)
-- [ ] Chat UI (pelajar side)
-- [ ] Chat UI (admin side — reply, assign ticket)
-- [ ] Office hours logic: Isnin–Jumaat, 8am–5pm (`Asia/Kuala_Lumpur`)
-- [ ] Auto-reply system bila luar waktu pejabat/hujung minggu
+- [x] Setup `helpdesk_tickets` + `helpdesk_messages` table (rujuk SCHEMA.md #6-7)
+- [x] Chat UI (pelajar side)
+- [x] Chat UI (admin side — reply, assign ticket)
+- [x] Office hours logic: Isnin–Jumaat, 8am–5pm (`Asia/Kuala_Lumpur`)
+- [x] Auto-reply system bila luar waktu pejabat
+- [x] Display ID ringkas (KIZ-001, KIZ-002)
+- [x] In-app unread badge untuk mesej baru
+- [x] Image URL preview dalam chat
+- [x] Availability notice banner (waktu operasi / luar waktu)
 
 ## Epic 4: Tempahan Fasiliti Kolej & Navigasi Kampus
 

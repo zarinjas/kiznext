@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, CalendarDays, QrCode, MessageCircle, LayoutGrid } from "lucide-react"
+import { Home, Building2, QrCode, MessageCircle, LayoutGrid } from "lucide-react"
 
 interface Props {
   role: string
@@ -15,13 +15,13 @@ export function MobileBottomNav({ role }: Props) {
     href === `/${role}` ? pathname === href : pathname.startsWith(href)
 
   const leftItems = [
-    { label: "Utama", href: `/${role}`, icon: Home },
-    { label: "Tempahan", href: `/${role}/tempahan`, icon: CalendarDays },
+    { label: "Home", href: `/${role}`, icon: Home },
+    { label: "Facilities", href: `/${role}/tempahan-fasiliti`, icon: Building2 },
   ]
 
   const rightItems = [
     { label: "Chat", href: `/${role}/chat`, icon: MessageCircle },
-    { label: "Lagi", href: `/${role}/lagi`, icon: LayoutGrid },
+    { label: "More", href: `/${role}/lagi`, icon: LayoutGrid },
   ]
 
   const kadMayaActive = isActive(`/${role}/kad-maya`)
@@ -63,7 +63,7 @@ export function MobileBottomNav({ role }: Props) {
               kadMayaActive ? "text-primary-foreground" : "text-muted-foreground"
             }`}
           >
-            Kad Maya
+            eCard
           </span>
         </div>
 

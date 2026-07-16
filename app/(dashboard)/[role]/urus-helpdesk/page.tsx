@@ -31,9 +31,9 @@ export default async function UrusHelpdeskPage() {
   const closedTickets = tickets.filter((t) => t.status === "closed")
 
   const statusLabels: Record<string, string> = {
-    open: "Terbuka",
-    in_progress: "Dalam Proses",
-    closed: "Ditutup",
+    open: "Open",
+    in_progress: "In Progress",
+    closed: "Closed",
   }
 
   const statusColors: Record<string, string> = {
@@ -45,10 +45,10 @@ export default async function UrusHelpdeskPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-heading text-2xl text-primary-foreground">
-        Urus Helpdesk
+        Manage Helpdesk
       </h1>
       <p className="mt-1 text-muted-foreground">
-        Balas dan urus ticket sokongan pelajar.
+        Reply and manage student support tickets.
       </p>
 
       <div className="mt-8 space-y-2">
@@ -64,7 +64,7 @@ export default async function UrusHelpdeskPage() {
                 {ticket.user.name} ({ticket.user.matricId})
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {ticket.messages[0]?.message || "(kosong)"}
+                {ticket.messages[0]?.message || "(empty)"}
               </p>
             </div>
             {ticket.assignee && (
@@ -79,7 +79,7 @@ export default async function UrusHelpdeskPage() {
         ))}
         {openTickets.length === 0 && (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            Tiada ticket terbuka.
+            No open tickets.
           </div>
         )}
       </div>
@@ -87,7 +87,7 @@ export default async function UrusHelpdeskPage() {
       {closedTickets.length > 0 && (
         <details className="mt-8">
           <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
-            Ditutup ({closedTickets.length})
+            Closed ({closedTickets.length})
           </summary>
           <div className="mt-3 space-y-2">
             {closedTickets.map((ticket) => (
@@ -98,7 +98,7 @@ export default async function UrusHelpdeskPage() {
               >
                 <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
                 <span className="flex-1">{ticket.user.name} ({ticket.user.matricId})</span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Ditutup</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Closed</span>
               </Link>
             ))}
           </div>

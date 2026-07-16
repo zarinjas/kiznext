@@ -7,20 +7,20 @@ import { AdminHome } from "./admin-home"
 
 const welcomeMessages: Record<Role, { title: string; description: string }> = {
   superadmin: {
-    title: "Dashboard Super Admin",
-    description: "Urus sistem, pengguna, dan pantau semua aktiviti.",
+    title: "Super Admin Dashboard",
+    description: "Manage system, users, and monitor all activity.",
   },
   admin_kiz: {
-    title: "Dashboard Admin KIZ",
-    description: "Urus tempahan, pengumuman, dan sokongan pelajar.",
+    title: "KIZ Admin Dashboard",
+    description: "Manage bookings, announcements, and student support.",
   },
   pengetua: {
-    title: "Dashboard Pengetua",
-    description: "Laporan dan statistik pengurusan kolej.",
+    title: "Principal Dashboard",
+    description: "College management reports and statistics.",
   },
   ahli: {
-    title: "Dashboard Pelajar",
-    description: "Tempah fasiliti, semak pengumuman, dan banyak lagi.",
+    title: "Student Dashboard",
+    description: "Book facilities, check announcements, and more.",
   },
 }
 
@@ -45,8 +45,16 @@ export default async function RoleDashboardPage({
       }),
       prisma.announcement.findMany({
         where: { deletedAt: null },
-        orderBy: { createdAt: "desc" },
-        take: 3,
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          tag: true,
+          isPinned: true,
+          attachmentType: true,
+          createdAt: true,
+        },
       }),
       prisma.facilityBooking.findMany({
         where: { userId: session.user.id, deletedAt: null },

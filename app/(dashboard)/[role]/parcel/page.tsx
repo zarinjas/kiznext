@@ -14,6 +14,9 @@ export default async function ParcelPage() {
 
   const isAhli = session.user.role === "ahli"
 
+  // Coming Soon — Parcel tracker akan datang
+  const comingSoon = true
+
   return (
     <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
       <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
@@ -22,6 +25,20 @@ export default async function ParcelPage() {
       <p className="mt-1 text-sm text-muted-foreground">
         Semak status bungkusan yang tiba di pejabat KIZ.
       </p>
+
+      {/* Coming Soon Banner */}
+      {comingSoon && (
+        <div className="mt-5 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-8 text-center">
+          <span className="text-4xl">📦</span>
+          <h2 className="mt-3 font-heading text-lg text-primary-foreground">Ciri Ini Akan Datang</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Modul Pengesanan Bungkusan sedang dalam pembangunan. Anda akan menerima notifikasi apabila bungkusan tiba melalui apps tidak lama lagi.
+          </p>
+          <div className="mt-4 inline-block rounded-full bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary-foreground">
+            Coming Soon
+          </div>
+        </div>
+      )}
 
       <div className={isAhli ? "mt-5 space-y-2" : "mt-8 space-y-3"}>
         {parcels.map((p) => (

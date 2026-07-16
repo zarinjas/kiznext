@@ -22,27 +22,27 @@ export default async function UrusRumahTamuPage() {
   const done = bookings.filter((b) => ["rejected", "checked_out", "cancelled"].includes(b.status))
 
   const statusLabels: Record<string, string> = {
-    pending: "Menunggu",
-    approved: "Disahkan",
-    checked_in: "Check-In",
-    checked_out: "Check-Out",
-    rejected: "Ditolak",
-    cancelled: "Batal",
+    pending: "Pending",
+    approved: "Approved",
+    checked_in: "Checked In",
+    checked_out: "Checked Out",
+    rejected: "Rejected",
+    cancelled: "Cancelled",
   }
 
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-heading text-2xl text-primary-foreground">
-        Urus Rumah Tamu
+        Manage Guest House
       </h1>
       <p className="mt-1 text-muted-foreground">
-        Urus tempahan penginapan tetamu, kelulusan, dan check-in/out.
+        Manage guest accommodation bookings, approvals, and check-in/out.
       </p>
 
       {pending.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-3 flex items-center gap-2 font-heading text-lg text-amber-700">
-            <Clock className="size-5" /> Menunggu Kelulusan
+            <Clock className="size-5" /> Pending Approval
           </h2>
           <div className="space-y-3">
             {pending.map((b) => (
@@ -56,7 +56,7 @@ export default async function UrusRumahTamuPage() {
                     <p className="text-sm text-muted-foreground">
                       {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")}
                       {" · "}
-                      {b.periodType === "daily" ? "Harian" : b.periodType === "weekly" ? "Mingguan" : "Bulanan"}
+                      {b.periodType === "daily" ? "Daily" : b.periodType === "weekly" ? "Weekly" : "Monthly"}
                     </p>
                   </div>
                   <GHManageButtons bookingId={b.id} status={b.status} />
@@ -69,7 +69,7 @@ export default async function UrusRumahTamuPage() {
 
       {active.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-3 font-heading text-lg text-blue-700">Aktif</h2>
+          <h2 className="mb-3 font-heading text-lg text-blue-700">Active</h2>
           <div className="space-y-2">
             {active.map((b) => (
               <div key={b.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
@@ -95,14 +95,14 @@ export default async function UrusRumahTamuPage() {
       {pending.length === 0 && active.length === 0 && (
         <div className="mt-8 rounded-lg border bg-card p-8 text-center">
           <CheckCircle className="mx-auto size-8 text-green-600" />
-          <p className="mt-2 text-muted-foreground">Tiada tempahan aktif.</p>
+          <p className="mt-2 text-muted-foreground">No active bookings.</p>
         </div>
       )}
 
       {done.length > 0 && (
         <details className="mt-8">
           <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
-            Sejarah ({done.length})
+            History ({done.length})
           </summary>
           <div className="mt-3 space-y-2">
             {done.map((b) => (
@@ -111,7 +111,7 @@ export default async function UrusRumahTamuPage() {
                 <span className="flex-1">{b.guestName} — {b.user.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {statusLabels[b.status]}
-                  {b.paymentStatus === "paid_manual" && " · Dibayar"}
+                  {b.paymentStatus === "paid_manual" && " · Paid"}
                 </span>
               </div>
             ))}

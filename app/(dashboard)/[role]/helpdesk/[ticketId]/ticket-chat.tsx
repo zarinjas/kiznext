@@ -4,7 +4,18 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { sendReply, closeTicket, getTicketMessages } from "../actions"
-import { Bot, Send, XCircle } from "lucide-react"
+import { Bot, ImageIcon, Send, XCircle } from "lucide-react"
+
+// Regex untuk detect image URL
+const IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
+
+function renderMessage(msg: string) {
+  // Cuma detect image URL — render sebagai <img>
+  if (IMAGE_URL_RE.test(msg.trim())) {
+    return <img src={msg.trim()} alt="" className="max-w-full rounded-lg" loading="lazy" />
+  }
+  return <p>{msg}</p>
+}
 
 interface Message {
   id: string
@@ -84,7 +95,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
               {!msg.isAutoReply && (
                 <p className="mb-1 text-xs opacity-70">{msg.sender.name}</p>
               )}
-              <p>{msg.message}</p>
+              {renderMessage(msg.message)}
             </div>
           </div>
         ))}
@@ -98,7 +109,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
-              placeholder="Taip mesej..."
+              placeholder="Type a message..."
               className={compact ? "flex-1 rounded-full border border-input bg-background px-4 py-2.5 text-sm" : "flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"}
               disabled={sending}
             />
@@ -121,7 +132,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
             }}
           >
             <XCircle className="mr-1 size-3" />
-            Tutup Ticket
+            Close Ticket
           </Button>
         </div>
       )}

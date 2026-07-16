@@ -29,7 +29,7 @@ export function MobileTopBar({ userName, roleLabel, role }: Props) {
       <div className="flex items-center gap-3">
         <button
           className="relative flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground"
-          aria-label="Notifikasi"
+          aria-label="Notifications"
         >
           <Bell className="size-4" />
         </button>
@@ -54,14 +54,14 @@ export function MobileTopBar({ userName, roleLabel, role }: Props) {
                   className="block rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted"
                   onClick={() => setOpen(false)}
                 >
-                  Profil Saya
+                  My Profile
                 </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
                 >
                   <LogOut className="size-3.5" />
-                  Log Keluar
+                  Log Out
                 </button>
               </div>
             </>

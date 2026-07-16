@@ -27,35 +27,35 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
 
   const cards = [
     {
-      label: "Tempahan Menunggu",
+      label: "Pending Bookings",
       value: stats.pendingFacility,
       href: "urus-tempahan",
       icon: CheckSquare,
       tone: "text-amber-700 bg-amber-100",
     },
     {
-      label: "Rumah Tamu Menunggu",
+      label: "Pending Guest House",
       value: stats.pendingGuestHouse,
       href: "urus-rumah-tamu",
       icon: Hotel,
       tone: "text-blue-700 bg-blue-100",
     },
     {
-      label: "Ticket Terbuka",
+      label: "Open Tickets",
       value: stats.openTickets,
       href: "urus-helpdesk",
       icon: MessageSquare,
       tone: "text-purple-700 bg-purple-100",
     },
     {
-      label: "Parcel Belum Diambil",
+      label: "Unclaimed Parcels",
       value: stats.activeParcels,
       href: "urus-parcel",
       icon: Package,
       tone: "text-orange-700 bg-orange-100",
     },
     {
-      label: "Lost & Found Aktif",
+      label: "Active Lost & Found",
       value: stats.activeLostFound,
       href: "hilang",
       icon: EyeOff,
@@ -81,7 +81,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
             {userName.trim().charAt(0).toUpperCase() || "K"}
           </span>
           <div>
-            <p className="text-xs text-muted-foreground">Selamat datang,</p>
+            <p className="text-xs text-muted-foreground">Welcome,</p>
             <p className="text-sm font-medium text-foreground">{userName}</p>
           </div>
         </div>
@@ -91,7 +91,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
         <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <Clock className="size-5 shrink-0 text-amber-700" />
           <p className="text-sm text-amber-800">
-            Ada <span className="font-semibold">{totalPending}</span> tempahan menunggu kelulusan anda.
+            Ada <span className="font-semibold">{totalPending}</span> bookings pending your approval.
           </p>
         </div>
       )}
@@ -117,7 +117,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
 
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="font-heading text-lg text-primary-foreground">Tindakan Pantas</h2>
+          <h2 className="font-heading text-lg text-primary-foreground">Quick Actions</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {canManage && (
               <>
@@ -125,13 +125,13 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
                   href={`/${role}/urus-pengumuman`}
                   className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
                 >
-                  Siar Pengumuman
+                  Publish Announcement
                 </Link>
                 <Link
                   href={`/${role}/urus-parcel`}
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
                 >
-                  Daftar Parcel
+                  Register Parcel
                 </Link>
               </>
             )}
@@ -139,14 +139,14 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
               href={`/${role}/chat`}
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
             >
-              Chat Komuniti
+              Community Chat
             </Link>
             {!canManage && (
               <Link
                 href={`/${role}/pengumuman`}
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
               >
-                Lihat Pengumuman
+                View Announcements
               </Link>
             )}
           </div>

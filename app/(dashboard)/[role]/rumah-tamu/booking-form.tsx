@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createGHBooking } from "./actions"
+import { createGHBooking, cancelGHBooking } from "./actions"
 
 interface Props {
   role: string
@@ -30,7 +30,7 @@ export function GHBookingForm({ role }: Props) {
       setSuccess(true)
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ralat berlaku")
+      setError(err instanceof Error ? err.message : "An error occurred")
     } finally {
       setLoading(false)
     }
@@ -39,10 +39,10 @@ export function GHBookingForm({ role }: Props) {
   if (success) {
     return (
       <div className="text-center py-8">
-        <p className="text-green-600 font-medium">Tempahan dihantar!</p>
-        <p className="mt-1 text-sm text-muted-foreground">Menunggu kelulusan admin.</p>
+        <p className="text-green-600 font-medium">Booking submitted!</p>
+        <p className="mt-1 text-sm text-muted-foreground">Pending admin approval.</p>
         <Button className="mt-4 w-full" onClick={() => router.push(`/${role}/rumah-tamu`)}>
-          Kembali
+          Back
         </Button>
       </div>
     )
@@ -55,30 +55,30 @@ export function GHBookingForm({ role }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="guestName">Nama Tetamu</Label>
+        <Label htmlFor="guestName">Guest Name</Label>
         <Input
           id="guestName"
           name="guestName"
-          placeholder="Nama penuh tetamu"
+          placeholder="Full name of guest"
           required
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="periodType">Jenis Tempahan</Label>
+        <Label htmlFor="periodType">Booking Type</Label>
         <select
           id="periodType"
           name="periodType"
           className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
           required
         >
-          <option value="daily">Harian</option>
-          <option value="weekly">Mingguan</option>
-          <option value="monthly">Bulanan</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
         </select>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="startDate">Tarikh Mula</Label>
+          <Label htmlFor="startDate">Start Date</Label>
           <Input
             id="startDate"
             name="startDate"
@@ -88,7 +88,7 @@ export function GHBookingForm({ role }: Props) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="endDate">Tarikh Tamat</Label>
+          <Label htmlFor="endDate">End Date</Label>
           <Input
             id="endDate"
             name="endDate"
@@ -98,9 +98,19 @@ export function GHBookingForm({ role }: Props) {
           />
         </div>
       </div>
+      <div className="space-y-2">
+        <Label htmlFor="notes">Notes (optional)</Label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={3}
+          placeholder="Example: guest will arrive at 3 PM..."
+          className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+        />
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Memproses..." : "Hantar Tempahan"}
+        {loading ? "Processing..." : "Submit Booking"}
       </Button>
     </form>
   )

@@ -12,6 +12,7 @@ export async function createTicket(subject: string, message: string) {
   const ticket = await prisma.helpdeskTicket.create({
     data: {
       userId: session.user.id,
+      subject,
       status: "open",
       messages: {
         create: {
@@ -44,6 +45,7 @@ export async function sendReply(ticketId: string, message: string) {
 
   const ticket = await prisma.helpdeskTicket.findUnique({
     where: { id: ticketId },
+    include: { messages: { take: 1, orderBy: { createdAt: "asc" } } },
   })
   if (!ticket || ticket.deletedAt) throw new Error("Ticket not found")
 
@@ -54,17 +56,6 @@ export async function sendReply(ticketId: string, message: string) {
       message,
     },
   })
-
-  if (!isOfficeHours()) {
-    await prisma.helpdeskMessage.create({
-      data: {
-        ticketId,
-        senderId: session.user.id,
-        message: getOfficeHoursMessage(),
-        isAutoReply: true,
-      },
-    })
-  }
 
   revalidatePath(`/${session.user.role}/helpdesk/${ticketId}`)
 }

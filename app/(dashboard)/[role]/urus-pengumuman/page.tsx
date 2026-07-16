@@ -13,40 +13,61 @@ export default async function UrusPengumumanPage() {
   const announcements = await prisma.announcement.findMany({
     where: { deletedAt: null },
     include: { poster: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
   })
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
-        Urus Pengumuman
-      </h1>
-      <p className="mt-1 text-muted-foreground">Tambah dan urus pengumuman KIZ.</p>
+      <h1 className="font-heading text-2xl text-primary-foreground">Manage Announcements</h1>
+      <p className="mt-1 text-muted-foreground">Add, edit, and manage KIZ announcements.</p>
 
       <div className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="font-heading text-lg text-primary-foreground mb-4">Pengumuman Baru</h2>
+        <h2 className="font-heading text-lg text-primary-foreground mb-4">New Announcement</h2>
         <AnnouncementForm role={session.user.role} />
       </div>
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-8 space-y-2">
         {announcements.map((a) => (
-          <div key={a.id} className="rounded-lg border bg-card p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-foreground mb-1">
-                  {a.tag}
-                </span>
-                <h3 className="font-heading text-lg text-primary-foreground">{a.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {a.poster.name} · {a.createdAt.toLocaleDateString("ms-MY")}
-                </p>
+          <details key={a.id} className="rounded-lg border bg-card">
+            <summary className="flex cursor-pointer items-center gap-3 p-4 hover:bg-muted/50">
+              {a.isPinned && <span className="shrink-0 text-sm">📌</span>}
+              <span className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                a.tag === "penting" ? "bg-red-100 text-red-700" : "bg-primary/10 text-primary-foreground"
+              }`}>
+                {a.tag}
+              </span>
+              <span className="flex-1 font-medium text-foreground truncate">{a.title}</span>
+              {a.attachmentUrl && <span className="shrink-0 text-xs text-muted-foreground">{a.attachmentType === "pdf" ? "📎" : "🖼️"}</span>}
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {new Date(a.createdAt).toLocaleDateString("ms-MY")}
+              </span>
+            </summary>
+            <div className="border-t border-border p-4">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
+              {a.attachmentUrl && (
+                <a href={a.attachmentUrl} target="_blank" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-xs font-medium hover:bg-primary/10">
+                  {a.attachmentType === "pdf" ? "📎 Open PDF" : "🖼️ Open Image"}
+                </a>
+              )}
+              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{a.poster.name} {a.scheduledAt && `· Scheduled: ${new Date(a.scheduledAt).toLocaleDateString("ms-MY")}`}</span>
+                <AnnouncementForm role={session.user.role} edit={{
+                  id: a.id,
+                  title: a.title,
+                  content: a.content,
+                  tag: a.tag,
+                  attachmentUrl: a.attachmentUrl,
+                  attachmentType: a.attachmentType,
+                  isPinned: a.isPinned,
+                  scheduledAt: a.scheduledAt?.toISOString() || null,
+                  expiresAt: a.expiresAt?.toISOString() || null,
+                }} />
               </div>
             </div>
-          </div>
+          </details>
         ))}
         {announcements.length === 0 && (
-          <p className="text-center text-muted-foreground py-8">Tiada pengumuman.</p>
+          <p className="text-center text-muted-foreground py-8">No announcements.</p>
         )}
       </div>
     </div>
