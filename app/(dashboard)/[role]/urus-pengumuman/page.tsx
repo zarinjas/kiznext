@@ -3,7 +3,15 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { AnnouncementForm } from "./announcement-form"
+import { EditAnnouncementButton } from "./edit-announcement-button"
+import { FormSection } from "@/components/kiz/patterns/form-section"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 export default async function UrusPengumumanPage() {
   const session = await auth()
@@ -17,59 +25,108 @@ export default async function UrusPengumumanPage() {
   })
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">Manage Announcements</h1>
-      <p className="mt-1 text-muted-foreground">Add, edit, and manage KIZ announcements.</p>
+    <Box sx={{ maxWidth: 820, mx: "auto" }}>
+      <PageHeader
+        overline="Admin"
+        title="Manage Announcements"
+        subtitle="Add, edit, and manage KIZ announcements."
+      />
 
-      <div className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="font-heading text-lg text-primary-foreground mb-4">New Announcement</h2>
+      <FormSection title="New Announcement" subtitle="Publish to all residents." icon="campaign">
         <AnnouncementForm role={session.user.role} />
-      </div>
+      </FormSection>
 
-      <div className="mt-8 space-y-2">
-        {announcements.map((a) => (
-          <details key={a.id} className="rounded-lg border bg-card">
-            <summary className="flex cursor-pointer items-center gap-3 p-4 hover:bg-muted/50">
-              {a.isPinned && <span className="shrink-0 text-sm">📌</span>}
-              <span className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                a.tag === "penting" ? "bg-red-100 text-red-700" : "bg-primary/10 text-primary-foreground"
-              }`}>
-                {a.tag}
-              </span>
-              <span className="flex-1 font-medium text-foreground truncate">{a.title}</span>
-              {a.attachmentUrl && <span className="shrink-0 text-xs text-muted-foreground">{a.attachmentType === "pdf" ? "📎" : "🖼️"}</span>}
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {new Date(a.createdAt).toLocaleDateString("ms-MY")}
-              </span>
-            </summary>
-            <div className="border-t border-border p-4">
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
-              {a.attachmentUrl && (
-                <a href={a.attachmentUrl} target="_blank" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-xs font-medium hover:bg-primary/10">
-                  {a.attachmentType === "pdf" ? "📎 Open PDF" : "🖼️ Open Image"}
-                </a>
-              )}
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{a.poster.name} {a.scheduledAt && `· Scheduled: ${new Date(a.scheduledAt).toLocaleDateString("ms-MY")}`}</span>
-                <AnnouncementForm role={session.user.role} edit={{
-                  id: a.id,
-                  title: a.title,
-                  content: a.content,
-                  tag: a.tag,
-                  attachmentUrl: a.attachmentUrl,
-                  attachmentType: a.attachmentType,
-                  isPinned: a.isPinned,
-                  scheduledAt: a.scheduledAt?.toISOString() || null,
-                  expiresAt: a.expiresAt?.toISOString() || null,
-                }} />
-              </div>
-            </div>
-          </details>
-        ))}
-        {announcements.length === 0 && (
-          <p className="text-center text-muted-foreground py-8">No announcements.</p>
-        )}
-      </div>
-    </div>
+      {announcements.length === 0 ? (
+        <Box sx={{ mt: 3 }}>
+          <KEmpty icon="campaign" title="No announcements yet" body="Publish the first one above." />
+        </Box>
+      ) : (
+        <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+            All Announcements ({announcements.length})
+          </Typography>
+          {announcements.map((a) => (
+            <Box
+              key={a.id}
+              sx={{
+                borderRadius: 2.5,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundColor: "background.paper",
+                overflow: "hidden",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 1.5 }}>
+                {a.isPinned && <KIcon icon="push_pin" size={16} sx={{ color: color.brand[700] }} />}
+                <Box
+                  component="span"
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textTransform: "capitalize",
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 999,
+                    backgroundColor: a.tag === "penting" ? color.danger.soft : color.brand[50],
+                    color: a.tag === "penting" ? color.danger.ink : color.brand[700],
+                  }}
+                >
+                  {a.tag}
+                </Box>
+                <Typography variant="body1" sx={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {a.title}
+                </Typography>
+                {a.attachmentUrl && (
+                  <KIcon icon={a.attachmentType === "pdf" ? "description" : "image"} size={16} sx={{ color: "text.secondary" }} />
+                )}
+                {a.scheduledAt && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, color: color.warning.ink, fontSize: 11.5, fontWeight: 600 }}>
+                    <KIcon icon="schedule" size={13} />
+                    {new Date(a.scheduledAt).toLocaleDateString("ms-MY")}
+                  </Box>
+                )}
+                <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                  {new Date(a.createdAt).toLocaleDateString("ms-MY")}
+                </Typography>
+                <EditAnnouncementButton
+                  role={session.user.role}
+                  announcement={{
+                    id: a.id,
+                    title: a.title,
+                    content: a.content,
+                    tag: a.tag,
+                    attachmentUrl: a.attachmentUrl,
+                    attachmentType: a.attachmentType,
+                    isPinned: a.isPinned,
+                    scheduledAt: a.scheduledAt?.toISOString() || null,
+                    expiresAt: a.expiresAt?.toISOString() || null,
+                  }}
+                />
+              </Box>
+              <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 1.5, py: 1.25 }}>
+                <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap" }}>
+                  {a.content}
+                </Typography>
+                {a.attachmentUrl && (
+                  <Box
+                    component="a"
+                    href={a.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, mt: 1.5, px: 1.5, py: 0.75, borderRadius: 1.5, backgroundColor: "action.hover", fontSize: 12.5, fontWeight: 600, textDecoration: "none", color: "text.primary", "&:hover": { color: color.brand[700] } }}
+                  >
+                    <KIcon icon={a.attachmentType === "pdf" ? "description" : "image"} size={15} />
+                    {a.attachmentType === "pdf" ? "Open PDF" : "Open Image"}
+                  </Box>
+                )}
+                <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 1 }}>
+                  Posted by {a.poster.name}
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
   )
 }

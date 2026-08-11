@@ -1,9 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import Box from "@mui/material/Box"
+import Grid from "@mui/material/Grid"
+import Card from "@mui/material/Card"
+import CardContent from "@mui/material/CardContent"
+import Typography from "@mui/material/Typography"
+import { motion } from "framer-motion"
 import { BookingForm } from "./booking-form"
-import { Search, MapPin } from "lucide-react"
-import Image from "next/image"
+import { FilterBar } from "@/components/kiz/patterns/filter-bar"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color, elevation } from "@/lib/theme"
 
 interface Facility {
   id: string
@@ -20,81 +28,106 @@ interface Facility {
 interface Props {
   facilities: Facility[]
   role: string
-  compact?: boolean
   userId: string
 }
 
-export function FacilitiesList({ facilities, role, compact = false }: Props) {
+export function FacilitiesList({ facilities, role }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState("")
 
-  const filtered = facilities.filter((f) =>
-    f.name.toLowerCase().includes(search.toLowerCase()) ||
-    f.description.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () =>
+      facilities.filter(
+        (f) =>
+          f.name.toLowerCase().includes(search.toLowerCase()) ||
+          f.description.toLowerCase().includes(search.toLowerCase()) ||
+          f.block.name.toLowerCase().includes(search.toLowerCase())
+      ),
+    [facilities, search]
   )
 
   if (selected) {
     const facility = facilities.find((f) => f.id === selected)
     if (!facility) return null
-
-    return (
-      <div className={compact ? "rounded-2xl border border-border bg-card p-5" : "rounded-lg border bg-card p-6"}>
-        <BookingForm facility={facility} role={role} compact={compact} />
-      </div>
-    )
+    return <BookingForm facility={facility} role={role} />
   }
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search facilities..."
-          className="w-full rounded-xl border border-input bg-background py-2.5 pl-9 pr-4 text-sm"
-        />
-      </div>
+    <Box>
+      <FilterBar search={search} onSearch={setSearch} searchPlaceholder="Search facilities or blocks…" />
 
-      {/* Facility Grid */}
-      <div className={compact ? "space-y-3" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"}>
-        {filtered.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setSelected(f.id)}
-            className="w-full text-left rounded-2xl border border-border bg-card overflow-hidden transition-all hover:shadow-md active:scale-[0.98]"
-          >
-            {f.featuredImage ? (
-              <div className="relative aspect-video w-full">
-                <Image src={f.featuredImage} alt={f.name} fill className="object-cover" />
-              </div>
-            ) : (
-              <div className="flex aspect-video items-center justify-center bg-muted">
-                <span className="text-4xl opacity-20">🏛️</span>
-              </div>
-            )}
-            <div className={compact ? "p-3.5 space-y-1" : "p-4 space-y-1"}>
-              <h3 className="font-medium text-foreground truncate">{f.name}</h3>
-              <p className="text-xs text-muted-foreground line-clamp-2">{f.description}</p>
-              <div className="flex items-center justify-between pt-1">
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="size-3" /> {f.block.name}
-                </span>
-                <span className="text-xs font-medium text-foreground">
-                  {f.price ? `RM${f.price.toFixed(2)}` : "Free"}
-                </span>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          No facilities found.
-        </div>
+      {filtered.length === 0 ? (
+        <KEmpty icon="meeting_room" title="No facilities found" body="Try a different search term." />
+      ) : (
+        <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+          {filtered.map((f, i) => (
+            <Grid key={f.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: Math.min(i * 0.04, 0.3) }}
+              >
+                <Card
+                  onClick={() => setSelected(f.id)}
+                  sx={{
+                    cursor: "pointer",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    boxShadow: elevation.e1,
+                    overflow: "hidden",
+                    transition: "box-shadow 200ms ease, transform 200ms ease",
+                    "&:hover": { boxShadow: elevation.e2, transform: "translateY(-2px)" },
+                  }}
+                >
+                  {f.featuredImage ? (
+                    <Box component="img" src={f.featuredImage} alt={f.name} sx={{ width: "100%", aspectRatio: "16/9", objectFit: "cover" }} />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: "100%",
+                        aspectRatio: "16/9",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: color.brand[50],
+                        color: color.brand[700],
+                      }}
+                    >
+                      <KIcon icon="meeting_room" size={36} />
+                    </Box>
+                  )}
+                  <CardContent sx={{ p: "16px !important" }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {f.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", mt: 0.25 }}>
+                      {f.description}
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1.5 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, color: "text.secondary" }}>
+                        <KIcon icon="location_on" size={15} />
+                        <Typography variant="caption" sx={{ fontWeight: 500 }}>{f.block.name}</Typography>
+                        {f.capacity ? (
+                          <>
+                            <Box component="span" sx={{ color: "divider" }}>•</Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                              <KIcon icon="group" size={14} />
+                              <Typography variant="caption">{f.capacity}</Typography>
+                            </Box>
+                          </>
+                        ) : null}
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: f.price ? "primary.main" : "success.main" }}>
+                        {f.price ? `RM ${f.price.toFixed(2)}` : "Free"}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Grid>
+          ))}
+        </Grid>
       )}
-    </div>
+    </Box>
   )
 }

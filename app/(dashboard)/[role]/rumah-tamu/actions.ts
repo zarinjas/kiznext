@@ -47,7 +47,7 @@ export async function createGHBooking(formData: FormData) {
   revalidatePath(`/${session.user.role}/rumah-tamu`)
 }
 
-export async function getUserGHBookings(role: string) {
+export async function getUserGHBookings(_role: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
 

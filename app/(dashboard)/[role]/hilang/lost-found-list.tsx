@@ -1,9 +1,15 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { EyeOff, Search } from "lucide-react"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import Button from "@mui/material/Button"
+import { motion } from "framer-motion"
 import { markClaimed } from "./actions"
-import { Button } from "@/components/ui/button"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 interface Item {
   id: string
@@ -21,60 +27,85 @@ interface Props {
   items: Item[]
   userId: string
   role: string
-  compact?: boolean
 }
 
-export function LostFoundList({ items, userId, compact = false }: Props) {
+export function LostFoundList({ items, userId }: Props) {
   const router = useRouter()
 
   if (items.length === 0) {
     return (
-      <div className={compact ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
-        No reports.
-      </div>
+      <KEmpty
+        icon="search"
+        title="No reports yet"
+        body="Lost or found something? Report it above."
+      />
     )
   }
 
   return (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.id} className={compact ? "rounded-2xl border border-border bg-card p-4" : "rounded-lg border bg-card p-4"}>
-          <div className="flex items-start gap-3">
-            <div className="mt-1 shrink-0">
-              {item.status === "lost" ? (
-                <EyeOff className="size-5 text-destructive" />
-              ) : (
-                <Search className="size-5 text-primary" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium text-foreground">{item.itemName}</h3>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  item.status === "lost" ? "bg-red-100 text-destructive" :
-                  item.status === "found" ? "bg-green-100 text-green-700" :
-                  "bg-gray-100 text-gray-500"
-                }`}>
-                  {item.status === "lost" ? "Lost" : item.status === "found" ? "Found" : "Claimed"}
-                </span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+      {items.map((item, i) => (
+        <motion.div
+          key={item.id}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}
+        >
+          <Box
+            sx={{
+              borderRadius: 2.5,
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundColor: "background.paper",
+              p: 2,
+              display: "flex",
+              gap: 1.5,
+            }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                backgroundColor: item.status === "lost" ? color.danger.soft : color.success.soft,
+                color: item.status === "lost" ? color.danger.ink : color.success.ink,
+              }}
+            >
+              <KIcon icon={item.status === "lost" ? "visibility_off" : "search"} size={20} />
+            </Box>
+
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {item.itemName}
+                </Typography>
+                <StatusChip status={item.status} />
+              </Box>
+              <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
+                {item.description}
+              </Typography>
               {item.locationFound && (
-                <p className="mt-1 text-xs text-muted-foreground">Location: {item.locationFound}</p>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5, color: "text.secondary" }}>
+                  <KIcon icon="location_on" size={14} />
+                  <Typography variant="caption">Location: {item.locationFound}</Typography>
+                </Box>
               )}
-              <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{item.reporter.name}</span>
-                <span>{item.createdAt.toLocaleDateString("ms-MY")}</span>
-              </div>
+              <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 0.5 }}>
+                {item.reporter.name} · {item.createdAt.toLocaleDateString("ms-MY")}
+              </Typography>
               {item.photoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.photoUrl} alt={item.itemName} className="mt-2 max-h-32 rounded-lg object-cover" />
+                <Box component="img" src={item.photoUrl} alt={item.itemName} sx={{ mt: 1, maxHeight: 128, borderRadius: 1.5, objectFit: "cover" }} />
               )}
-            </div>
+            </Box>
+
             {item.status === "found" && item.reportedBy === userId && (
               <Button
-                size="xs"
-                variant="outline"
+                size="small"
+                variant="outlined"
                 onClick={async () => {
                   await markClaimed(item.id)
                   router.refresh()
@@ -83,9 +114,9 @@ export function LostFoundList({ items, userId, compact = false }: Props) {
                 Claim
               </Button>
             )}
-          </div>
-        </div>
+          </Box>
+        </motion.div>
       ))}
-    </div>
+    </Box>
   )
 }

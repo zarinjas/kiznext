@@ -22,25 +22,11 @@ export default async function TempahanFasilitiPage() {
     orderBy: { name: "asc" },
   })
 
-  const isAhli = session.user.role === "ahli"
-
   return (
-    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-5xl"}>
-      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Facility Booking
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Browse and book available facilities at KIZ.
-      </p>
-
-      <div className="mt-5">
-        <FacilitiesList
-          facilities={facilities}
-          role={session.user.role}
-          compact={isAhli}
-          userId={session.user.id}
-        />
-      </div>
-    </div>
+    <FacilitiesList
+      facilities={facilities}
+      role={session.user.role}
+      userId={session.user.id}
+    />
   )
 }

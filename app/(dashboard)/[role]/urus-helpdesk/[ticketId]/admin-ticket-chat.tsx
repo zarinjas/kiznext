@@ -2,19 +2,21 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import Button from "@mui/material/Button"
 import { adminReply, assignTicket, closeTicketAdmin } from "../actions"
 import { getTicketMessages } from "../../helpdesk/actions"
-import { ImageIcon, Send, XCircle } from "lucide-react"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { color } from "@/lib/theme"
 
-// Regex to detect image URL
 const ADMIN_IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
 
 function adminRenderMessage(msg: string) {
   if (ADMIN_IMAGE_URL_RE.test(msg.trim())) {
-    return <img src={msg.trim()} alt="" className="max-w-full rounded-lg" loading="lazy" />
+    return <Box component="img" src={msg.trim()} alt="" loading="lazy" sx={{ maxWidth: "100%", borderRadius: 1.5, display: "block" }} />
   }
-  return <p>{msg}</p>
+  return <span>{msg}</span>
 }
 
 interface Message {
@@ -32,7 +34,7 @@ interface Props {
   role: string
 }
 
-export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessages, role }: Props) {
+export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessages, role: _role }: Props) {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [text, setText] = useState("")
@@ -75,83 +77,105 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
   }
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card">
-      <div className="flex-1 space-y-3 overflow-y-auto p-4 max-h-[60vh]">
+    <Box sx={{ display: "flex", flexDirection: "column", height: { xs: "calc(100dvh - 220px)", md: 540 }, border: "1px solid", borderColor: "divider", borderRadius: 3, overflow: "hidden", backgroundColor: "background.paper" }}>
+      <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1, "&::-webkit-scrollbar": { width: 6 } }}>
         {messages.map((msg) => {
           const isStaff = msg.sender.role === "admin_kiz" || msg.sender.role === "superadmin"
           return (
-            <div
-              key={msg.id}
-              className={`flex ${msg.isAutoReply ? "justify-center" : isStaff ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
-                  msg.isAutoReply
-                    ? "bg-muted text-center text-xs text-muted-foreground italic"
-                    : isStaff
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground"
-                }`}
+            <Box key={msg.id} sx={{ display: "flex", justifyContent: msg.isAutoReply ? "center" : isStaff ? "flex-end" : "flex-start" }}>
+              <Box
+                sx={{
+                  maxWidth: { xs: "85%", sm: "72%" },
+                  px: 1.5,
+                  py: 1,
+                  borderRadius: msg.isAutoReply ? 2 : isStaff ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                  backgroundColor: msg.isAutoReply ? "action.hover" : isStaff ? color.brand[900] : color.info.soft,
+                  color: msg.isAutoReply ? "text.secondary" : isStaff ? "#fff" : color.info.ink,
+                  fontSize: 13.5,
+                  fontStyle: msg.isAutoReply ? "italic" : "normal",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
               >
                 {!msg.isAutoReply && (
-                  <p className="mb-1 text-xs opacity-70">{msg.sender.name}</p>
+                  <Typography variant="caption" sx={{ display: "block", mb: 0.25, opacity: 0.75, fontWeight: 600 }}>
+                    {msg.sender.name}
+                  </Typography>
                 )}
                 {adminRenderMessage(msg.message)}
-              </div>
-            </div>
+              </Box>
+            </Box>
           )
         })}
         <div ref={endRef} />
-      </div>
+      </Box>
 
       {!isClosed && (
-        <div className="border-t p-4">
+        <Box sx={{ p: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
           {canAssign && (
-            <div className="mb-3">
+            <Box sx={{ mb: 1.5 }}>
               <Button
-                size="sm"
-                variant="outline"
+                size="small"
+                variant="outlined"
                 onClick={async () => {
                   await assignTicket(ticketId)
                   router.refresh()
                 }}
+                startIcon={<KIcon icon="assignment_ind" size={15} />}
               >
                 Take This Ticket
               </Button>
-            </div>
+            </Box>
           )}
-          <div className="flex gap-2">
-            <input
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Box
+              component="input"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
-              placeholder="Type your reply..."
-              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              placeholder="Type your reply…"
               disabled={sending}
+              sx={{
+                flex: 1,
+                minHeight: 42,
+                px: 1.75,
+                borderRadius: 99,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundColor: "background.default",
+                fontSize: 14,
+                outline: "none",
+                "&:focus": { borderColor: color.brand[400], boxShadow: `0 0 0 3px ${color.brand[100]}` },
+                color: "text.primary",
+              }}
             />
-            <Button size="icon" onClick={handleSend} disabled={sending || !text.trim()}>
-              <Send className="size-4" />
+            <Button variant="contained" onClick={handleSend} disabled={sending || !text.trim()} sx={{ minHeight: 42, borderRadius: 99 }}>
+              <KIcon icon="send" size={17} />
             </Button>
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
 
       {!isClosed && (
-        <div className="border-t px-4 py-2">
+        <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 1.5, py: 1 }}>
           <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground"
+            size="small"
             onClick={async () => {
               await closeTicketAdmin(ticketId)
               router.refresh()
             }}
+            sx={{ color: "text.secondary" }}
+            startIcon={<KIcon icon="close" size={14} />}
           >
-            <XCircle className="mr-1 size-3" />
             Close Ticket
           </Button>
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

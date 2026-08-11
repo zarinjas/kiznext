@@ -2,8 +2,11 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import Button from "@mui/material/Button"
+import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { deleteFacility } from "./actions"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { color } from "@/lib/theme"
 
 interface Props {
   facilityId: string
@@ -29,43 +32,37 @@ export function DeleteButton({ facilityId, facilityName }: Props) {
   return (
     <>
       <Button
-        size="xs"
-        variant="destructive"
+        size="small"
+        variant="outlined"
         onClick={() => setOpen(true)}
+        startIcon={<KIcon icon="delete" size={15} />}
+        sx={{ color: "error.main", borderColor: "divider" }}
       >
         Delete
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-lg">
-            <h3 className="font-heading text-lg text-primary-foreground">
-              Delete Facility
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to delete <strong>{facilityName}</strong>?
-              This facility will be hidden from students. This action can be
-              reversed by contacting a super admin.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={loading}
-              >
-                {loading ? "Deleting..." : "Yes, Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <KDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Delete Facility"
+        icon="warning"
+        maxWidth="xs"
+        actions={
+          <>
+            <Button onClick={() => setOpen(false)} disabled={loading} variant="outlined">
+              Cancel
+            </Button>
+            <Button onClick={handleDelete} disabled={loading} variant="contained" sx={{ backgroundColor: color.danger.main, "&:hover": { backgroundColor: color.danger.ink } }}>
+              {loading ? "Deleting…" : "Yes, Delete"}
+            </Button>
+          </>
+        }
+      >
+        <p style={{ fontSize: 14, color: "text.secondary", margin: 0 }}>
+          Are you sure you want to delete <strong>{facilityName}</strong>? This facility will be
+          hidden from students. This action can be reversed by contacting a super admin.
+        </p>
+      </KDialog>
     </>
   )
 }

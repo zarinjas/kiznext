@@ -1,22 +1,33 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import Button from "@mui/material/Button"
 import { markCollected } from "./actions"
+import { KIcon } from "@/components/kiz/primitives/icon"
 
 export function ParcelCollectButton({ parcelId }: { parcelId: string }) {
   const router = useRouter()
+  const [loading, setLoading] = useState(false)
 
   return (
     <Button
-      size="xs"
-      variant="outline"
+      size="small"
+      variant="outlined"
+      disabled={loading}
       onClick={async () => {
-        await markCollected(parcelId)
-        router.refresh()
+        setLoading(true)
+        try {
+          await markCollected(parcelId)
+          router.refresh()
+        } finally {
+          setLoading(false)
+        }
       }}
+      startIcon={<KIcon icon="check" size={15} />}
+      sx={{ color: "success.main", borderColor: "divider" }}
     >
-      Ambil
+      {loading ? "…" : "Mark collected"}
     </Button>
   )
 }

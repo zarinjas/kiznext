@@ -3,9 +3,16 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { ParcelForm } from "./parcel-form"
 import { ParcelCollectButton } from "./parcel-collect-button"
-import { Package, CheckCircle } from "lucide-react"
+import { FormSection } from "@/components/kiz/patterns/form-section"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 export default async function UrusParcelPage() {
   const session = await auth()
@@ -22,60 +29,95 @@ export default async function UrusParcelPage() {
   const done = parcels.filter((p) => p.status === "collected")
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
-        Manage Parcels
-      </h1>
-      <p className="mt-1 text-muted-foreground">
-        Register parcels that arrive for students.
-      </p>
+    <Box sx={{ maxWidth: 820, mx: "auto" }}>
+      <PageHeader
+        overline="Admin"
+        title="Manage Parcels"
+        subtitle="Register parcels that arrive for students."
+      />
 
-      <div className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="font-heading text-lg text-primary-foreground mb-4">Register New Parcel</h2>
+      <FormSection title="Register New Parcel" subtitle="Enter the student's matric number." icon="inventory_2">
         <ParcelForm />
-      </div>
+      </FormSection>
 
-      <div className="mt-8">
-        <h2 className="mb-3 font-heading text-lg text-amber-700">
-          Not Collected ({active.length})
-        </h2>
-        <div className="space-y-2">
-          {active.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-              <Package className="size-4 shrink-0 text-amber-600" />
-              <div className="flex-1">
-                <p className="font-medium text-foreground">{p.user.name} ({p.user.matricId})</p>
-                {p.description && (
-                  <p className="text-xs text-muted-foreground">{p.description}</p>
-                )}
-              </div>
-              <ParcelCollectButton parcelId={p.id} />
-            </div>
-          ))}
-          {active.length === 0 && (
-            <p className="text-muted-foreground">No active parcels.</p>
-          )}
-        </div>
-      </div>
+      {active.length === 0 ? (
+        <Box sx={{ mt: 3 }}>
+          <KEmpty icon="package_2" title="No active parcels" body="Registered parcels waiting for pickup appear here." />
+        </Box>
+      ) : (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5, color: color.warning.ink }}>
+            Not Collected ({active.length})
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            {active.map((p) => (
+              <Box
+                key={p.id}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "background.paper",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: color.warning.soft,
+                    color: color.warning.ink,
+                    flexShrink: 0,
+                  }}
+                >
+                  <KIcon icon="package_2" size={20} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {p.user.name} ({p.user.matricId})
+                  </Typography>
+                  {p.description && (
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>{p.description}</Typography>
+                  )}
+                </Box>
+                <ParcelCollectButton parcelId={p.id} />
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
 
       {done.length > 0 && (
-        <details className="mt-8">
-          <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
             Collected ({done.length})
-          </summary>
-          <div className="mt-3 space-y-2">
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {done.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-                <CheckCircle className="size-4 shrink-0 text-green-600" />
-                <span className="flex-1">{p.user.name}</span>
-                <span className="text-xs text-muted-foreground">
+              <Box
+                key={p.id}
+                sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}
+              >
+                <KIcon icon="check_circle" size={18} sx={{ color: color.success.main }} />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.user.name}</Typography>
+                </Box>
+                <StatusChip status="collected" />
+                <Typography variant="caption" sx={{ color: "text.disabled" }}>
                   {p.collectedAt?.toLocaleDateString("ms-MY")}
-                </span>
-              </div>
+                </Typography>
+              </Box>
             ))}
-          </div>
-        </details>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

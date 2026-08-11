@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import Box from "@mui/material/Box"
+import TextField from "@mui/material/TextField"
+
+import Alert from "@mui/material/Alert"
 import { createTicket } from "./actions"
+import { KButton } from "@/components/kiz/primitives/k-button"
 
 interface Props {
   role: string
@@ -42,31 +44,29 @@ export function NewTicketForm({ role }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="subject">Title</Label>
-        <Input
+    <form onSubmit={handleSubmit}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <TextField
           id="subject"
           name="subject"
+          label="Title"
           placeholder="Example: WiFi problem at Block A"
           required
         />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="message">Message</Label>
-        <textarea
+        <TextField
           id="message"
           name="message"
-          rows={4}
-          className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-          placeholder="Describe your issue or question..."
+          label="Message"
+          placeholder="Describe your issue or question…"
+          multiline
+          minRows={4}
           required
         />
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Sending..." : "Submit"}
-      </Button>
+        {error && <Alert severity="error">{error}</Alert>}
+        <KButton type="submit" loading={loading} icon="send">
+          {loading ? "Sending…" : "Submit"}
+        </KButton>
+      </Box>
     </form>
   )
 }

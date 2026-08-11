@@ -1,10 +1,14 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import Button from "@mui/material/Button"
+import Alert from "@mui/material/Alert"
 import { uploadAppLogo, removeAppLogo } from "@/lib/settings"
-import { Button } from "@/components/ui/button"
-import { Upload, Trash2 } from "lucide-react"
+import { FormSection } from "@/components/kiz/patterns/form-section"
+import { KIcon } from "@/components/kiz/primitives/icon"
 
 interface Props {
   currentLogoUrl: string | null
@@ -12,7 +16,6 @@ interface Props {
 
 export function SettingsForm({ currentLogoUrl }: Props) {
   const router = useRouter()
-  const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(currentLogoUrl)
   const [uploading, setUploading] = useState(false)
   const [removing, setRemoving] = useState(false)
@@ -61,70 +64,49 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) {
-      const url = URL.createObjectURL(file)
-      setPreview(url)
-    }
-  }
-
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-      <h2 className="text-sm font-semibold text-foreground">App Logo</h2>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Upload your app logo. PNG, JPEG, WebP, or SVG. Max 2MB. Shows on login page, sidebar, and mobile header.
-      </p>
-
-      <div className="mt-4">
+    <FormSection title="App Logo" subtitle="PNG, JPEG, WebP, or SVG. Max 2MB. Shows on the login page and sidebar." icon="image">
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
         {preview ? (
-          <div className="mb-4 flex items-center gap-4">
-            <div className="flex size-20 items-center justify-center rounded-xl border border-border bg-white p-3">
-              <img
-                src={preview}
-                alt="Logo preview"
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-foreground">Current logo</p>
-              <button
-                type="button"
-                onClick={handleRemove}
-                disabled={removing}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline"
-              >
-                <Trash2 className="size-3" />
-                {removing ? "Removing..." : "Remove logo"}
-              </button>
-            </div>
-          </div>
+          <Box sx={{ width: 80, height: 80, borderRadius: 2, border: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff", p: 1 }}>
+            <Box component="img" src={preview} alt="Logo preview" sx={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+          </Box>
         ) : (
-          <div className="mb-4 flex size-20 items-center justify-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+          <Box sx={{ width: 80, height: 80, borderRadius: 2, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled", fontSize: 12 }}>
             No logo
-          </div>
+          </Box>
         )}
+        {preview && (
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Current logo</Typography>
+            <Button
+              size="small"
+              onClick={handleRemove}
+              disabled={removing}
+              startIcon={<KIcon icon="delete" size={15} />}
+              sx={{ color: "error.main", mt: 0.5 }}
+            >
+              {removing ? "Removing…" : "Remove logo"}
+            </Button>
+          </Box>
+        )}
+      </Box>
 
-        <form onSubmit={handleUpload} className="flex items-end gap-3">
-          <div className="flex-1">
-            <input
-              ref={fileRef}
-              type="file"
-              name="logo"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              onChange={handleFileChange}
-              className="block w-full text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground"
-            />
-          </div>
-          <Button type="submit" disabled={uploading} size="sm">
-            <Upload className="size-3.5 mr-1.5" />
-            {uploading ? "Uploading..." : "Upload"}
-          </Button>
-        </form>
+      <form onSubmit={handleUpload} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <Button component="label" variant="outlined" startIcon={<KIcon icon="upload" size={16} />}>
+          Choose file
+          <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) setPreview(URL.createObjectURL(file))
+          }} />
+        </Button>
+        <Button type="submit" variant="contained" disabled={uploading} startIcon={uploading ? undefined : <KIcon icon="save" size={16} />}>
+          {uploading ? "Uploading…" : "Upload"}
+        </Button>
+      </form>
 
-        {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-        {success && <p className="mt-3 text-xs text-green-600">{success}</p>}
-      </div>
-    </div>
+      {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
+    </FormSection>
   )
 }

@@ -3,6 +3,8 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
+import Box from "@mui/material/Box"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { FacilityList } from "./facility-list"
 
 export default async function UrusFasilitiPage() {
@@ -23,18 +25,12 @@ export default async function UrusFasilitiPage() {
   ])
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-heading text-2xl text-primary-foreground">
-            Manage Facilities
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Add, edit, and manage KIZ facilities.
-          </p>
-        </div>
-      </div>
-
+    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+      <PageHeader
+        overline="Admin"
+        title="Manage Facilities"
+        subtitle="Add, edit, and manage KIZ facilities."
+      />
       <FacilityList
         facilities={facilities.map((f) => ({
           id: f.id,
@@ -52,6 +48,6 @@ export default async function UrusFasilitiPage() {
         blocks={blocks.map((b) => ({ id: b.id, name: b.name }))}
         role={session.user.role}
       />
-    </div>
+    </Box>
   )
 }

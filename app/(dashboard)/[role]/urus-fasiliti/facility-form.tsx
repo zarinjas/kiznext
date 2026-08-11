@@ -2,11 +2,17 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import Box from "@mui/material/Box"
+
+import TextField from "@mui/material/TextField"
+import MenuItem from "@mui/material/MenuItem"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Switch from "@mui/material/Switch"
+import Button from "@mui/material/Button"
 import { createFacility, updateFacility, type FacilityFormData } from "./actions"
-import { Image, Plus, Trash2, Upload, X } from "lucide-react"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KButton } from "@/components/kiz/primitives/k-button"
+import { color } from "@/lib/theme"
 
 interface BlockOption {
   id: string
@@ -29,25 +35,21 @@ interface Props {
     maxPerDay: number | null
     requiresApproval: boolean
   }
+  onClose?: () => void
 }
 
-export function FacilityForm({ role, blocks, initialData }: Props) {
+export function FacilityForm({ role: _role, blocks, initialData, onClose }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [featuredImage, setFeaturedImage] = useState<string | null>(
-    initialData?.featuredImage ?? null
-  )
+  const [featuredImage, setFeaturedImage] = useState<string | null>(initialData?.featuredImage ?? null)
   const [gallery, setGallery] = useState<string[]>(initialData?.gallery ?? [])
   const isEditing = !!initialData
 
   async function uploadFile(file: File): Promise<string | null> {
     const formData = new FormData()
     formData.append("file", file)
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    })
+    const res = await fetch("/api/upload", { method: "POST", body: formData })
     if (!res.ok) {
       console.error("Upload failed")
       return null
@@ -93,18 +95,10 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
       description: form.get("description") as string,
       featuredImage,
       gallery,
-      price: form.get("price")
-        ? parseFloat(form.get("price") as string)
-        : null,
-      capacity: form.get("capacity")
-        ? parseInt(form.get("capacity") as string, 10)
-        : null,
-      timeSlotDuration: form.get("timeSlotDuration")
-        ? parseInt(form.get("timeSlotDuration") as string, 10)
-        : null,
-      maxPerDay: form.get("maxPerDay")
-        ? parseInt(form.get("maxPerDay") as string, 10)
-        : 3,
+      price: form.get("price") ? parseFloat(form.get("price") as string) : null,
+      capacity: form.get("capacity") ? parseInt(form.get("capacity") as string, 10) : null,
+      timeSlotDuration: form.get("timeSlotDuration") ? parseInt(form.get("timeSlotDuration") as string, 10) : null,
+      maxPerDay: form.get("maxPerDay") ? parseInt(form.get("maxPerDay") as string, 10) : 3,
       requiresApproval: form.get("requiresApproval") === "on",
     }
 
@@ -115,6 +109,7 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
         await createFacility(data)
       }
       router.refresh()
+      onClose?.()
     } catch (err) {
       console.error(err)
     }
@@ -122,213 +117,100 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Facility Name */}
-      <div className="space-y-2">
-        <Label htmlFor="name">Facility Name</Label>
-        <Input
-          id="name"
-          name="name"
-          required
-          defaultValue={initialData?.name}
-          placeholder="e.g. Multipurpose Hall"
-        />
-      </div>
-
-      {/* Block */}
-      <div className="space-y-2">
-        <Label htmlFor="blockId">Block / Location</Label>
-        <select
-          id="blockId"
-          name="blockId"
-          required
-          defaultValue={initialData?.blockId ?? ""}
-          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <option value="" disabled>
-            Select block...
-          </option>
+    <form onSubmit={handleSubmit}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <TextField id="name" name="name" label="Facility Name" required defaultValue={initialData?.name} placeholder="e.g. Multipurpose Hall" />
+        <TextField id="blockId" name="blockId" label="Block / Location" select required defaultValue={initialData?.blockId ?? ""}>
+          <MenuItem value="" disabled>Select block…</MenuItem>
           {blocks.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
+            <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
           ))}
-        </select>
-      </div>
-
-      {/* Description */}
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
-        <textarea
+        </TextField>
+        <TextField
           id="description"
           name="description"
-          rows={3}
+          label="Description"
+          multiline
+          minRows={3}
           required
           defaultValue={initialData?.description}
-          placeholder="Describe this facility..."
-          className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          placeholder="Describe this facility…"
         />
-      </div>
 
-      {/* Featured Image */}
-      <div className="space-y-2">
-        <Label>Featured Image</Label>
-        <div className="flex items-start gap-3">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input px-4 py-3 text-sm text-muted-foreground hover:border-primary hover:text-primary-foreground">
-            <Upload className="mb-1 size-5" />
-            {uploading ? "Uploading..." : "Choose Image"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFeaturedImage}
-            />
-          </label>
-          {featuredImage && (
-            <div className="relative size-20 shrink-0 overflow-hidden rounded-lg border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={featuredImage}
-                alt="Featured"
-                className="size-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => setFeaturedImage(null)}
-                className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-black/60 text-white"
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+        {/* Featured image */}
+        <Box>
+          <Box sx={{ fontSize: 12.5, fontWeight: 600, color: "text.secondary", mb: 1 }}>Featured Image</Box>
+          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+            <Button component="label" variant="outlined" startIcon={<KIcon icon="upload" size={16} />} disabled={uploading}>
+              {uploading ? "Uploading…" : "Choose Image"}
+              <input type="file" accept="image/*" hidden onChange={handleFeaturedImage} />
+            </Button>
+            {featuredImage && (
+              <Box sx={{ position: "relative", width: 80, height: 80, borderRadius: 1.5, overflow: "hidden", border: "1px solid", borderColor: "divider" }}>
+                <Box component="img" src={featuredImage} alt="Featured" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => setFeaturedImage(null)}
+                  sx={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}
+                >
+                  ×
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </Box>
 
-      {/* Gallery */}
-      <div className="space-y-2">
-        <Label>Image Gallery</Label>
-        <div className="flex flex-wrap gap-2">
-          {gallery.map((url, i) => (
-            <div key={i} className="relative size-20 overflow-hidden rounded-lg border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={url}
-                alt={`Gallery ${i + 1}`}
-                className="size-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => removeGalleryImage(i)}
-                className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-black/60 text-white"
-              >
-                <X className="size-3" />
-              </button>
-            </div>
-          ))}
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input px-3 py-3 text-sm text-muted-foreground hover:border-primary hover:text-primary-foreground">
-            <Plus className="mb-1 size-5" />
-            Add
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleGalleryUpload}
-            />
-          </label>
-        </div>
-      </div>
+        {/* Gallery */}
+        <Box>
+          <Box sx={{ fontSize: 12.5, fontWeight: 600, color: "text.secondary", mb: 1 }}>Image Gallery</Box>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+            {gallery.map((url, i) => (
+              <Box key={i} sx={{ position: "relative", width: 80, height: 80, borderRadius: 1.5, overflow: "hidden", border: "1px solid", borderColor: "divider" }}>
+                <Box component="img" src={url} alt={`Gallery ${i + 1}`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => removeGalleryImage(i)}
+                  sx={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}
+                >
+                  ×
+                </Box>
+              </Box>
+            ))}
+            <Button component="label" variant="outlined" sx={{ width: 80, height: 80, borderRadius: 1.5, color: "text.secondary" }} startIcon={<KIcon icon="add" size={18} />}>
+              <input type="file" accept="image/*" multiple hidden onChange={handleGalleryUpload} />
+            </Button>
+          </Box>
+        </Box>
 
-      {/* Price & Capacity */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="price">Price (RM) — Leave empty if free</Label>
-          <Input
-            id="price"
-            name="price"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={initialData?.price?.toString() ?? ""}
-            placeholder="0.00"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="capacity">Capacity (people)</Label>
-          <Input
-            id="capacity"
-            name="capacity"
-            type="number"
-            min="1"
-            defaultValue={initialData?.capacity?.toString() ?? ""}
-            placeholder="e.g. 50"
-          />
-        </div>
-      </div>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+          <TextField id="price" name="price" label="Price (RM) — leave empty if free" type="number" slotProps={{ htmlInput: { step: "0.01", min: 0 } }} defaultValue={initialData?.price?.toString() ?? ""} placeholder="0.00" />
+          <TextField id="capacity" name="capacity" label="Capacity (people)" type="number" slotProps={{ htmlInput: { min: 1 } }} defaultValue={initialData?.capacity?.toString() ?? ""} placeholder="e.g. 50" />
+        </Box>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+          <TextField id="timeSlotDuration" name="timeSlotDuration" label="Slot Duration (minutes)" type="number" slotProps={{ htmlInput: { min: 15, step: 15 } }} defaultValue={initialData?.timeSlotDuration?.toString() ?? "60"} placeholder="60" />
+          <TextField id="maxPerDay" name="maxPerDay" label="Max Bookings Per Day" type="number" slotProps={{ htmlInput: { min: 1 } }} defaultValue={initialData?.maxPerDay?.toString() ?? "3"} placeholder="3" />
+        </Box>
 
-      {/* Tempoh slot & Maks sehari */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="timeSlotDuration">Slot Duration (minutes)</Label>
-          <Input
-            id="timeSlotDuration"
-            name="timeSlotDuration"
-            type="number"
-            min="15"
-            step="15"
-            defaultValue={initialData?.timeSlotDuration?.toString() ?? "60"}
-            placeholder="60"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="maxPerDay">Max Bookings Per Day</Label>
-          <Input
-            id="maxPerDay"
-            name="maxPerDay"
-            type="number"
-            min="1"
-            defaultValue={initialData?.maxPerDay?.toString() ?? "3"}
-            placeholder="3"
-          />
-        </div>
-      </div>
-
-      {/* Requires Approval */}
-      <label className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
-        <input
-          type="checkbox"
-          name="requiresApproval"
-          defaultChecked={initialData?.requiresApproval ?? true}
-          className="size-4 accent-[#91C953]"
+        <FormControlLabel
+          control={<Switch name="requiresApproval" defaultChecked={initialData?.requiresApproval ?? true} sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: color.brand[600] }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: color.brand[600] } }} />}
+          label={<Box>
+            <Box sx={{ fontSize: 14, fontWeight: 600 }}>Requires Approval</Box>
+            <Box sx={{ fontSize: 12, color: "text.secondary" }}>If checked, student bookings need admin approval.</Box>
+          </Box>}
+          sx={{ alignItems: "flex-start", gap: 1, mx: 0 }}
         />
-        <div className="text-sm">
-          <span className="font-medium text-primary-foreground">
-            Requires Approval
-          </span>
-          <p className="text-muted-foreground">
-            If checked, student bookings need admin approval.
-          </p>
-        </div>
-      </label>
 
-      {/* Actions */}
-      <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading || uploading}>
-          {loading
-            ? "Saving..."
-            : isEditing
-              ? "Save Changes"
-              : "Add Facility"}
-        </Button>
-      </div>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+          <Button onClick={onClose ?? (() => router.back())} disabled={loading} variant="outlined">
+            Cancel
+          </Button>
+          <KButton type="submit" loading={loading || uploading} icon={isEditing ? "save" : "add"}>
+            {loading ? "Saving…" : isEditing ? "Save Changes" : "Add Facility"}
+          </KButton>
+        </Box>
+      </Box>
     </form>
   )
 }

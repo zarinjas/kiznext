@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getAppLogoUrl } from "@/lib/settings"
+import Box from "@mui/material/Box"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { SettingsForm } from "./settings-form"
 
 export default async function UrusTetapanPage() {
@@ -13,15 +15,13 @@ export default async function UrusTetapanPage() {
   const logoUrl = await getAppLogoUrl()
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="font-heading text-2xl text-foreground">App Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Manage app-wide branding and configuration.
-      </p>
-
-      <div className="mt-6 space-y-6">
-        <SettingsForm currentLogoUrl={logoUrl} />
-      </div>
-    </div>
+    <Box sx={{ maxWidth: 640, mx: "auto" }}>
+      <PageHeader
+        overline="Admin"
+        title="App Settings"
+        subtitle="Manage app-wide branding and configuration."
+      />
+      <SettingsForm currentLogoUrl={logoUrl} />
+    </Box>
   )
 }

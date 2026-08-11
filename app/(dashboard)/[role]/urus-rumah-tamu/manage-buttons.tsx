@@ -1,8 +1,9 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import Button from "@mui/material/Button"
 import { approveGH, rejectGH, checkInGH, checkOutGH, markPaidGH } from "./actions"
+import { KIcon } from "@/components/kiz/primitives/icon"
 
 interface Props {
   bookingId: string
@@ -18,20 +19,28 @@ export function GHManageButtons({ bookingId, status }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       {status === "pending" && (
         <>
-          <Button size="xs" onClick={() => action(approveGH)}>Approve</Button>
-          <Button size="xs" variant="destructive" onClick={() => action(rejectGH)}>Reject</Button>
+          <Button size="small" variant="contained" onClick={() => action(approveGH)} startIcon={<KIcon icon="check" size={15} />}>
+            Approve
+          </Button>
+          <Button size="small" variant="outlined" onClick={() => action(rejectGH)} startIcon={<KIcon icon="close" size={15} />} sx={{ color: "error.main", borderColor: "divider" }}>
+            Reject
+          </Button>
         </>
       )}
       {status === "approved" && (
-        <Button size="xs" onClick={() => action(checkInGH)}>Check-In</Button>
+        <Button size="small" variant="contained" onClick={() => action(checkInGH)} startIcon={<KIcon icon="login" size={15} />}>
+          Check-In
+        </Button>
       )}
       {status === "checked_in" && (
         <>
-          <Button size="xs" onClick={() => action(checkOutGH)}>Check-Out</Button>
-          <Button size="xs" variant="outline" onClick={() => action(markPaidGH)}>
+          <Button size="small" variant="contained" onClick={() => action(checkOutGH)} startIcon={<KIcon icon="logout" size={15} />}>
+            Check-Out
+          </Button>
+          <Button size="small" variant="outlined" onClick={() => action(markPaidGH)} startIcon={<KIcon icon="payments" size={15} />}>
             Mark Paid
           </Button>
         </>

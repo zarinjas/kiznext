@@ -1,7 +1,16 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { MapPin } from "lucide-react"
+import Box from "@mui/material/Box"
+import Accordion from "@mui/material/Accordion"
+import AccordionSummary from "@mui/material/AccordionSummary"
+import AccordionDetails from "@mui/material/AccordionDetails"
+import Typography from "@mui/material/Typography"
+import Chip from "@mui/material/Chip"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 export default async function DirektoriPage() {
   const session = await auth()
@@ -17,64 +26,109 @@ export default async function DirektoriPage() {
     orderBy: { name: "asc" },
   })
 
-  const isAhli = session.user.role === "ahli"
-
   return (
-    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-4xl"}>
-      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Block & Facility Directory
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Guide to block locations and facilities at KIZ.
-      </p>
+    <Box sx={{ maxWidth: 760, mx: "auto" }}>
+      <PageHeader
+        overline="Support"
+        title="Block & Facility Directory"
+        subtitle="Guide to block locations and facilities at KIZ."
+      />
 
-      <div className={isAhli ? "mt-5 space-y-4" : "mt-8 grid gap-6"}>
-        {blocks.map((block) => (
-          <div key={block.id} className={isAhli ? "rounded-2xl border border-border bg-card p-4" : "rounded-lg border bg-card p-5"}>
-            <div className="flex items-start gap-3">
-              <span className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-foreground ${isAhli ? "size-9" : ""}`}>
-                <MapPin className="size-4" />
-              </span>
-              <div className="flex-1">
-                <h2 className={isAhli ? "font-heading text-base text-primary-foreground" : "font-heading text-lg text-primary-foreground"}>
-                  {block.name}
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+      {blocks.length === 0 ? (
+        <KEmpty icon="map" title="No blocks yet" body="Directory will appear here once blocks are added." />
+      ) : (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {blocks.map((block) => (
+            <Accordion
+              key={block.id}
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2.5,
+                boxShadow: "none",
+                "&:before": { display: "none" },
+                "&.Mui-expanded": { margin: 0 },
+              }}
+            >
+              <AccordionSummary expandIcon={<KIcon icon="expand_more" size={20} />} sx={{ px: 2.5, py: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: color.brand[50],
+                      color: color.brand[700],
+                      flexShrink: 0,
+                    }}
+                  >
+                    <KIcon icon="location_on" size={20} />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                      {block.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                      {block.facilities.length} facilit{block.facilities.length === 1 ? "y" : "ies"}
+                    </Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2.5, pb: 2.5 }}>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
                   {block.description}
-                </p>
+                </Typography>
                 {block.navigationNotes && (
-                  <p className="mt-2 text-sm italic text-muted-foreground/70">
-                    🧭 {block.navigationNotes}
-                  </p>
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 1,
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      backgroundColor: color.info.soft,
+                      color: color.info.ink,
+                    }}
+                  >
+                    <KIcon icon="explore" size={16} />
+                    <Typography variant="body2" sx={{ fontStyle: "italic" }}>
+                      {block.navigationNotes}
+                    </Typography>
+                  </Box>
                 )}
-              </div>
-            </div>
-
-            {block.facilities.length > 0 && (
-              <div className="mt-4 border-t border-border pt-4">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Facilities
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {block.facilities.map((facility) => (
-                    <span
-                      key={facility.id}
-                      className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
-                    >
-                      {facility.name}
-                      {facility.capacity && (
-                        <span className="ml-1 text-muted-foreground">
-                          · {facility.capacity}px
-                        </span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+                {block.facilities.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="overline" sx={{ color: "text.disabled" }}>
+                      Facilities
+                    </Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 0.75 }}>
+                      {block.facilities.map((facility) => (
+                        <Chip
+                          key={facility.id}
+                          label={
+                            <span>
+                              {facility.name}
+                              {facility.capacity ? (
+                                <span style={{ color: "text.disabled" }}> · {facility.capacity}px</span>
+                              ) : null}
+                            </span>
+                          }
+                          size="small"
+                          sx={{ backgroundColor: "action.hover", color: "text.primary", fontWeight: 600 }}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </AccordionDetails>
+            </Accordion>
+          ))}
+        </Box>
+      )}
+    </Box>
   )
 }

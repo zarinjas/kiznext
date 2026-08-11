@@ -12,17 +12,19 @@ and work in dev. The gaps below are what stands between this and a real deployme
 
 | Area | State | Notes |
 |---|---|---|
-| Project setup | Done | Next.js 16, Tailwind v4, Prisma 7 + pg adapter, Docker Postgres. |
+| Project setup | Done | Next.js 16, MUI v7 design system, Prisma 7 + pg adapter, Docker Postgres. |
+| **Full UI/UX redesign** | Done | Every page across all roles rebuilt on MUI v7 (previously Tailwind/shadcn). Tokens + dual light/dark theme in `lib/theme/`, component library in `components/kiz/` (primitives, patterns, shell), one shell for all roles (NavRail + GlassTopBar + BottomNav + MoreSheet + ⌘K CommandPalette + NotificationDrawer). `proxy.ts` at root is the auth guard. |
 | Auth & profile | Done | Credentials login, JWT session, role routing, profile edit. |
 | Kad Maya | Done | Static QR from matric ID. |
 | Guest house booking | Done | Booking, approval, check-in/out, manual payment flag. |
 | Helpdesk | Done | Tickets, chat thread, assign, close, out-of-hours auto-reply. |
 | Facility booking | Done | Availability calendar, approval, PDF slip with `KIZ-BKG-NNNN` ref. |
-| Announcements | Done | Tags, pinning, scheduling, expiry, attachments, "Baru" badge. |
+| Announcements | Done | Tags, pinning, scheduling, expiry, attachments, "New" badge. |
 | Community chat | Done | Single room, 3s polling, admin soft-delete. |
 | Lost & Found | Done | Report with photo, status lost/found/claimed. |
-| Parcel tracker | Built, hidden | Fully working but gated behind a hardcoded flag — see #3. |
+| Parcel tracker | Done | Member view enabled (`/parcel`), admin registration + collect. |
 | App settings | Done | Logo upload/remove by superadmin/admin_kiz. |
+| Dark mode | Done | Dual color schemes via MUI CSS variables; toggle in the top bar; follows system by default. |
 | UI language | Done | Interface is English. Helpdesk auto-reply text is still Malay. |
 
 ---
@@ -32,37 +34,24 @@ and work in dev. The gaps below are what stands between this and a real deployme
 Ordered roughly by severity. None of these are fixed — they are recorded so you
 don't rediscover them or build on top of them.
 
-### #1 — `middleware.ts` is in the wrong directory (high)
+### #1 — ~~`middleware.ts` in the wrong directory~~ FIXED
 
-`app/middleware.ts` should be at the repo root (or in `src/`). Next.js almost
-certainly never executes it, so its auth redirect does nothing.
+Moved to `proxy.ts` at the repo root (Next.js 16 `proxy` convention) and rewritten
+to use `getToken` from `next-auth/jwt` so it runs on the Edge runtime without
+pulling Prisma in. It now actually guards protected routes and redirects logged-in
+users away from `/login`. Role-per-route enforcement still lives in each page
+(`auth()` + redirect) and each mutation (`requireRole()`).
 
-It is masked because every page independently calls `await auth()` and redirects.
-So the app is not wide open — but the middleware is dead code giving a false sense
-of a central guard. Note it also does no role checking at all.
+### #2 — ~~Duplicate facility booking systems~~ FIXED
 
-*Fix:* move to root, and decide whether role checks belong there or stay per-page.
+Legacy `tempahan/` + `urus-tempahan/` removed. `tempahan-fasiliti/` +
+`urus-tempahan-fasiliti/` are the single facility-booking pair, and `tempahan/`
+now hosts the merged "My Bookings" timeline.
 
-### #2 — Duplicate facility booking systems (high)
+### #3 — ~~Parcel module hidden behind "coming soon"~~ FIXED
 
-Two parallel implementations coexist:
-
-- `tempahan/` + `urus-tempahan/` — legacy. Nav literally labels it "Manage Bookings (Old)".
-- `tempahan-fasiliti/` + `urus-tempahan-fasiliti/` — current.
-
-Both hit the same `facility_bookings` table, so a booking made in one appears in
-the other with different UI assumptions. Confusing for admins and for anyone
-reading the code.
-
-*Fix:* confirm the legacy pair is unused, then delete it and its nav entries.
-
-### #3 — Parcel module is finished but disabled (medium)
-
-`parcel/page.tsx` has a hardcoded `comingSoon = true` banner and the nav label says
-"Coming Soon", but both member and admin flows are complete.
-
-*Fix:* flip the flag and update the nav labels, or move the gate into `app_settings`
-so it can be toggled without a deploy.
+`/parcel` member page now renders live parcel data (was a hardcoded `comingSoon`
+banner). Nav labels updated.
 
 ### #4 — `app_settings` has no `deletedAt` (medium)
 
@@ -110,16 +99,17 @@ generate an identical code. Fine for casual identification, not for access contr
 
 Not started, roughly in priority order.
 
-- **Production hardening** — resolve #1, #2, #5, #8 before any real deployment.
+- **Production hardening** — resolve #4, #5, #8 before any real deployment.
 - **`admin_ukmre` role** — external guest-house operator. Add the enum value and
   route guest-house approvals to it; no schema restructure needed.
 - **`audit_logs` table** — actor, action, target type/id, JSON meta. Was specced
   but never built; worth having before admins act on real student data.
 - **`notifications` table** — generic in-app notifications. Parcel arrival, booking
-  approval, and announcement posts currently notify nobody.
+  approval, and announcement posts currently notify nobody. The notification
+  drawer is currently an empty shell.
+- **Reports page for `pengetua`** — view-only analytics surfaced from the dashboard
+  (bookings per week, ticket status mix). MUI X Charts are installed and ready.
 - **Dynamic / signed QR** — addresses #9.
-- **More shadcn primitives** — only `button`, `card`, `input`, `label` are
-  installed; a lot of UI is hand-rolled markup that could be replaced.
 - **Tests** — no test framework is set up at all.
 
 ---
@@ -133,8 +123,10 @@ now resolved in code.
 |---|---|
 | Realtime engine | None. Client polling every 3s. No Pusher/Supabase. |
 | Auth provider | Auth.js v5 (next-auth beta), Credentials provider. |
+| Auth guard | `proxy.ts` at repo root (`getToken` + JWT), per-page `auth()` + redirect, per-mutation `requireRole()`. |
 | File storage | Local filesystem `public/uploads/`. Provisional — see #8. |
 | ORM | Prisma 7, `prisma-client` generator, `@prisma/adapter-pg`. |
+| UI / design system | MUI v7 heavily customized; tokens in `lib/theme/`; dual light/dark via CSS variables; components in `components/kiz/`. |
 | Parcel notification channel | In-app only. No email/SMS/push. |
 | Task tracking | This file. The Telegram Director Bot and `TASKS.md` were removed. |
 | Hosting | Still undecided. |

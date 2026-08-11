@@ -1,7 +1,13 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { Package, CheckCircle } from "lucide-react"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 export default async function ParcelPage() {
   const session = await auth()
@@ -12,72 +18,95 @@ export default async function ParcelPage() {
     orderBy: { createdAt: "desc" },
   })
 
-  const isAhli = session.user.role === "ahli"
-
-  // Coming Soon — Parcel tracker
-  const comingSoon = true
+  const awaiting = parcels.filter((p) => p.status === "arrived")
 
   return (
-    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
-      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        My Parcels
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Check the status of parcels arriving at the KIZ office.
-      </p>
+    <Box sx={{ maxWidth: 720, mx: "auto" }}>
+      <PageHeader
+        overline="Support"
+        title="My Parcels"
+        subtitle="Parcels arriving at the KIZ management office, tracked until you collect them."
+      />
 
-      {/* Coming Soon Banner */}
-      {comingSoon && (
-        <div className="mt-5 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-8 text-center">
-          <span className="text-4xl">📦</span>
-          <h2 className="mt-3 font-heading text-lg text-primary-foreground">Coming Soon</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Parcel tracking module is under development. You will be notified when your parcels arrive through the app soon.
-          </p>
-          <div className="mt-4 inline-block rounded-full bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary-foreground">
-            Coming Soon
-          </div>
-        </div>
+      {awaiting.length > 0 && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            p: 2,
+            mb: 2.5,
+            borderRadius: 2,
+            backgroundColor: color.warning.soft,
+            color: color.warning.ink,
+          }}
+        >
+          <KIcon icon="inventory_2" size={22} />
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            You have {awaiting.length} parcel{awaiting.length > 1 ? "s" : ""} waiting. Collect during office hours
+            (Mon–Fri, 8am–5pm) at the KIZ office.
+          </Typography>
+        </Box>
       )}
 
-      <div className={isAhli ? "mt-5 space-y-2" : "mt-8 space-y-3"}>
-        {parcels.map((p) => (
-          <div key={p.id} className={isAhli ? "rounded-2xl border border-border bg-card p-4" : "rounded-lg border bg-card p-4"}>
-            <div className="flex items-start gap-3">
-              <span className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full ${
-                p.status === "arrived" ? "bg-amber-100" : "bg-green-100"
-              } ${isAhli ? "size-9" : ""}`}>
-                {p.status === "arrived" ? (
-                  <Package className="size-4 text-amber-600" />
-                ) : (
-                  <CheckCircle className="size-4 text-green-600" />
-                )}
-              </span>
-              <div>
-                <p className="font-medium text-foreground">
-                  {p.status === "arrived" ? "Arrived" : "Collected"}
-                </p>
+      {parcels.length === 0 ? (
+        <KEmpty
+          icon="inventory_2"
+          title="No parcels yet"
+          body="When a parcel arrives for you, the admin registers it here."
+        />
+      ) : (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {parcels.map((p) => (
+            <Box
+              key={p.id}
+              sx={{
+                borderRadius: 2.5,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundColor: "background.paper",
+                p: 2,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 1.5,
+              }}
+            >
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  backgroundColor: p.status === "arrived" ? color.warning.soft : color.success.soft,
+                  color: p.status === "arrived" ? color.warning.ink : color.success.ink,
+                }}
+              >
+                <KIcon icon={p.status === "arrived" ? "package_2" : "check_circle"} size={20} />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {p.status === "arrived" ? "Arrived" : "Collected"}
+                  </Typography>
+                  <StatusChip status={p.status} />
+                </Box>
                 {p.description && (
-                  <p className="text-sm text-muted-foreground">{p.description}</p>
+                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
+                    {p.description}
+                  </Typography>
                 )}
-                <p className="mt-1 text-xs text-muted-foreground">
+                <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
                   Registered: {p.createdAt.toLocaleDateString("ms-MY")}
-                </p>
-                {p.collectedAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Collected: {p.collectedAt.toLocaleDateString("ms-MY")}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-        {parcels.length === 0 && (
-          <div className={isAhli ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
-            No parcels.
-          </div>
-        )}
-      </div>
-    </div>
+                  {p.collectedAt && ` · Collected: ${p.collectedAt.toLocaleDateString("ms-MY")}`}
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
   )
 }

@@ -1,10 +1,15 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { GHBookingForm } from "./booking-form"
 import { AvailabilityCalendar } from "@/components/shared/availability-calendar"
 import { CancelGHButton } from "@/components/shared/cancel-gh-button"
-import { CheckCircle, Clock, Luggage } from "lucide-react"
+import { FormSection } from "@/components/kiz/patterns/form-section"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
 
 export default async function RumahTamuPage() {
   const session = await auth()
@@ -28,75 +33,74 @@ export default async function RumahTamuPage() {
     },
   })
 
-  const statusLabels: Record<string, string> = {
-    pending: "Pending",
-    approved: "Approved",
-    rejected: "Rejected",
-    checked_in: "Checked In",
-    checked_out: "Checked Out",
-    cancelled: "Cancelled",
-  }
-
-  const statusColors: Record<string, string> = {
-    pending: "bg-amber-100 text-amber-700",
-    approved: "bg-green-100 text-green-700",
-    rejected: "bg-red-100 text-destructive",
-    checked_in: "bg-blue-100 text-blue-700",
-    checked_out: "bg-gray-100 text-gray-600",
-    cancelled: "bg-gray-100 text-gray-500",
-  }
-
   const isAhli = session.user.role === "ahli"
 
   return (
-    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
-      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Guest House Booking
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Book accommodation for guests, alumni, or family.
-      </p>
+    <Box sx={{ maxWidth: 760, mx: "auto" }}>
+      <PageHeader
+        overline="Bookings"
+        title="Guest House"
+        subtitle="Book accommodation for guests, alumni, or family."
+      />
 
-      <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
-        <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
-          Availability Calendar
-        </h2>
+      <FormSection title="Availability" subtitle="See booked dates before you submit." icon="calendar_month">
         <AvailabilityCalendar bookings={activeBookings} />
-      </div>
+      </FormSection>
 
-      <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
-        <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
-          New Booking
-        </h2>
+      <FormSection title="New Booking" subtitle="Daily, weekly or monthly stays." icon="hotel">
         <GHBookingForm role={session.user.role} />
-      </div>
+      </FormSection>
 
       {bookings.length > 0 && (
-        <div className={isAhli ? "mt-6" : "mt-8"}>
-          <h2 className={isAhli ? "mb-2 text-sm font-semibold text-foreground" : "mb-3 font-heading text-lg text-primary-foreground"}>
-            Past Bookings
-          </h2>
-          <div className="space-y-2">
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
+            Your Bookings
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             {bookings.map((b) => (
-              <div key={b.id} className={isAhli ? "flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-sm" : "flex items-center gap-3 rounded-lg border bg-card p-3 text-sm"}>
-                <Luggage className="size-4 shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-foreground">{b.guestName}</p>
-                  <p className="text-xs text-muted-foreground">
+              <Box
+                key={b.id}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "background.paper",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "action.hover",
+                    color: "primary.main",
+                    flexShrink: 0,
+                  }}
+                >
+                  <KIcon icon="hotel" size={20} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {b.guestName}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
                     {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[b.status]}`}>
-                  {statusLabels[b.status]}
-                </span>
-                {b.status === "pending" && isAhli && (
-                  <CancelGHButton bookingId={b.id} />
-                )}
-              </div>
+                  </Typography>
+                </Box>
+                <StatusChip status={b.status} />
+                {b.status === "pending" && isAhli && <CancelGHButton bookingId={b.id} />}
+              </Box>
             ))}
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

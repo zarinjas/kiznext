@@ -1,8 +1,12 @@
 import { auth } from "@/lib/auth"
-import { redirect } from "next/navigation"
-import { notFound } from "next/navigation"
+import { redirect, notFound } from "next/navigation"
 import { prisma } from "@/lib/db"
+import Link from "next/link"
+import Box from "@mui/material/Box"
+import Button from "@mui/material/Button"
 import { TicketChat } from "./ticket-chat"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
 
 export default async function TicketPage({
   params,
@@ -29,27 +33,23 @@ export default async function TicketPage({
     notFound()
   }
 
-  const isAhli = role === "ahli"
-
   return (
-    <div className={isAhli ? "flex h-[calc(100vh-8.5rem)] flex-col px-4 py-4" : "mx-auto max-w-3xl"}>
-      <div className="mb-3 shrink-0">
-        <a
-          href={`/${role}/helpdesk`}
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Back
-        </a>
-      </div>
-      <div className={isAhli ? "flex-1 overflow-hidden" : ""}>
-        <TicketChat
-          ticketId={ticket.id}
-          ticketStatus={ticket.status}
-          messages={ticket.messages}
-          role={role}
-          compact={isAhli}
-        />
-      </div>
-    </div>
+    <Box sx={{ maxWidth: 760, mx: "auto" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, gap: 1 }}>
+        <Link href={`/${role}/helpdesk`} style={{ textDecoration: "none" }}>
+          <Button size="small" startIcon={<KIcon icon="arrow_back" size={16} />}>
+            Back
+          </Button>
+        </Link>
+        <StatusChip status={ticket.status} />
+      </Box>
+
+      <TicketChat
+        ticketId={ticket.id}
+        ticketStatus={ticket.status}
+        messages={ticket.messages}
+        role={role}
+      />
+    </Box>
   )
 }

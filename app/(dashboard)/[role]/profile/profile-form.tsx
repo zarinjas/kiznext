@@ -2,11 +2,15 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import Box from "@mui/material/Box"
+import TextField from "@mui/material/TextField"
+import Alert from "@mui/material/Alert"
+import Typography from "@mui/material/Typography"
 import { updateProfile } from "./actions"
-import Image from "next/image"
+import { FormSection } from "@/components/kiz/patterns/form-section"
+import { KButton } from "@/components/kiz/primitives/k-button"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { color } from "@/lib/theme"
 
 interface ProfileUser {
   name: string
@@ -52,25 +56,58 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Avatar upload */}
-      <div className="flex flex-col items-center gap-3 pb-4 border-b border-border">
-        <div className="relative">
-          {avatarUrl ? (
-            <div className="size-24 overflow-hidden rounded-full border-2 border-primary">
-              <Image src={avatarUrl} alt="" width={96} height={96} className="size-full object-cover" />
-            </div>
-          ) : (
-            <div className="flex size-24 items-center justify-center rounded-full bg-primary/10 text-3xl font-heading text-primary-foreground">
-              {user.name.trim().charAt(0).toUpperCase()}
-            </div>
-          )}
-          <label className="absolute -bottom-1 -right-1 flex size-8 cursor-pointer items-center justify-center rounded-full bg-primary text-xs text-primary-foreground shadow-md hover:bg-primary/90">
-            📷
+    <form onSubmit={handleSubmit}>
+      {/* Avatar */}
+      <FormSection title="Profile Photo" icon="person">
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2.5, alignItems: "center" }}>
+          <Box sx={{ position: "relative" }}>
+            {avatarUrl ? (
+              <Box component="img" src={avatarUrl} alt="" sx={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", border: "2px solid", borderColor: "primary.main" }} />
+            ) : (
+              <Box
+                sx={{
+                  width: 88,
+                  height: 88,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: color.brand[50],
+                  color: color.brand[700],
+                  fontFamily: "var(--font-fraunces), serif",
+                  fontSize: 30,
+                }}
+              >
+                {user.name.trim().charAt(0).toUpperCase()}
+              </Box>
+            )}
+            <Box
+              component="label"
+              htmlFor="avatar-upload"
+              sx={{
+                position: "absolute",
+                bottom: 0,
+                right: 0,
+                width: 30,
+                height: 30,
+                borderRadius: "50%",
+                backgroundColor: color.brand[600],
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: 2,
+                "&:hover": { backgroundColor: color.brand[700] },
+              }}
+            >
+              <KIcon icon="photo_camera" size={16} />
+            </Box>
             <input
+              id="avatar-upload"
               type="file"
               accept="image/*"
-              className="hidden"
+              hidden
               disabled={uploading}
               onChange={async (e) => {
                 const file = e.target.files?.[0]
@@ -82,72 +119,43 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
                   const res = await fetch("/api/upload", { method: "POST", body: fd })
                   const data = await res.json()
                   setAvatarUrl(data.url)
-                } catch { alert("Upload failed") }
-                finally { setUploading(false) }
+                } catch {
+                  alert("Upload failed")
+                } finally {
+                  setUploading(false)
+                }
               }}
             />
-          </label>
-        </div>
-        {uploading && <p className="text-xs text-muted-foreground">Uploading...</p>}
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground">{user.name}</p>
-          <p className="text-xs text-muted-foreground">{user.matricId}</p>
-        </div>
-      </div>
+          </Box>
+          <Box sx={{ textAlign: { xs: "center", sm: "left" } }}>
+            {uploading && <Typography variant="caption" sx={{ color: "text.secondary" }}>Uploading…</Typography>}
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>{user.name}</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>{user.matricId}</Typography>
+          </Box>
+        </Box>
+      </FormSection>
 
-      <div className="space-y-2">
-        <Label htmlFor="matricId">Matric No.</Label>
-        <Input id="matricId" value={user.matricId} disabled />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
-          name="name"
-          defaultValue={user.name}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          defaultValue={user.email ?? ""}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="block">Block</Label>
-        <Input
-          id="block"
-          name="block"
-          defaultValue={user.block ?? ""}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="roomNumber">Room No.</Label>
-        <Input
-          id="roomNumber"
-          name="roomNumber"
-          defaultValue={user.roomNumber ?? ""}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone No.</Label>
-        <Input
-          id="phone"
-          name="phone"
-          type="tel"
-          defaultValue={user.phone ?? ""}
-        />
-      </div>
-      {done && (
-        <p className="text-sm text-green-600">Profile updated successfully.</p>
-      )}
-      <Button type="submit" disabled={saving} className="w-full">
-        {saving ? "Saving..." : "Save"}
-      </Button>
+      <FormSection title="Personal Information" icon="badge">
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <TextField id="matricId" label="Matric No." value={user.matricId} disabled />
+          <TextField id="name" name="name" label="Name" defaultValue={user.name} required />
+          <TextField id="email" name="email" label="Email" type="email" defaultValue={user.email ?? ""} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+            <TextField id="block" name="block" label="Block" defaultValue={user.block ?? ""} />
+            <TextField id="roomNumber" name="roomNumber" label="Room No." defaultValue={user.roomNumber ?? ""} />
+          </Box>
+          <TextField id="phone" name="phone" label="Phone No." type="tel" defaultValue={user.phone ?? ""} />
+        </Box>
+      </FormSection>
+
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <KButton type="submit" loading={saving} icon="save">
+          {saving ? "Saving…" : "Save Changes"}
+        </KButton>
+        {done && (
+          <Alert severity="success" sx={{ flex: 1 }}>Profile updated successfully.</Alert>
+        )}
+      </Box>
     </form>
   )
 }

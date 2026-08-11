@@ -18,7 +18,9 @@ Status: MVP feature-complete, not production-ready.
 | Layer | Choice |
 |---|---|
 | Framework | Next.js 16 (App Router) + React 19 |
-| UI | Tailwind CSS v4 + Shadcn UI + lucide-react |
+| UI | MUI v7 (heavily customized) + MUI X DataGrid/Charts/DatePickers + Material Symbols Rounded |
+| Animation | Framer Motion |
+| Data fetching | Server Components + Server Actions; React Query for polling surfaces |
 | Backend | Server Actions (default); API Routes only for external consumers |
 | Database | PostgreSQL 16 |
 | ORM | Prisma 7 — `prisma-client` generator, output `app/generated/prisma`, `@prisma/adapter-pg` over `pg.Pool` |
@@ -29,6 +31,14 @@ Status: MVP feature-complete, not production-ready.
 | Deployment | Not decided. Note: local-filesystem uploads will not survive a stateless host. |
 
 > Do not add libraries outside this list. If one seems necessary, stop and ask.
+
+## Design system
+
+Tokens + MUI theme live in `lib/theme/` (tokens.ts, theme.ts, status.ts) — single
+source of truth, dual light/dark schemes via CSS variables. Component library in
+`components/kiz/` (primitives, patterns, shell). Use `KButton`, `KCard`,
+`StatusChip`, `PageHeader`, `StatCard`, `SmartTable` etc. instead of raw MUI where
+they exist. All colors/shadows/radius from tokens — never hardcode.
 
 ## Non-negotiable rules
 
@@ -65,15 +75,14 @@ enum value plus an `approvedById` check, no schema restructure.
   /(dashboard)/[role]/...    member routes; admin routes use the `urus-` prefix
   /api/auth, /api/upload
   /generated/prisma          generated, gitignored — never edit
-/components/ui               shadcn primitives
-/components/shared           app components
+/components/kiz              design system: primitives, patterns, shell
+/components/shared           app components (kad-maya card, availability calendar)
+/lib/theme                   design tokens + MUI theme (single source of truth)
 /lib                         auth, db, rbac, timezone, office-hours, pdf, settings
 /prisma                      schema.prisma, seed.ts
 /docs                        SPEC.md, STATUS.md
+/proxy.ts                    auth guard (Next.js `proxy` middleware at repo root)
 ```
-
-Note: `app/middleware.ts` is in the wrong place — Next.js expects it at the repo
-root. See `docs/STATUS.md`.
 
 ## Commands
 
@@ -86,7 +95,7 @@ docker compose up -d       # local PostgreSQL
 npx prisma generate        # regenerate client
 npx prisma db push         # push schema (dev)
 npx prisma studio          # database UI
-npx shadcn add <component> # add shadcn component
+npx tsc --noEmit           # type check
 ```
 
 ## Working agreements

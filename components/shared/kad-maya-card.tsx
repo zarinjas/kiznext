@@ -1,5 +1,7 @@
 import QRCode from "qrcode"
-import Image from "next/image"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { color, elevation } from "@/lib/theme"
 
 interface Props {
   name: string
@@ -18,62 +20,99 @@ export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl
   const initial = name.trim().charAt(0).toUpperCase() || "K"
 
   return (
-    <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-gradient-to-br from-[#004B23] via-[#0a6b34] to-[#91C953] text-white shadow-xl">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-6">
-        <div>
-          <p className="font-heading text-base leading-none tracking-wider">eCARD</p>
-          <p className="mt-1 text-xs text-white/70">Kolej Ibu Zain, UKM</p>
-        </div>
-        <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide backdrop-blur-sm">
-          Digital ID
-        </span>
-      </div>
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: 400,
+        borderRadius: 3.5,
+        overflow: "hidden",
+        background: `linear-gradient(135deg, ${color.brand[900]} 0%, #0a6b34 55%, ${color.brand[400]} 100%)`,
+        color: "#fff",
+        boxShadow: elevation.e4,
+        position: "relative",
+      }}
+    >
+      {/* decorative orbs */}
+      <Box sx={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.06)" }} />
+      <Box sx={{ position: "absolute", bottom: -30, left: 40, width: 100, height: 100, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.05)" }} />
 
-      {/* Content */}
-      <div className="flex flex-col items-center px-6 py-6">
-        {/* Avatar + QR row */}
-        <div className="flex w-full items-center gap-4">
-          {/* Avatar */}
-          <div className="shrink-0">
-            {avatarUrl ? (
-              <div className="size-20 overflow-hidden rounded-2xl border-2 border-white/30 shadow-lg">
-                <Image src={avatarUrl} alt={name} width={80} height={80} className="size-full object-cover" />
-              </div>
-            ) : (
-              <div className="flex size-20 items-center justify-center rounded-2xl bg-white/20 text-3xl font-heading backdrop-blur-sm">
-                {initial}
-              </div>
-            )}
-          </div>
+      <Box sx={{ position: "relative", px: 3, pt: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box>
+            <Typography sx={{ fontFamily: "var(--font-fraunces), serif", fontSize: 20, lineHeight: 1, letterSpacing: "0.04em", fontWeight: 600 }}>
+              eCARD
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.7)", mt: 0.5 }}>
+              Kolej Ibu Zain, UKM
+            </Typography>
+          </Box>
+          <Box
+            component="span"
+            sx={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              px: 1.25,
+              py: 0.5,
+              borderRadius: 999,
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            Digital ID
+          </Box>
+        </Box>
 
-          {/* QR */}
-          <div className="flex-1">
-            <div className="ml-auto w-fit rounded-2xl bg-white p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrDataUrl} alt="QR Code" className="size-24 mix-blend-multiply" />
-              </div>
-          </div>
-        </div>
-
-        {/* User info */}
-        <div className="mt-5 w-full space-y-1 text-center">
-          <p className="font-heading text-xl tracking-wide drop-shadow-sm">{name}</p>
-          <p className="text-sm text-white/90 tracking-widest font-mono">{matricId}</p>
-          {(block || roomNumber) && (
-            <p className="text-sm text-white/80">
-              {[block, roomNumber].filter(Boolean).join(" • ")}
-            </p>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, my: 2.5 }}>
+          {avatarUrl ? (
+            <Box component="img" src={avatarUrl} alt={name} sx={{ width: 76, height: 76, objectFit: "cover", borderRadius: 2, border: "2px solid rgba(255,255,255,0.35)" }} />
+          ) : (
+            <Box
+              sx={{
+                width: 76,
+                height: 76,
+                borderRadius: 2,
+                backgroundColor: "rgba(255,255,255,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "var(--font-fraunces), serif",
+                fontSize: 30,
+                border: "2px solid rgba(255,255,255,0.35)",
+              }}
+            >
+              {initial}
+            </Box>
           )}
-        </div>
-      </div>
+          <Box sx={{ flex: 1 }}>
+            <Box sx={{ ml: "auto", width: "fit-content", borderRadius: 2, backgroundColor: "#fff", p: 1.5 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="QR Code" style={{ width: 96, height: 96, display: "block", mixBlendMode: "multiply" }} />
+            </Box>
+          </Box>
+        </Box>
 
-      {/* Footer */}
-      <div className="border-t border-white/20 bg-black/10 px-6 py-3 backdrop-blur-sm">
-        <p className="text-center text-xs text-white/70">
+        <Box sx={{ textAlign: "center", pb: 2.5 }}>
+          <Typography sx={{ fontFamily: "var(--font-fraunces), serif", fontSize: 20, fontWeight: 600, lineHeight: 1.3 }}>
+            {name}
+          </Typography>
+          <Typography sx={{ fontSize: 13, letterSpacing: "0.12em", fontFamily: "monospace", mt: 0.25 }}>
+            {matricId}
+          </Typography>
+          {(block || roomNumber) && (
+            <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.8)", mt: 0.25 }}>
+              {[block, roomNumber].filter(Boolean).join(" • ")}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+
+      <Box sx={{ backgroundColor: "rgba(0,0,0,0.12)", px: 3, py: 1.5, backdropFilter: "blur(4px)" }}>
+        <Typography sx={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
           Digital ID Card — KIZ Super App
-        </p>
-      </div>
-    </div>
+        </Typography>
+      </Box>
+    </Box>
   )
 }

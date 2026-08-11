@@ -2,16 +2,19 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import Box from "@mui/material/Box"
+
+import TextField from "@mui/material/TextField"
+import MenuItem from "@mui/material/MenuItem"
+import Alert from "@mui/material/Alert"
 import { reportItem } from "./actions"
+import { KButton } from "@/components/kiz/primitives/k-button"
 
 interface Props {
   role: string
 }
 
-export function ReportForm({ role }: Props) {
+export function ReportForm({ role: _role }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -34,34 +37,35 @@ export function ReportForm({ role }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="status">Type</Label>
-        <select id="status" name="status" className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" required>
-          <option value="lost">Lost Item</option>
-          <option value="found">I Found an Item</option>
-        </select>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="itemName">Item Name</Label>
-        <Input id="itemName" name="itemName" placeholder="e.g. Black wallet" required />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
-        <textarea id="description" name="description" rows={3} className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="Describe the item..." required />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="locationFound">Location (optional)</Label>
-        <Input id="locationFound" name="locationFound" placeholder="e.g. KIZ canteen" />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="photo">Photo (optional)</Label>
-        <input id="photo" name="photo" type="file" accept="image/*" className="w-full text-sm" />
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Submitting..." : "Report"}
-      </Button>
+    <form onSubmit={handleSubmit}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <TextField id="status" name="status" label="Type" select required defaultValue="lost">
+          <MenuItem value="lost">Lost Item</MenuItem>
+          <MenuItem value="found">I Found an Item</MenuItem>
+        </TextField>
+        <TextField id="itemName" name="itemName" label="Item Name" placeholder="e.g. Black wallet" required />
+        <TextField
+          id="description"
+          name="description"
+          label="Description"
+          placeholder="Describe the item…"
+          multiline
+          minRows={3}
+          required
+        />
+        <TextField id="locationFound" name="locationFound" label="Location (optional)" placeholder="e.g. KIZ canteen" />
+        <TextField
+          id="photo"
+          name="photo"
+          label="Photo (optional)"
+          type="file"
+          slotProps={{ inputLabel: { shrink: true }, htmlInput: { accept: "image/*" } }}
+        />
+        {error && <Alert severity="error">{error}</Alert>}
+        <KButton type="submit" loading={loading} icon="add_alert">
+          {loading ? "Submitting…" : "Report"}
+        </KButton>
+      </Box>
     </form>
   )
 }

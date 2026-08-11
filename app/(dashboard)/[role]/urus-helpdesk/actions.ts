@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
-import { isOfficeHours, getOfficeHoursMessage } from "@/lib/office-hours"
 
 export async function adminReply(ticketId: string, message: string) {
   const session = await auth()

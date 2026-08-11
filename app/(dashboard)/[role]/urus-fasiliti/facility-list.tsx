@@ -1,12 +1,20 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Search, Plus, Edit3, Building2, Users, Clock, CalendarDays, CheckCircle, XCircle, IndianRupee } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import Box from "@mui/material/Box"
+import Grid from "@mui/material/Grid"
+import Typography from "@mui/material/Typography"
+import Button from "@mui/material/Button"
+import MenuItem from "@mui/material/MenuItem"
+import TextField from "@mui/material/TextField"
 import { DeleteButton } from "./delete-button"
 import { FacilityForm } from "./facility-form"
+import { FilterBar } from "@/components/kiz/patterns/filter-bar"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KDialog } from "@/components/kiz/primitives/k-dialog"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { color, elevation } from "@/lib/theme"
 
 interface FacilityItem {
   id: string
@@ -33,6 +41,19 @@ interface Props {
   role: string
 }
 
+function formatPrice(price: number | null): string {
+  if (price == null) return "Free"
+  return `RM ${price.toFixed(2)}`
+}
+
+function formatDuration(minutes: number | null): string {
+  if (!minutes) return "—"
+  if (minutes < 60) return `${minutes} min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? `${h}h ${m}m` : `${h} hrs`
+}
+
 export function FacilityList({ facilities, blocks, role }: Props) {
   const [search, setSearch] = useState("")
   const [blockFilter, setBlockFilter] = useState("all")
@@ -50,166 +71,131 @@ export function FacilityList({ facilities, blocks, role }: Props) {
     })
   }, [facilities, search, blockFilter])
 
-  const editingFacility = editingId
-    ? facilities.find((f) => f.id === editingId) ?? null
-    : null
+  const editingFacility = editingId ? facilities.find((f) => f.id === editingId) ?? null : null
 
-  const blockNames = useMemo(
-    () => [...new Set(facilities.map((f) => f.blockName))],
-    [facilities]
-  )
-
-  function formatPrice(price: number | null): string {
-    if (price == null) return "Free"
-    return `RM ${price.toFixed(2)}`
-  }
-
-  function formatDuration(minutes: number | null): string {
-    if (!minutes) return "—"
-    if (minutes < 60) return `${minutes} min`
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    return m > 0 ? `${h}h ${m}m` : `${h} hrs`
-  }
+  const blockNames = useMemo(() => [...new Set(facilities.map((f) => f.blockName))], [facilities])
 
   return (
-    <>
-      {/* Search & Filter Bar */}
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search facilities..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <select
+    <Box>
+      <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", mb: 2.5, flexWrap: "wrap" }}>
+        <Box sx={{ flex: 1, minWidth: 200 }}>
+          <FilterBar search={search} onSearch={setSearch} searchPlaceholder="Search facilities…" />
+        </Box>
+        <TextField
+          select
+          size="small"
           value={blockFilter}
           onChange={(e) => setBlockFilter(e.target.value)}
-          className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          sx={{ minWidth: 160 }}
         >
-          <option value="all">All Blocks</option>
+          <MenuItem value="all">All Blocks</MenuItem>
           {blockNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
+            <MenuItem key={name} value={name}>{name}</MenuItem>
           ))}
-        </select>
-        <Button onClick={() => setShowForm(true)} className="shrink-0">
-          <Plus className="size-4" />
+        </TextField>
+        <Button variant="contained" onClick={() => setShowForm(true)} startIcon={<KIcon icon="add" size={17} />}>
           Add Facility
         </Button>
-      </div>
+      </Box>
 
-      {/* Facility Grid */}
       {filtered.length === 0 ? (
-        <div className="mt-12 rounded-lg border bg-card p-12 text-center">
-          <Building2 className="mx-auto size-10 text-muted-foreground" />
-          <p className="mt-3 text-muted-foreground">
-            {search || blockFilter !== "all"
-              ? "No facilities match your search."
-              : "No facilities yet. Click 'Add Facility' to get started."}
-          </p>
-        </div>
+        <KEmpty
+          icon="apartment"
+          title={search || blockFilter !== "all" ? "No facilities match your search" : "No facilities yet"}
+          body={search || blockFilter !== "all" ? undefined : "Click 'Add Facility' to get started."}
+        />
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Grid container spacing={2}>
           {filtered.map((facility) => (
-            <Card key={facility.id} size="sm" className="flex flex-col">
-              {facility.featuredImage && (
-                <div className="aspect-video w-full overflow-hidden rounded-t-xl">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={facility.featuredImage}
-                    alt={facility.name}
-                    className="size-full object-cover"
-                  />
-                </div>
-              )}
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="line-clamp-1">{facility.name}</CardTitle>
-                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                    {facility.blockName}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col gap-2">
-                <p className="line-clamp-2 text-xs text-muted-foreground">
-                  {facility.description}
-                </p>
+            <Grid key={facility.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+              <Box
+                sx={{
+                  borderRadius: 2.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "background.paper",
+                  boxShadow: elevation.e1,
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                }}
+              >
+                {facility.featuredImage ? (
+                  <Box component="img" src={facility.featuredImage} alt={facility.name} sx={{ width: "100%", aspectRatio: "16/9", objectFit: "cover" }} />
+                ) : (
+                  <Box sx={{ width: "100%", aspectRatio: "16/9", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[50], color: color.brand[700] }}>
+                    <KIcon icon="apartment" size={36} />
+                  </Box>
+                )}
+                <Box sx={{ p: 2, flex: 1, display: "flex", flexDirection: "column" }}>
+                  <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {facility.name}
+                    </Typography>
+                    <Box
+                      component="span"
+                      sx={{ fontSize: 11, fontWeight: 600, color: color.brand[700], backgroundColor: color.brand[50], borderRadius: 999, px: 1, py: 0.25, flexShrink: 0 }}
+                    >
+                      {facility.blockName}
+                    </Box>
+                  </Box>
+                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {facility.description}
+                  </Typography>
 
-                <div className="mt-auto grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <IndianRupee className="size-3.5 shrink-0" />
-                    {formatPrice(facility.price)}
-                  </span>
-                  {facility.capacity && (
-                    <span className="flex items-center gap-1">
-                      <Users className="size-3.5 shrink-0" />
-                      {facility.capacity} pax
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    <Clock className="size-3.5 shrink-0" />
-                    {formatDuration(facility.timeSlotDuration)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <CalendarDays className="size-3.5 shrink-0" />
-                    {facility.maxPerDay ?? 3}/day
-                  </span>
-                </div>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.75, my: 1.5, fontSize: 12.5, color: "text.secondary" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <KIcon icon="payments" size={14} /> {formatPrice(facility.price)}
+                    </Box>
+                    {facility.capacity && (
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <KIcon icon="group" size={14} /> {facility.capacity} pax
+                      </Box>
+                    )}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <KIcon icon="schedule" size={14} /> {formatDuration(facility.timeSlotDuration)}
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <KIcon icon="event_repeat" size={14} /> {facility.maxPerDay ?? 3}/day
+                    </Box>
+                  </Box>
 
-                <div className="mt-2 flex items-center gap-1 text-xs">
-                  {facility.requiresApproval ? (
-                    <span className="flex items-center gap-1 text-amber-600">
-                      <CheckCircle className="size-3.5" />
-                      Requires approval
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-green-600">
-                      <XCircle className="size-3.5" />
-                      Auto-approved
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2">
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() => setEditingId(facility.id)}
-                >
-                  <Edit3 className="size-3" />
-                  Edit
-                </Button>
-                <DeleteButton
-                  facilityId={facility.id}
-                  facilityName={facility.name}
-                />
-              </CardFooter>
-            </Card>
+                  <Box sx={{ mt: "auto" }}>
+                    <StatusChip
+                      status={facility.requiresApproval ? "pending" : "approved"}
+                    />
+                  </Box>
+
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1.5 }}>
+                    <Button size="small" variant="outlined" onClick={() => setEditingId(facility.id)} startIcon={<KIcon icon="edit" size={15} />}>
+                      Edit
+                    </Button>
+                    <DeleteButton facilityId={facility.id} facilityName={facility.name} />
+                  </Box>
+                </Box>
+              </Box>
+            </Grid>
           ))}
-        </div>
+        </Grid>
       )}
 
-      {/* Add Facility Modal */}
-      {showForm && (
-        <Modal onClose={() => setShowForm(false)} title="Add New Facility">
-          <FacilityForm role={role} blocks={blocks} />
-        </Modal>
-      )}
+      {/* Add / Edit modals */}
+      <KDialog open={showForm} onClose={() => setShowForm(false)} title="Add New Facility" icon="add_business">
+        <FacilityForm role={role} blocks={blocks} onClose={() => setShowForm(false)} />
+      </KDialog>
 
-      {/* Edit Facility Modal */}
       {editingFacility && (
-        <Modal
+        <KDialog
+          open
           onClose={() => setEditingId(null)}
           title={`Edit Facility: ${editingFacility.name}`}
+          icon="edit"
         >
           <FacilityForm
             role={role}
             blocks={blocks}
+            onClose={() => setEditingId(null)}
             initialData={{
               id: editingFacility.id,
               name: editingFacility.name,
@@ -224,39 +210,8 @@ export function FacilityList({ facilities, blocks, role }: Props) {
               requiresApproval: editingFacility.requiresApproval,
             }}
           />
-        </Modal>
+        </KDialog>
       )}
-    </>
-  )
-}
-
-/** Modal wrapper — mobile-friendly full-screen overlay */
-function Modal({
-  children,
-  onClose,
-  title,
-}: {
-  children: React.ReactNode
-  onClose: () => void
-  title: string
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 pt-4 pb-8 sm:pt-12">
-      <div className="mx-auto w-full max-w-2xl rounded-xl bg-card p-6 shadow-lg sm:mx-4">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="font-heading text-xl text-primary-foreground">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
-          >
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    </Box>
   )
 }

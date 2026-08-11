@@ -1,10 +1,16 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import Button from "@mui/material/Button"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { HelpdeskList } from "./helpdesk-list"
 import { NewTicketForm } from "./new-ticket-form"
+import { FormSection } from "@/components/kiz/patterns/form-section"
+import { KIcon } from "@/components/kiz/primitives/icon"
 import { isOfficeHours } from "@/lib/office-hours"
-import { MessageSquare } from "lucide-react"
+import { color } from "@/lib/theme"
 
 export default async function HelpdeskPage() {
   const session = await auth()
@@ -22,7 +28,6 @@ export default async function HelpdeskPage() {
     orderBy: { updatedAt: "desc" },
   })
 
-  // Count unread: last message from admin & student hasn't replied
   const unreadCount = tickets.filter((t) => {
     if (t.status === "closed") return false
     const lastMsg = t.messages[0]
@@ -31,55 +36,60 @@ export default async function HelpdeskPage() {
     return isAdmin && !lastMsg.isAutoReply
   }).length
 
-  const isAhli = session.user.role === "ahli"
+  const inHours = isOfficeHours()
 
   return (
-    <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-3xl"}>
-      <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Help & Support
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Ask questions or get help from KIZ management.
-      </p>
+    <Box sx={{ maxWidth: 760, mx: "auto" }}>
+      <PageHeader
+        overline="Support"
+        title="Help & Support"
+        subtitle="Ask questions or get help from KIZ management."
+      />
 
-      {/* Availability notice */}
-      <div className={`mt-4 rounded-2xl border p-4 text-sm ${
-        isOfficeHours()
-          ? "border-green-200 bg-green-50 text-green-800"
-          : "border-amber-200 bg-amber-50 text-amber-800"
-      }`}>
-        <p className="font-medium">
-          {isOfficeHours()
-            ? "🟢 Office hours — We're online!"
-            : "🔴 Outside office hours"}
-        </p>
-        <p className="mt-0.5 text-xs opacity-80">
-          Monday–Friday, 8:00 AM – 5:00 PM (Malaysian Time).
-          {!isOfficeHours() && " Your message will be replied when office hours start."}
-        </p>
-      </div>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          p: 2,
+          mb: 2.5,
+          borderRadius: 2,
+          backgroundColor: inHours ? color.success.soft : color.warning.soft,
+          color: inHours ? color.success.ink : color.warning.ink,
+        }}
+      >
+        <KIcon icon={inHours ? "wifi" : "schedule"} size={22} />
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {inHours ? "Office hours — we're online!" : "Outside office hours"}
+          </Typography>
+          <Typography variant="caption" sx={{ display: "block" }}>
+            Monday–Friday, 8:00 AM – 5:00 PM (Malaysian Time).
+            {!inHours && " Your message will be replied when office hours start."}
+          </Typography>
+        </Box>
+      </Box>
 
-      <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
-        <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
-          New Question
-        </h2>
+      <FormSection title="New Question" subtitle="We usually reply within office hours." icon="add_comment">
         <NewTicketForm role={session.user.role} />
-      </div>
+      </FormSection>
 
-      <div className={isAhli ? "mt-6" : "mt-8"}>
-        <div className="mb-2 flex items-center gap-2">
-          <h2 className={isAhli ? "text-sm font-semibold text-foreground" : "font-heading text-lg text-primary-foreground"}>
-            Your Conversations
-          </h2>
-          {unreadCount > 0 && (
-            <span className="flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
-              <MessageSquare className="size-3" />
-              {unreadCount} unread
-            </span>
-          )}
-        </div>
-        <HelpdeskList tickets={tickets} role={session.user.role} compact={isAhli} />
-      </div>
-    </div>
+      <Box sx={{ mt: 3, mb: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
+        <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+          Your Conversations
+        </Typography>
+        {unreadCount > 0 && (
+          <Button
+            size="small"
+            startIcon={<KIcon icon="mark_email_unread" size={16} />}
+            sx={{ textTransform: "none", color: color.brand[700], backgroundColor: color.brand[50] }}
+          >
+            {unreadCount} unread
+          </Button>
+        )}
+      </Box>
+
+      <HelpdeskList tickets={tickets} role={session.user.role} />
+    </Box>
   )
 }

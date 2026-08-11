@@ -3,8 +3,14 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
-import { MessageSquare } from "lucide-react"
 import Link from "next/link"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 export default async function UrusHelpdeskPage() {
   const session = await auth()
@@ -15,95 +21,89 @@ export default async function UrusHelpdeskPage() {
     where: { deletedAt: null },
     include: {
       user: { select: { name: true, matricId: true } },
-      messages: {
-        take: 1,
-        orderBy: { createdAt: "desc" },
-      },
+      messages: { take: 1, orderBy: { createdAt: "desc" } },
       assignee: { select: { name: true } },
     },
-    orderBy: [
-      { status: "asc" },
-      { updatedAt: "desc" },
-    ],
+    orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
   })
 
   const openTickets = tickets.filter((t) => t.status !== "closed")
   const closedTickets = tickets.filter((t) => t.status === "closed")
 
-  const statusLabels: Record<string, string> = {
-    open: "Open",
-    in_progress: "In Progress",
-    closed: "Closed",
-  }
-
-  const statusColors: Record<string, string> = {
-    open: "bg-blue-100 text-blue-700",
-    in_progress: "bg-amber-100 text-amber-700",
-    closed: "bg-gray-100 text-gray-500",
-  }
-
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
-        Manage Helpdesk
-      </h1>
-      <p className="mt-1 text-muted-foreground">
-        Reply and manage student support tickets.
-      </p>
+    <Box sx={{ maxWidth: 900, mx: "auto" }}>
+      <PageHeader
+        overline="Admin"
+        title="Helpdesk Inbox"
+        subtitle="Reply and manage student support tickets."
+      />
 
-      <div className="mt-8 space-y-2">
-        {openTickets.map((ticket) => (
-          <Link
-            key={ticket.id}
-            href={`/${session.user.role}/urus-helpdesk/${ticket.id}`}
-            className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted"
-          >
-            <MessageSquare className="size-4 shrink-0 text-primary" />
-            <div className="flex-1 min-w-0">
-              <p className="truncate font-medium text-foreground">
-                {ticket.user.name} ({ticket.user.matricId})
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {ticket.messages[0]?.message || "(empty)"}
-              </p>
-            </div>
-            {ticket.assignee && (
-              <span className="text-xs text-muted-foreground">
-                {ticket.assignee.name}
-              </span>
-            )}
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[ticket.status]}`}>
-              {statusLabels[ticket.status]}
-            </span>
-          </Link>
-        ))}
-        {openTickets.length === 0 && (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No open tickets.
-          </div>
-        )}
-      </div>
+      {openTickets.length === 0 ? (
+        <KEmpty icon="inbox" title="Inbox zero" body="No open tickets. Great job." />
+      ) : (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {openTickets.map((ticket) => (
+            <Link key={ticket.id} href={`/${session.user.role}/urus-helpdesk/${ticket.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  p: 1.75,
+                  borderRadius: 2.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "background.paper",
+                  "&:hover": { borderColor: color.brand[400] },
+                }}
+              >
+                <Box sx={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[50], color: color.brand[700], flexShrink: 0 }}>
+                  <KIcon icon="support_agent" size={20} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                    {ticket.user.name} ({ticket.user.matricId})
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {ticket.messages[0]?.message || "(empty)"}
+                  </Typography>
+                </Box>
+                {ticket.assignee && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+                    <KIcon icon="person" size={14} />
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>{ticket.assignee.name}</Typography>
+                  </Box>
+                )}
+                <StatusChip status={ticket.status} />
+                <KIcon icon="chevron_right" size={18} sx={{ color: "text.disabled" }} />
+              </Box>
+            </Link>
+          ))}
+        </Box>
+      )}
 
       {closedTickets.length > 0 && (
-        <details className="mt-8">
-          <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
             Closed ({closedTickets.length})
-          </summary>
-          <div className="mt-3 space-y-2">
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {closedTickets.map((ticket) => (
-              <Link
-                key={ticket.id}
-                href={`/${session.user.role}/urus-helpdesk/${ticket.id}`}
-                className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted"
-              >
-                <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1">{ticket.user.name} ({ticket.user.matricId})</span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Closed</span>
+              <Link key={ticket.id} href={`/${session.user.role}/urus-helpdesk/${ticket.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper", "&:hover": { borderColor: color.brand[400] } }}>
+                  <KIcon icon="support_agent" size={18} sx={{ color: "text.disabled" }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {ticket.user.name} ({ticket.user.matricId})
+                    </Typography>
+                  </Box>
+                  <StatusChip status="closed" />
+                </Box>
               </Link>
             ))}
-          </div>
-        </details>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

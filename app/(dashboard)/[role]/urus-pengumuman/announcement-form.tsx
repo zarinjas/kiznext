@@ -2,10 +2,17 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import Box from "@mui/material/Box"
+
+import TextField from "@mui/material/TextField"
+import MenuItem from "@mui/material/MenuItem"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Switch from "@mui/material/Switch"
+import Button from "@mui/material/Button"
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement } from "./actions"
+import { KButton } from "@/components/kiz/primitives/k-button"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { color } from "@/lib/theme"
 
 interface Props {
   role: string
@@ -20,9 +27,10 @@ interface Props {
     scheduledAt: string | null
     expiresAt: string | null
   } | null
+  onDone?: () => void
 }
 
-export function AnnouncementForm({ role, edit }: Props) {
+export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [attachmentUrl, setAttachmentUrl] = useState(edit?.attachmentUrl || "")
@@ -62,14 +70,17 @@ export function AnnouncementForm({ role, edit }: Props) {
     const scheduledAt = (form.get("scheduledAt") as string) || null
     const expiresAt = (form.get("expiresAt") as string) || null
 
-    if (edit) {
-      await updateAnnouncement(edit.id, title, content, tag, attachmentUrl || null, attachmentType || null, isPinned, scheduledAt, expiresAt)
-    } else {
-      await createAnnouncement(title, content, tag, attachmentUrl || null, attachmentType || null, isPinned, scheduledAt, expiresAt)
+    try {
+      if (edit) {
+        await updateAnnouncement(edit.id, title, content, tag, attachmentUrl || null, attachmentType || null, isPinned, scheduledAt, expiresAt)
+      } else {
+        await createAnnouncement(title, content, tag, attachmentUrl || null, attachmentType || null, isPinned, scheduledAt, expiresAt)
+      }
+    } finally {
+      setLoading(false)
+      router.refresh()
+      onDone?.()
     }
-
-    setLoading(false)
-    router.refresh()
   }
 
   const tomorrow = new Date()
@@ -77,83 +88,77 @@ export function AnnouncementForm({ role, edit }: Props) {
   const minDate = tomorrow.toISOString().split("T")[0]
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="tag">Tag</Label>
-        <select id="tag" name="tag" defaultValue={edit?.tag || "general"} className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" required>
-          <option value="general">General</option>
-          <option value="important">Important</option>
-          <option value="sports">Sports</option>
-          <option value="event">Event</option>
-        </select>
-      </div>
+    <form onSubmit={handleSubmit}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <TextField id="tag" name="tag" label="Tag" select required defaultValue={edit?.tag || "general"}>
+          <MenuItem value="general">General</MenuItem>
+          <MenuItem value="important">Important</MenuItem>
+          <MenuItem value="sports">Sports</MenuItem>
+          <MenuItem value="event">Event</MenuItem>
+        </TextField>
+        <TextField id="title" name="title" label="Title" defaultValue={edit?.title} required />
+        <TextField id="content" name="content" label="Content" multiline minRows={4} defaultValue={edit?.content} required />
 
-      <div className="space-y-2">
-        <Label htmlFor="title">Title</Label>
-        <Input id="title" name="title" defaultValue={edit?.title} required />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="content">Content</Label>
-        <textarea id="content" name="content" rows={4} defaultValue={edit?.content} className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" required />
-      </div>
-
-      {/* Attachment upload */}
-      <div className="space-y-2">
-        <Label>Attachment (PDF/Image) — optional</Label>
-        <input
-          type="file"
-          accept="image/*,.pdf"
-          onChange={handleUpload}
-          disabled={uploading}
-          className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:text-primary-foreground"
-        />
-        {uploading && <p className="text-xs text-muted-foreground">Uploading...</p>}
-        {attachmentUrl && (
-          <div className="flex items-center gap-2 rounded-lg bg-muted p-2 text-xs">
-            <span className="truncate flex-1">{attachmentType === "pdf" ? "📎 PDF" : "🖼️ Image"}</span>
-            <button type="button" onClick={() => { setAttachmentUrl(""); setAttachmentType("") }} className="text-destructive hover:underline">Delete</button>
-          </div>
-        )}
-        <input type="hidden" name="attachmentUrl" value={attachmentUrl} />
-      </div>
-
-      {/* Pin toggle */}
-      <label className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer">
-        <input type="checkbox" name="isPinned" defaultChecked={edit?.isPinned} className="size-4 accent-[#004B23]" />
-        <div>
-          <p className="text-sm font-medium text-foreground">📌 Pin this announcement</p>
-          <p className="text-xs text-muted-foreground">Important announcements will always stay on top</p>
-        </div>
-      </label>
-
-      {/* Schedule */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="scheduledAt">Schedule Publish (optional)</Label>
-          <Input id="scheduledAt" name="scheduledAt" type="date" min={minDate} defaultValue={edit?.scheduledAt?.split("T")[0] || ""} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="expiresAt">Expires (optional)</Label>
-          <Input id="expiresAt" name="expiresAt" type="date" min={minDate} defaultValue={edit?.expiresAt?.split("T")[0] || ""} />
-        </div>
-      </div>
-
-      <div className="flex gap-3">
-        <Button type="submit" disabled={loading} className="flex-1">
-          {loading ? "Processing..." : edit ? "Save" : "Publish"}
-        </Button>
-        {edit && (
-          <Button type="button" variant="destructive" onClick={async () => {
-            if (confirm("Delete this announcement?")) {
-              await deleteAnnouncement(edit.id)
-              router.refresh()
-            }
-          }}>
-            Delete
+        <Box>
+          <Box sx={{ fontSize: 12.5, fontWeight: 600, color: "text.secondary", mb: 1 }}>
+            Attachment (PDF/Image) — optional
+          </Box>
+          <Button component="label" variant="outlined" startIcon={<KIcon icon="attach_file" size={16} />} disabled={uploading}>
+            {uploading ? "Uploading…" : "Choose file"}
+            <input type="file" accept="image/*,.pdf" hidden onChange={handleUpload} disabled={uploading} />
           </Button>
-        )}
-      </div>
+          {attachmentUrl && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1, p: 1, borderRadius: 1.5, backgroundColor: "action.hover", fontSize: 12.5 }}>
+              <KIcon icon={attachmentType === "pdf" ? "description" : "image"} size={16} />
+              <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {attachmentType === "pdf" ? "PDF" : "Image"}
+              </Box>
+              <Button
+                size="small"
+                onClick={() => { setAttachmentUrl(""); setAttachmentType("") }}
+                sx={{ color: "error.main", minHeight: 0, fontSize: 12 }}
+              >
+                Remove
+              </Button>
+            </Box>
+          )}
+          <input type="hidden" name="attachmentUrl" value={attachmentUrl} />
+        </Box>
+
+        <FormControlLabel
+          control={<Switch name="isPinned" defaultChecked={edit?.isPinned} sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: color.brand[600] }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: color.brand[600] } }} />}
+          label={<Box>
+            <Box sx={{ fontSize: 14, fontWeight: 600 }}>Pin this announcement</Box>
+            <Box sx={{ fontSize: 12, color: "text.secondary" }}>Important announcements always stay on top</Box>
+          </Box>}
+          sx={{ mx: 0 }}
+        />
+
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+          <TextField id="scheduledAt" name="scheduledAt" label="Schedule Publish (optional)" type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: minDate } }} defaultValue={edit?.scheduledAt?.split("T")[0] || ""} />
+          <TextField id="expiresAt" name="expiresAt" label="Expires (optional)" type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: minDate } }} defaultValue={edit?.expiresAt?.split("T")[0] || ""} />
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <KButton type="submit" loading={loading} icon={edit ? "save" : "campaign"} sx={{ flex: 1 }}>
+            {loading ? "Processing…" : edit ? "Save" : "Publish"}
+          </KButton>
+          {edit && (
+            <Button
+              variant="outlined"
+              onClick={async () => {
+                if (window.confirm("Delete this announcement?")) {
+                  await deleteAnnouncement(edit.id)
+                  router.refresh()
+                }
+              }}
+              sx={{ color: "error.main", borderColor: "divider" }}
+            >
+              Delete
+            </Button>
+          )}
+        </Box>
+      </Box>
     </form>
   )
 }

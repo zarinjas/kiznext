@@ -3,8 +3,14 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { GHManageButtons } from "./manage-buttons"
-import { CheckCircle, Clock, XCircle } from "lucide-react"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { color } from "@/lib/theme"
 
 export default async function UrusRumahTamuPage() {
   const session = await auth()
@@ -21,103 +27,100 @@ export default async function UrusRumahTamuPage() {
   const active = bookings.filter((b) => ["approved", "checked_in"].includes(b.status))
   const done = bookings.filter((b) => ["rejected", "checked_out", "cancelled"].includes(b.status))
 
-  const statusLabels: Record<string, string> = {
-    pending: "Pending",
-    approved: "Approved",
-    checked_in: "Checked In",
-    checked_out: "Checked Out",
-    rejected: "Rejected",
-    cancelled: "Cancelled",
-  }
-
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">
-        Manage Guest House
-      </h1>
-      <p className="mt-1 text-muted-foreground">
-        Manage guest accommodation bookings, approvals, and check-in/out.
-      </p>
+    <Box sx={{ maxWidth: 900, mx: "auto" }}>
+      <PageHeader
+        overline="Admin"
+        title="Manage Guest House"
+        subtitle="Approve bookings, manage check-in/out, and mark payments."
+      />
 
       {pending.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 flex items-center gap-2 font-heading text-lg text-amber-700">
-            <Clock className="size-5" /> Pending Approval
-          </h2>
-          <div className="space-y-3">
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5, color: color.warning.ink }}>
+            Pending Approval ({pending.length})
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             {pending.map((b) => (
-              <div key={b.id} className="rounded-lg border bg-card p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{b.guestName}</p>
-                    <p className="text-sm text-muted-foreground">
+              <Box key={b.id} sx={{ borderRadius: 2.5, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper", p: 2 }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <Box sx={{ minWidth: 200 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>{b.guestName}</Typography>
+                    <Typography variant="body2" sx={{ color: "text.secondary" }}>
                       {b.user.name} ({b.user.matricId})
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")}
-                      {" · "}
-                      {b.periodType === "daily" ? "Daily" : b.periodType === "weekly" ? "Weekly" : "Monthly"}
-                    </p>
-                  </div>
-                  <GHManageButtons bookingId={b.id} status={b.status} />
-                </div>
-              </div>
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.25 }}>
+                      {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")} · {b.periodType}
+                    </Typography>
+                    {b.notes && (
+                      <Typography variant="caption" sx={{ color: "text.secondary", fontStyle: "italic", display: "block", mt: 0.5 }}>
+                        Notes: {b.notes}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+                    <StatusChip status={b.paymentStatus} />
+                    <GHManageButtons bookingId={b.id} status={b.status} />
+                  </Box>
+                </Box>
+              </Box>
             ))}
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
 
       {active.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 font-heading text-lg text-blue-700">Active</h2>
-          <div className="space-y-2">
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5, color: color.info.ink }}>
+            Active ({active.length})
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             {active.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-                <span className="flex-1">
-                  <span className="font-medium">{b.guestName}</span>
-                  <span className="text-muted-foreground">
-                    {" "}— {b.user.name}
-                  </span>
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")}
-                </span>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                  {statusLabels[b.status]}
-                </span>
+              <Box key={b.id} sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, p: 1.75, borderRadius: 2.5, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}>
+                <Box sx={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.info.soft, color: color.info.ink, flexShrink: 0 }}>
+                  <KIcon icon="hotel" size={20} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 150 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>{b.guestName}</Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {b.user.name} · {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")}
+                  </Typography>
+                </Box>
+                <StatusChip status={b.status} />
+                <StatusChip status={b.paymentStatus} />
                 <GHManageButtons bookingId={b.id} status={b.status} />
-              </div>
+              </Box>
             ))}
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
 
       {pending.length === 0 && active.length === 0 && (
-        <div className="mt-8 rounded-lg border bg-card p-8 text-center">
-          <CheckCircle className="mx-auto size-8 text-green-600" />
-          <p className="mt-2 text-muted-foreground">No active bookings.</p>
-        </div>
+        <KEmpty icon="hotel" title="No active bookings" body="New guest house bookings will appear here." />
       )}
 
       {done.length > 0 && (
-        <details className="mt-8">
-          <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
             History ({done.length})
-          </summary>
-          <div className="mt-3 space-y-2">
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {done.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 text-sm">
-                <XCircle className="size-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1">{b.guestName} — {b.user.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {statusLabels[b.status]}
-                  {b.paymentStatus === "paid_manual" && " · Paid"}
-                </span>
-              </div>
+              <Box key={b.id} sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}>
+                <KIcon icon="history" size={18} sx={{ color: "text.disabled" }} />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {b.guestName}
+                    <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}> — {b.user.name}</Box>
+                  </Typography>
+                </Box>
+                <StatusChip status={b.status} />
+                <StatusChip status={b.paymentStatus} />
+              </Box>
             ))}
-          </div>
-        </details>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

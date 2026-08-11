@@ -1,7 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { MessageSquare } from "lucide-react"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { color } from "@/lib/theme"
 
 interface Ticket {
   id: string
@@ -15,68 +19,72 @@ interface Ticket {
 interface Props {
   tickets: Ticket[]
   role: string
-  compact?: boolean
 }
 
-const statusLabels: Record<string, string> = {
-  open: "Open",
-  in_progress: "In Progress",
-  closed: "Closed",
-}
-
-const statusColors: Record<string, string> = {
-  open: "bg-blue-100 text-blue-700",
-  in_progress: "bg-amber-100 text-amber-700",
-  closed: "bg-gray-100 text-gray-500",
-}
-
-export function HelpdeskList({ tickets, role, compact = false }: Props) {
+export function HelpdeskList({ tickets, role }: Props) {
   if (tickets.length === 0) {
     return (
-      <div className={compact ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
-        No tickets yet.
-      </div>
+      <Box sx={{ py: 6, textAlign: "center", color: "text.secondary", fontSize: 14 }}>
+        No tickets yet. Start a new conversation above.
+      </Box>
     )
   }
 
   return (
-    <div className="space-y-2">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
       {tickets.map((ticket) => {
         const lastMsg = ticket.messages[0]
         return (
-          <Link
-            key={ticket.id}
-            href={`/${role}/helpdesk/${ticket.id}`}
-            className={
-              compact
-                ? "flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-sm active:bg-muted"
-                : "flex items-center gap-3 rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted"
-            }
-          >
-            <span className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary-foreground ${compact ? "size-8" : ""}`}>
-              <span className="text-xs font-bold">KIZ-{ticket.displayId}</span>
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="truncate font-medium text-foreground">
-                {ticket.subject || lastMsg?.message || "(no messages)"}
-              </p>
-              <p className="text-xs text-muted-foreground">
+          <Link key={ticket.id} href={`/${role}/helpdesk/${ticket.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                p: 1.75,
+                borderRadius: 2.5,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundColor: "background.paper",
+                "&:hover": { borderColor: color.brand[400] },
+              }}
+            >
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  backgroundColor: color.brand[50],
+                  color: color.brand[700],
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                }}
+              >
+                KIZ-{ticket.displayId}
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body1" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {ticket.subject || lastMsg?.message || "(no messages)"}
+                </Typography>
                 {ticket.subject && lastMsg?.message && (
-                  <span className="truncate block">{lastMsg.message}</span>
+                  <Typography variant="body2" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {lastMsg.message}
+                  </Typography>
                 )}
-                <span>
-                  {ticket.createdAt.toLocaleDateString("ms-MY", {
-                    day: "numeric", month: "short", year: "numeric",
-                  })}
-                </span>
-              </p>
-            </div>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[ticket.status] || ""}`}>
-              {statusLabels[ticket.status] || ticket.status}
-            </span>
+                <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                  {ticket.createdAt.toLocaleDateString("ms-MY", { day: "numeric", month: "short", year: "numeric" })}
+                </Typography>
+              </Box>
+              <StatusChip status={ticket.status} />
+              <KIcon icon="chevron_right" size={18} sx={{ color: "text.disabled" }} />
+            </Box>
           </Link>
         )
       })}
-    </div>
+    </Box>
   )
 }

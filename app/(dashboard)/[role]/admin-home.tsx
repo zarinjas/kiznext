@@ -1,12 +1,15 @@
+"use client"
+
 import Link from "next/link"
-import {
-  CheckSquare,
-  Hotel,
-  MessageSquare,
-  Package,
-  EyeOff,
-  Clock,
-} from "lucide-react"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import Grid from "@mui/material/Grid"
+import Button from "@mui/material/Button"
+import { motion } from "framer-motion"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { StatCard } from "@/components/kiz/patterns/stat-card"
+import { KCard } from "@/components/kiz/primitives/k-card"
+import { color } from "@/lib/theme"
 
 interface Props {
   title: string
@@ -24,134 +27,175 @@ interface Props {
 
 export function AdminHome({ title, description, userName, role, stats }: Props) {
   const canManage = role === "admin_kiz" || role === "superadmin"
+  const isPengetua = role === "pengetua"
 
   const cards = [
     {
       label: "Pending Bookings",
       value: stats.pendingFacility,
-      href: "urus-tempahan",
-      icon: CheckSquare,
-      tone: "text-amber-700 bg-amber-100",
+      href: "urus-tempahan-fasiliti",
+      icon: "task_alt",
+      tone: "warning" as const,
     },
     {
       label: "Pending Guest House",
       value: stats.pendingGuestHouse,
       href: "urus-rumah-tamu",
-      icon: Hotel,
-      tone: "text-blue-700 bg-blue-100",
+      icon: "hotel",
+      tone: "info" as const,
     },
     {
       label: "Open Tickets",
       value: stats.openTickets,
       href: "urus-helpdesk",
-      icon: MessageSquare,
-      tone: "text-purple-700 bg-purple-100",
+      icon: "inbox",
+      tone: "brand" as const,
     },
     {
       label: "Unclaimed Parcels",
       value: stats.activeParcels,
       href: "urus-parcel",
-      icon: Package,
-      tone: "text-orange-700 bg-orange-100",
+      icon: "inventory_2",
+      tone: "success" as const,
     },
     {
       label: "Active Lost & Found",
       value: stats.activeLostFound,
       href: "hilang",
-      icon: EyeOff,
-      tone: "text-rose-700 bg-rose-100",
+      icon: "search",
+      tone: "danger" as const,
     },
   ]
 
-  const visibleCards = canManage
-    ? cards
-    : cards.filter((c) => c.href === "hilang")
-
+  const visibleCards = canManage ? cards : cards.filter((c) => c.href === "hilang")
   const totalPending = stats.pendingFacility + stats.pendingGuestHouse
+  const initial = (userName.trim().charAt(0) || "K").toUpperCase()
 
   return (
-    <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-2xl text-primary-foreground">{title}</h1>
-          <p className="mt-1 text-muted-foreground">{description}</p>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5">
-          <span className="flex size-9 items-center justify-center rounded-full bg-primary font-heading text-sm text-primary-foreground">
-            {userName.trim().charAt(0).toUpperCase() || "K"}
-          </span>
-          <div>
-            <p className="text-xs text-muted-foreground">Welcome,</p>
-            <p className="text-sm font-medium text-foreground">{userName}</p>
-          </div>
-        </div>
-      </div>
+    <Box sx={{ maxWidth: 1080, mx: "auto" }}>
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <Box sx={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 2, mb: 3, flexWrap: "wrap" }}>
+          <Box>
+            <Typography variant="overline" sx={{ color: "text.secondary" }}>
+              {isPengetua ? "Principal view · read only" : "College operations"}
+            </Typography>
+            <Typography variant="h1" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+              {title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+              {description}
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1, pr: 2, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[900], color: color.brand[300], fontFamily: "var(--font-fraunces), serif", fontWeight: 600 }}>
+              {initial}
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: "text.secondary", display: "block", lineHeight: 1.2 }}>Welcome,</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{userName}</Typography>
+            </Box>
+          </Box>
+        </Box>
+      </motion.div>
 
       {canManage && totalPending > 0 && (
-        <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <Clock className="size-5 shrink-0 text-amber-700" />
-          <p className="text-sm text-amber-800">
-            You have <span className="font-semibold">{totalPending}</span> bookings pending your approval.
-          </p>
-        </div>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            p: 2,
+            mb: 2.5,
+            borderRadius: 2,
+            backgroundColor: color.warning.soft,
+            color: color.warning.ink,
+          }}
+        >
+          <KIcon icon="schedule" size={22} />
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              You have {totalPending} booking{totalPending === 1 ? "" : "s"} pending your approval.
+            </Typography>
+          </Box>
+          <Button
+            component={Link}
+            href={`/${role}/urus-tempahan-fasiliti`}
+            size="small"
+            variant="contained"
+            startIcon={<KIcon icon="arrow_forward" size={16} />}
+          >
+            Review now
+          </Button>
+        </Box>
       )}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {visibleCards.map((card) => {
-          const Icon = card.icon
-          return (
-            <Link
-              key={card.href}
-              href={`/${role}/${card.href}`}
-              className="group rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md"
-            >
-              <span className={`inline-flex size-10 items-center justify-center rounded-full ${card.tone}`}>
-                <Icon className="size-5" />
-              </span>
-              <p className="mt-4 font-heading text-3xl text-primary-foreground">{card.value}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{card.label}</p>
+      <Grid container spacing={1.5}>
+        {visibleCards.map((card) => (
+          <Grid key={card.href} size={{ xs: 12, sm: 6, lg: 2.4 }}>
+            <Link href={`/${role}/${card.href}`} style={{ textDecoration: "none", color: "inherit" }}>
+              <StatCard label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
             </Link>
-          )
-        })}
-      </div>
+          </Grid>
+        ))}
+      </Grid>
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="font-heading text-lg text-primary-foreground">Quick Actions</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
+      <Box sx={{ mt: 3 }}>
+        <KCard>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
+            <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+              Quick Actions
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
             {canManage && (
               <>
-                <Link
+                <Button
+                  component={Link}
                   href={`/${role}/urus-pengumuman`}
-                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+                  variant="contained"
+                  startIcon={<KIcon icon="campaign" size={17} />}
                 >
                   Publish Announcement
-                </Link>
-                <Link
+                </Button>
+                <Button
+                  component={Link}
                   href={`/${role}/urus-parcel`}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                  variant="outlined"
+                  startIcon={<KIcon icon="inventory_2" size={17} />}
                 >
                   Register Parcel
-                </Link>
+                </Button>
+                <Button
+                  component={Link}
+                  href={`/${role}/urus-helpdesk`}
+                  variant="outlined"
+                  startIcon={<KIcon icon="inbox" size={17} />}
+                >
+                  Helpdesk Inbox
+                </Button>
               </>
             )}
-            <Link
+            <Button
+              component={Link}
               href={`/${role}/chat`}
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              variant="outlined"
+              startIcon={<KIcon icon="forum" size={17} />}
             >
               Community Chat
-            </Link>
+            </Button>
             {!canManage && (
-              <Link
+              <Button
+                component={Link}
                 href={`/${role}/pengumuman`}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                variant="outlined"
+                startIcon={<KIcon icon="campaign" size={17} />}
               >
                 View Announcements
-              </Link>
+              </Button>
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </KCard>
+      </Box>
+    </Box>
   )
 }

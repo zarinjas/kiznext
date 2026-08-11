@@ -1,17 +1,16 @@
+"use client"
+
 import Link from "next/link"
-import {
-  Calendar,
-  Hotel,
-  LifeBuoy,
-  Package,
-  EyeOff,
-  MapPin,
-  ChevronRight,
-  Megaphone,
-  CheckCircle,
-  Clock,
-  QrCode,
-} from "lucide-react"
+import Box from "@mui/material/Box"
+import Typography from "@mui/material/Typography"
+import Grid from "@mui/material/Grid"
+import Button from "@mui/material/Button"
+import { motion } from "framer-motion"
+import { KIcon } from "@/components/kiz/primitives/icon"
+import { KCard } from "@/components/kiz/primitives/k-card"
+import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { color, elevation } from "@/lib/theme"
+import { formatMalaysia, nowMalaysia } from "@/lib/timezone"
 
 interface Props {
   user: {
@@ -38,231 +37,218 @@ interface Props {
 }
 
 const quickActions = [
-  {
-    label: "Booking",
-    href: "tempahan",
-    icon: Calendar,
-    gradient: "from-blue-500 to-blue-600",
-    bg: "bg-blue-50 text-blue-600",
-  },
-  {
-    label: "Guest House",
-    href: "rumah-tamu",
-    icon: Hotel,
-    gradient: "from-purple-500 to-purple-600",
-    bg: "bg-purple-50 text-purple-600",
-  },
-  {
-    label: "Helpdesk",
-    href: "helpdesk",
-    icon: LifeBuoy,
-    gradient: "from-orange-500 to-orange-600",
-    bg: "bg-orange-50 text-orange-600",
-  },
-  {
-    label: "Parcel",
-    href: "parcel",
-    icon: Package,
-    gradient: "from-amber-500 to-amber-600",
-    bg: "bg-amber-50 text-amber-600",
-  },
-  {
-    label: "Lost & Found",
-    href: "hilang",
-    icon: EyeOff,
-    gradient: "from-rose-500 to-rose-600",
-    bg: "bg-rose-50 text-rose-600",
-  },
-  {
-    label: "Directory",
-    href: "direktori",
-    icon: MapPin,
-    gradient: "from-teal-500 to-teal-600",
-    bg: "bg-teal-50 text-teal-600",
-  },
-]
+  { label: "Book Facility", href: "tempahan-fasiliti", icon: "meeting_room", tone: "brand" },
+  { label: "Guest House", href: "rumah-tamu", icon: "hotel", tone: "info" },
+  { label: "Helpdesk", href: "helpdesk", icon: "support_agent", tone: "warning" },
+  { label: "Parcel", href: "parcel", icon: "inventory_2", tone: "success" },
+  { label: "Lost & Found", href: "hilang", icon: "search", tone: "danger" },
+  { label: "Directory", href: "direktori", icon: "map", tone: "info" },
+] as const
+
+const toneMap: Record<string, { bg: string; fg: string }> = {
+  brand: { bg: color.brand[50], fg: color.brand[700] },
+  success: { bg: color.success.soft, fg: color.success.ink },
+  warning: { bg: color.warning.soft, fg: color.warning.ink },
+  danger: { bg: color.danger.soft, fg: color.danger.ink },
+  info: { bg: color.info.soft, fg: color.info.ink },
+}
 
 const firstName = (name: string) => name.trim().split(" ")[0]
 
 export function AhliHome({ user, announcements, bookings, role }: Props) {
-  return (
-    <div className="px-4 py-5">
-      <p className="text-sm text-muted-foreground">Welcome,</p>
-      <h1 className="font-heading text-2xl text-foreground">
-        {firstName(user.name)} 👋
-      </h1>
+  const now = nowMalaysia()
+  const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening"
 
-      {/* Hero eCard */}
-      <div className="relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br from-[#004B23] via-[#006633] to-[#008844] p-5 text-white shadow-lg shadow-[#004B23]/20">
-        <div className="absolute -right-8 -top-8 size-32 rounded-full bg-white/[0.04]" />
-        <div className="absolute -bottom-6 right-12 size-20 rounded-full bg-white/[0.06]" />
-        <div className="relative">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-white/60">
-                KIZ eCard
-              </p>
-              <p className="mt-1 font-heading text-lg font-semibold">{user.name}</p>
-              <p className="mt-0.5 text-sm font-medium text-white/80">
-                {user.matricId}
-              </p>
-            </div>
-            <span className="rounded-full bg-white/[0.12] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide backdrop-blur-sm">
-              Kolej Ibu Zain
-            </span>
-          </div>
-          <div className="mt-5 flex items-center justify-between border-t border-white/[0.12] pt-3">
-            <p className="text-sm font-medium text-white/70">
-              {[user.block, user.roomNumber].filter(Boolean).join("  •  ") || "Block not assigned"}
-            </p>
-            <Link
-              href={`/${role}/kad-maya`}
-              className="flex items-center gap-1.5 rounded-full bg-white/[0.15] px-3.5 py-1.5 text-sm font-semibold backdrop-blur-sm transition active:bg-white/25"
-            >
-              <QrCode className="size-3.5" />
-              Show QR
-            </Link>
-          </div>
-        </div>
-      </div>
+  return (
+    <Box sx={{ maxWidth: 960, mx: "auto" }}>
+      {/* Hero */}
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <Box sx={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 2, mb: 3, flexWrap: "wrap" }}>
+          <Box>
+            <Typography variant="overline" sx={{ color: "text.secondary" }}>
+              {formatMalaysia(now)}
+            </Typography>
+            <Typography variant="h1" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+              {greeting}, {firstName(user.name)}
+            </Typography>
+          </Box>
+          <Button
+            component={Link}
+            href={`/${role}/kad-maya`}
+            variant="outlined"
+            startIcon={<KIcon icon="qr_code_2" size={18} />}
+          >
+            Show eCard
+          </Button>
+        </Box>
+      </motion.div>
 
       {/* Quick actions */}
-      <div className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Quick Access</h2>
-        <div className="grid grid-cols-3 gap-3">
-          {quickActions.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={`/${role}/${item.href}`}
-                className="group flex flex-col items-center gap-2.5 rounded-2xl border border-border/60 bg-white p-4 shadow-sm transition active:scale-95 active:bg-muted/50"
-              >
-                <span
-                  className={`flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br ${item.gradient} shadow-md shadow-current/15`}
-                >
-                  <Icon className="size-5 text-white" />
-                </span>
-                <span className="text-center text-[11px] font-semibold text-foreground">
-                  {item.label}
-                </span>
-              </Link>
-            )
-          })}
-        </div>
-      </div>
+      <Grid container spacing={1.5}>
+        {quickActions.map((a, i) => {
+          const t = toneMap[a.tone]
+          return (
+            <Grid key={a.href} size={{ xs: 6, sm: 4, lg: 2 }}>
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: i * 0.05 }}>
+                <Link href={`/${role}/${a.href}`} style={{ textDecoration: "none", color: "inherit" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 1,
+                      p: 2,
+                      borderRadius: 2.5,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      backgroundColor: "background.paper",
+                      boxShadow: elevation.e1,
+                      "&:hover": { boxShadow: elevation.e2 },
+                    }}
+                  >
+                    <Box sx={{ width: 44, height: 44, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: t.bg, color: t.fg }}>
+                      <KIcon icon={a.icon} size={22} />
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, textAlign: "center" }}>
+                      {a.label}
+                    </Typography>
+                  </Box>
+                </Link>
+              </motion.div>
+            </Grid>
+          )
+        })}
+      </Grid>
+
+      {/* eCard strip */}
+      <Box
+        sx={{
+          mt: 2.5,
+          borderRadius: 3,
+          p: 2.5,
+          background: `linear-gradient(120deg, ${color.brand[900]}, #0a6b34 60%, ${color.brand[600]})`,
+          color: "#fff",
+          position: "relative",
+          overflow: "hidden",
+          boxShadow: elevation.e3,
+        }}
+      >
+        <Box sx={{ position: "absolute", top: -30, right: -20, width: 130, height: 130, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.06)" }} />
+        <Box sx={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+          <Box>
+            <Typography variant="overline" sx={{ color: "rgba(255,255,255,0.6)" }}>
+              KIZ eCard
+            </Typography>
+            <Typography sx={{ fontFamily: "var(--font-fraunces), serif", fontSize: 18, fontWeight: 600 }}>
+              {user.name}
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
+              {user.matricId} · {[user.block, user.roomNumber].filter(Boolean).join(" • ") || "Block not assigned"}
+            </Typography>
+          </Box>
+          <Button
+            component={Link}
+            href={`/${role}/kad-maya`}
+            sx={{ color: "#fff", backgroundColor: "rgba(255,255,255,0.16)", "&:hover": { backgroundColor: "rgba(255,255,255,0.26)" } }}
+            startIcon={<KIcon icon="qr_code_2" size={18} />}
+          >
+            Show QR
+          </Button>
+        </Box>
+      </Box>
 
       {/* Recent bookings */}
       {bookings.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Recent Bookings</h2>
-            <Link
-              href={`/${role}/tempahan`}
-              className="text-xs font-semibold text-primary"
-            >
-              View All
-            </Link>
-          </div>
-          <div className="space-y-2">
+        <Box sx={{ mt: 3 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+            <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+              Recent Bookings
+            </Typography>
+            <Button component={Link} href={`/${role}/tempahan`} size="small">
+              View all
+            </Button>
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {bookings.map((b) => (
-              <div
+              <Box
                 key={b.id}
-                className="flex items-center gap-3 rounded-2xl border border-border/60 bg-white p-3.5 shadow-sm"
+                sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}
               >
-                {b.status === "approved" ? (
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-green-100">
-                    <CheckCircle className="size-4 text-green-600" />
-                  </span>
-                ) : (
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                    <Clock className="size-4 text-amber-600" />
-                  </span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {b.facility.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(b.timeSlotStart).toLocaleDateString("ms-MY", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    b.status === "approved"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: b.status === "approved" ? color.success.soft : color.warning.soft,
+                    color: b.status === "approved" ? color.success.ink : color.warning.ink,
+                  }}
                 >
-                  {b.status === "approved" ? "Approved" : "Pending"}
-                </span>
-              </div>
+                  <KIcon icon={b.status === "approved" ? "check_circle" : "schedule"} size={18} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {b.facility.name}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {new Date(b.timeSlotStart).toLocaleDateString("ms-MY", { day: "numeric", month: "short" })}
+                  </Typography>
+                </Box>
+                <StatusChip status={b.status} />
+              </Box>
             ))}
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
 
       {/* Announcements */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">
-            Latest Announcements
-          </h2>
-          <Link
-            href={`/${role}/pengumuman`}
-            className="text-xs font-semibold text-primary"
-          >
-            View All
-          </Link>
-        </div>
+      <Box sx={{ mt: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+            Announcements
+          </Typography>
+          <Button component={Link} href={`/${role}/pengumuman`} size="small">
+            View all
+          </Button>
+        </Box>
         {announcements.length === 0 ? (
-          <div className="rounded-2xl border border-border/60 bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
-            No announcements.
-          </div>
+          <KCard><Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", py: 3 }}>No announcements yet.</Typography></KCard>
         ) : (
-          <div className="space-y-2">
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {announcements.map((a) => (
-              <Link
-                key={a.id}
-                href={`/${role}/pengumuman`}
-                className={`flex items-start gap-3 rounded-2xl border border-border/60 bg-white p-3.5 shadow-sm transition active:bg-muted/50 ${
-                  a.isPinned ? "ring-2 ring-primary/25" : ""
-                }`}
-              >
-                <span
-                  className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl text-white ${
-                    a.tag === "penting"
-                      ? "bg-gradient-to-br from-red-500 to-red-600"
-                      : "bg-gradient-to-br from-[#004B23] to-[#006633]"
-                  }`}
+              <Link key={a.id} href={`/${role}/pengumuman`} style={{ textDecoration: "none", color: "inherit" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: a.isPinned ? color.brand[400] : "divider",
+                    backgroundColor: "background.paper",
+                    "&:hover": { borderColor: color.brand[400] },
+                  }}
                 >
-                  {a.isPinned ? (
-                    <span className="text-sm">!</span>
-                  ) : (
-                    <Megaphone className="size-4" />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {a.title}
-                  </p>
-                  <p className="mt-0.5 text-xs capitalize text-muted-foreground">
-                    {a.tag} ·{" "}
-                    {new Date(a.createdAt).toLocaleDateString("ms-MY", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
-                </div>
-                <ChevronRight className="size-4 shrink-0 self-center text-muted-foreground/40" />
+                  <Box sx={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: a.isPinned ? color.brand[50] : "action.hover", color: a.isPinned ? color.brand[700] : "text.secondary", flexShrink: 0 }}>
+                    <KIcon icon={a.isPinned ? "push_pin" : "campaign"} size={18} />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {a.title}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "capitalize" }}>
+                      {a.tag} · {new Date(a.createdAt).toLocaleDateString("ms-MY", { day: "numeric", month: "short" })}
+                    </Typography>
+                  </Box>
+                </Box>
               </Link>
             ))}
-          </div>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }
