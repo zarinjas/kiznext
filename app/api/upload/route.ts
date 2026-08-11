@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 
-  // Simpan dengan nama unik
+  // Save with unique filename
   const ext = file.name.split(".").pop() || "jpg"
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const uploadDir = path.join(process.cwd(), "public", "uploads", "fasiliti")

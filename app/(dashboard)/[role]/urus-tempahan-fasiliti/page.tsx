@@ -7,10 +7,10 @@ import { Clock, CheckCircle, XCircle, FileText } from "lucide-react"
 import Link from "next/link"
 
 const statusLabels: Record<string, string> = {
-  pending: "Menunggu",
-  approved: "Disahkan",
-  rejected: "Ditolak",
-  cancelled: "Batal",
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
 }
 
 const statusColors: Record<string, string> = {
@@ -40,13 +40,13 @@ export default async function UrusTempahanFasilitiPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="font-heading text-2xl text-primary-foreground">Urus Tempahan Fasiliti</h1>
-      <p className="mt-1 text-muted-foreground">Lulus atau tolak tempahan fasiliti pelajar dan kakitangan.</p>
+      <h1 className="font-heading text-2xl text-primary-foreground">Manage Facility Bookings</h1>
+      <p className="mt-1 text-muted-foreground">Approve or reject student and staff facility bookings.</p>
 
       {pending.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-3 flex items-center gap-2 font-heading text-lg text-amber-700">
-            <Clock className="size-5" /> Menunggu Kelulusan ({pending.length})
+            <Clock className="size-5" /> Awaiting Approval ({pending.length})
           </h2>
           <div className="space-y-2">
             {pending.map((b) => (
@@ -68,8 +68,8 @@ export default async function UrusTempahanFasilitiPage() {
                       {b.timeSlotEnd.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
                       {b.purpose && ` · ${b.purpose}`}
                     </p>
-                    {b.notes && (
-                      <p className="mt-1 text-xs text-muted-foreground italic">Nota: {b.notes}</p>
+                      {b.notes && (
+                      <p className="mt-1 text-xs text-muted-foreground italic">Notes: {b.notes}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 gap-2 ml-4">
@@ -89,14 +89,14 @@ export default async function UrusTempahanFasilitiPage() {
       {pending.length === 0 && active.length === 0 && (
         <div className="mt-8 rounded-lg border bg-card p-8 text-center">
           <CheckCircle className="mx-auto size-8 text-green-600" />
-          <p className="mt-2 text-muted-foreground">Tiada tempahan aktif.</p>
+          <p className="mt-2 text-muted-foreground">No active bookings.</p>
         </div>
       )}
 
       {done.length > 0 && (
         <details className="mt-8">
           <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
-            Sejarah ({done.length})
+            History ({done.length})
           </summary>
           <div className="mt-3 space-y-2">
             {done.map((b) => (

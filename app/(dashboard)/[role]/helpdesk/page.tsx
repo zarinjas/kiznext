@@ -22,7 +22,7 @@ export default async function HelpdeskPage() {
     orderBy: { updatedAt: "desc" },
   })
 
-  // Kira unread: messages terakhir dari admin & belum dibalas pelajar
+  // Count unread: last message from admin & student hasn't replied
   const unreadCount = tickets.filter((t) => {
     if (t.status === "closed") return false
     const lastMsg = t.messages[0]

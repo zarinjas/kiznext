@@ -24,20 +24,20 @@ export default async function UrusParcelPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-heading text-2xl text-primary-foreground">
-        Urus Parcel
+        Manage Parcels
       </h1>
       <p className="mt-1 text-muted-foreground">
-        Daftar bungkusan yang tiba untuk pelajar.
+        Register parcels that arrive for students.
       </p>
 
       <div className="mt-8 rounded-lg border bg-card p-6">
-        <h2 className="font-heading text-lg text-primary-foreground mb-4">Daftar Bungkusan Baru</h2>
+        <h2 className="font-heading text-lg text-primary-foreground mb-4">Register New Parcel</h2>
         <ParcelForm />
       </div>
 
       <div className="mt-8">
         <h2 className="mb-3 font-heading text-lg text-amber-700">
-          Belum Diambil ({active.length})
+          Not Collected ({active.length})
         </h2>
         <div className="space-y-2">
           {active.map((p) => (
@@ -53,7 +53,7 @@ export default async function UrusParcelPage() {
             </div>
           ))}
           {active.length === 0 && (
-            <p className="text-muted-foreground">Tiada bungkusan aktif.</p>
+            <p className="text-muted-foreground">No active parcels.</p>
           )}
         </div>
       </div>
@@ -61,7 +61,7 @@ export default async function UrusParcelPage() {
       {done.length > 0 && (
         <details className="mt-8">
           <summary className="cursor-pointer font-heading text-lg text-primary-foreground">
-            Sudah Diambil ({done.length})
+            Collected ({done.length})
           </summary>
           <div className="mt-3 space-y-2">
             {done.map((p) => (

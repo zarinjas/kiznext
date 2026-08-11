@@ -27,10 +27,10 @@ export default async function UrusFasilitiPage() {
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-2xl text-primary-foreground">
-            Urus Fasiliti
+            Manage Facilities
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Tambah, edit, dan uruskan fasiliti KIZ.
+            Add, edit, and manage KIZ facilities.
           </p>
         </div>
       </div>

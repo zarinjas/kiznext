@@ -26,7 +26,7 @@ export function ParcelForm() {
       router.refresh()
       ;(e.target as HTMLFormElement).reset()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ralat")
+      setError(err instanceof Error ? err.message : "Error")
     } finally {
       setLoading(false)
     }
@@ -35,16 +35,16 @@ export function ParcelForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="matricId">No. Matrik Pelajar</Label>
+        <Label htmlFor="matricId">Student Matric No.</Label>
         <Input id="matricId" name="matricId" placeholder="A123456" required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="description">Keterangan (pilihan)</Label>
-        <Input id="description" name="description" placeholder="Cth: Buku, pakaian" />
+        <Label htmlFor="description">Description (optional)</Label>
+        <Input id="description" name="description" placeholder="e.g. Books, clothes" />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading}>
-        {loading ? "Menyimpan..." : "Daftar"}
+        {loading ? "Saving..." : "Register"}
       </Button>
     </form>
   )

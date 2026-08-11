@@ -28,16 +28,16 @@ export default async function TempahanPage() {
   return (
     <div className="px-4 py-5">
       <h1 className="font-heading text-xl text-primary-foreground">
-        Tempahan Fasiliti
+        Facility Booking
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Tempah kemudahan kolej untuk kegunaan anda.
+        Book college facilities for your use.
       </p>
 
       {bookings.length > 0 && (
         <div className="mt-5">
           <h2 className="mb-2 text-sm font-semibold text-foreground">
-            Tempahan Terkini
+            Recent Bookings
           </h2>
           <div className="space-y-2">
             {bookings.map((b) => (
@@ -56,7 +56,7 @@ export default async function TempahanPage() {
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                   b.status === "approved" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
                 }`}>
-                  {b.status === "approved" ? "Disahkan" : "Menunggu"}
+                  {b.status === "approved" ? "Approved" : "Pending"}
                 </span>
               </div>
             ))}
@@ -86,7 +86,7 @@ export default async function TempahanPage() {
                     {facility.capacity && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <Users className="size-3" />
-                        {facility.capacity} orang
+                        {facility.capacity} people
                       </p>
                     )}
                   </div>

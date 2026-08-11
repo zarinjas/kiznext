@@ -7,7 +7,7 @@ import { adminReply, assignTicket, closeTicketAdmin } from "../actions"
 import { getTicketMessages } from "../../helpdesk/actions"
 import { ImageIcon, Send, XCircle } from "lucide-react"
 
-// Regex untuk detect image URL
+// Regex to detect image URL
 const ADMIN_IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
 
 function adminRenderMessage(msg: string) {

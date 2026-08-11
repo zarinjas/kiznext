@@ -22,7 +22,7 @@ export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-6">
         <div>
-          <p className="font-heading text-base leading-none tracking-wider">KAD MAYA</p>
+          <p className="font-heading text-base leading-none tracking-wider">eCARD</p>
           <p className="mt-1 text-xs text-white/70">Kolej Ibu Zain, UKM</p>
         </div>
         <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide backdrop-blur-sm">

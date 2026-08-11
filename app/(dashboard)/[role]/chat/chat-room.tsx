@@ -91,7 +91,7 @@ export function ChatRoom({ initialMessages, role, userId, compact = false }: Pro
                       <button
                         onClick={() => deleteChatMessage(msg.id)}
                         className="shrink-0 text-muted-foreground hover:text-destructive"
-                        title="Padam"
+                        title="Delete"
                       >
                         <Trash2 className="size-3" />
                       </button>
@@ -115,7 +115,7 @@ export function ChatRoom({ initialMessages, role, userId, compact = false }: Pro
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
-              placeholder="Taip mesej..."
+              placeholder="Type a message..."
               className="flex-1 rounded-full border border-input bg-background px-4 py-2.5 text-sm"
               disabled={sending}
             />
@@ -153,7 +153,7 @@ export function ChatRoom({ initialMessages, role, userId, compact = false }: Pro
               <button
                 onClick={() => deleteChatMessage(msg.id)}
                 className="shrink-0 text-muted-foreground hover:text-destructive"
-                title="Padam"
+                title="Delete"
               >
                 <Trash2 className="size-3.5" />
               </button>
@@ -169,7 +169,7 @@ export function ChatRoom({ initialMessages, role, userId, compact = false }: Pro
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
-            placeholder="Taip mesej..."
+            placeholder="Type a message..."
             className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
             disabled={sending}
           />

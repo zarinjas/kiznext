@@ -52,7 +52,7 @@ export function BookingForm({ facility, role, compact = false }: Props) {
       setStep("done")
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ralat berlaku")
+      setError(err instanceof Error ? err.message : "An error occurred")
     } finally {
       setLoading(false)
     }
@@ -64,15 +64,15 @@ export function BookingForm({ facility, role, compact = false }: Props) {
         <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-green-100">
           <span className="text-2xl">✅</span>
         </div>
-        <p className="text-lg font-semibold text-foreground">Tempahan Dihantar!</p>
+        <p className="text-lg font-semibold text-foreground">Booking Submitted!</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          No. Rujukan: <span className="font-mono font-bold">{bookingRef}</span>
+          Reference No.: <span className="font-mono font-bold">{bookingRef}</span>
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Tempahan sedang menunggu kelulusan admin. Anda akan menerima notifikasi setelah diluluskan.
+          Your booking is pending admin approval. You will be notified once approved.
         </p>
         <Button className="mt-6 w-full" onClick={() => router.push(`/${role}/tempahan-fasiliti`)}>
-          Kembali
+          Back
         </Button>
       </div>
     )
@@ -82,59 +82,59 @@ export function BookingForm({ facility, role, compact = false }: Props) {
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium text-foreground">Tempah: {facility.name}</h3>
+          <h3 className="font-medium text-foreground">Book: {facility.name}</h3>
           <Button type="button" variant="ghost" size="sm" onClick={() => setStep("detail")}>
-            Kembali
+            Back
           </Button>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="date">Tarikh</Label>
+          <Label htmlFor="date">Date</Label>
           <Input id="date" name="date" type="date" min={minDate} required />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="timeStart">Masa Mula</Label>
+            <Label htmlFor="timeStart">Start Time</Label>
             <Input id="timeStart" name="timeStart" type="time" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="timeEnd">Masa Tamat</Label>
+            <Label htmlFor="timeEnd">End Time</Label>
             <Input id="timeEnd" name="timeEnd" type="time" required />
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="purpose">Tujuan Tempahan</Label>
+          <Label htmlFor="purpose">Purpose</Label>
           <select
             id="purpose"
             name="purpose"
             className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
             required
           >
-            <option value="">Pilih tujuan...</option>
-            <option value="Mesyuarat">Mesyuarat</option>
+            <option value="">Select purpose...</option>
+            <option value="Meeting">Meeting</option>
             <option value="Program">Program</option>
-            <option value="Riadah">Riadah</option>
-            <option value="Belajar/Berkumpulan">Belajar / Berkumpulan</option>
-            <option value="Lain-lain">Lain-lain</option>
+            <option value="Recreation">Recreation</option>
+            <option value="Study/Group">Study / Group</option>
+            <option value="Other">Other</option>
           </select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notes">Nota (optional)</Label>
+          <Label htmlFor="notes">Notes (optional)</Label>
           <textarea
             id="notes"
             name="notes"
             rows={2}
             className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            placeholder="Contoh: perlu projektor, 20 orang..."
+            placeholder="e.g. need projector, 20 people..."
           />
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Memproses..." : "Hantar Tempahan"}
+          {loading ? "Processing..." : "Submit Booking"}
         </Button>
       </form>
     )
@@ -181,27 +181,27 @@ export function BookingForm({ facility, role, compact = false }: Props) {
           </span>
           {facility.capacity && (
             <span className="flex items-center gap-1">
-              👥 {facility.capacity} orang
+              👥 {facility.capacity} people
             </span>
           )}
           <span className="flex items-center gap-1 font-medium text-foreground">
-            {facility.price ? `RM ${facility.price.toFixed(2)}` : "Percuma"}
+            {facility.price ? `RM ${facility.price.toFixed(2)}` : "Free"}
           </span>
         </div>
 
         {/* Booked dates summary */}
         {bookedDates.length > 0 && (
           <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
-            <p className="font-medium">📅 Tempahan sedia ada: {bookedDates.length}</p>
+            <p className="font-medium">📅 Existing bookings: {bookedDates.length}</p>
             <p className="mt-1">
-              Sila semak ketersediaan sebelum membuat tempahan baru.
+              Please check availability before making a new booking.
             </p>
           </div>
         )}
       </div>
 
       <Button className="w-full" onClick={() => setStep("form")}>
-        Tempah Sekarang
+        Book Now
       </Button>
     </div>
   )

@@ -22,10 +22,10 @@ export default async function DirektoriPage() {
   return (
     <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-4xl"}>
       <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Direktori Blok & Fasiliti
+        Block & Facility Directory
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Panduan lokasi blok dan kemudahan di KIZ.
+        Guide to block locations and facilities at KIZ.
       </p>
 
       <div className={isAhli ? "mt-5 space-y-4" : "mt-8 grid gap-6"}>
@@ -53,7 +53,7 @@ export default async function DirektoriPage() {
             {block.facilities.length > 0 && (
               <div className="mt-4 border-t border-border pt-4">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Fasiliti
+                  Facilities
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {block.facilities.map((facility) => (

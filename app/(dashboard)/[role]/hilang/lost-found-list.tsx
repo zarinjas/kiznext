@@ -30,7 +30,7 @@ export function LostFoundList({ items, userId, compact = false }: Props) {
   if (items.length === 0) {
     return (
       <div className={compact ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
-        Tiada laporan.
+        No reports.
       </div>
     )
   }
@@ -55,12 +55,12 @@ export function LostFoundList({ items, userId, compact = false }: Props) {
                   item.status === "found" ? "bg-green-100 text-green-700" :
                   "bg-gray-100 text-gray-500"
                 }`}>
-                  {item.status === "lost" ? "Hilang" : item.status === "found" ? "Dijumpai" : "Dituntut"}
+                  {item.status === "lost" ? "Lost" : item.status === "found" ? "Found" : "Claimed"}
                 </span>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
               {item.locationFound && (
-                <p className="mt-1 text-xs text-muted-foreground">Lokasi: {item.locationFound}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Location: {item.locationFound}</p>
               )}
               <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                 <span>{item.reporter.name}</span>
@@ -80,7 +80,7 @@ export function LostFoundList({ items, userId, compact = false }: Props) {
                   router.refresh()
                 }}
               >
-                Tuntut
+                Claim
               </Button>
             )}
           </div>

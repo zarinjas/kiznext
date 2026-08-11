@@ -12,7 +12,7 @@ export async function markArrived(matricId: string, description: string) {
   requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
 
   const user = await prisma.user.findUnique({ where: { matricId } })
-  if (!user || user.deletedAt) throw new Error("Pelajar tidak dijumpai")
+  if (!user || user.deletedAt) throw new Error("Student not found")
 
   await prisma.parcel.create({
     data: {

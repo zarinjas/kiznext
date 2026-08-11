@@ -34,7 +34,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
     const end = `${date}T${endTime}:00`
 
     if (new Date(start) >= new Date(end)) {
-      setError("Masa tamat mesti selepas masa mula.")
+      setError("End time must be after start time.")
       setLoading(false)
       return
     }
@@ -44,7 +44,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
       setSuccess(true)
       router.refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ralat berlaku.")
+      setError(e instanceof Error ? e.message : "An error occurred.")
     } finally {
       setLoading(false)
     }
@@ -53,14 +53,14 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
   if (success) {
     return (
       <div className="text-center py-8">
-        <p className="text-green-600 font-medium">Tempahan berjaya dihantar!</p>
+        <p className="text-green-600 font-medium">Booking submitted successfully!</p>
         <p className="mt-1 text-sm text-muted-foreground">
           {requiresApproval
-            ? "Tempahan anda sedang menunggu kelulusan admin."
-            : "Tempahan anda telah disahkan."}
+            ? "Your booking is pending admin approval."
+            : "Your booking has been confirmed."}
         </p>
         <Button className="mt-4 w-full" onClick={() => router.push(`/${role}/tempahan`)}>
-          Kembali
+          Back
         </Button>
       </div>
     )
@@ -73,7 +73,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="date">Tarikh</Label>
+        <Label htmlFor="date">Date</Label>
         <Input
           id="date"
           name="date"
@@ -84,7 +84,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="startTime">Masa Mula</Label>
+          <Label htmlFor="startTime">Start Time</Label>
           <Input
             id="startTime"
             name="startTime"
@@ -94,7 +94,7 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="endTime">Masa Tamat</Label>
+          <Label htmlFor="endTime">End Time</Label>
           <Input
             id="endTime"
             name="endTime"
@@ -106,12 +106,12 @@ export function BookingForm({ facilityId, requiresApproval, role }: Props) {
       </div>
       {requiresApproval && (
         <p className="text-xs text-muted-foreground">
-          Fasiliti ini memerlukan kelulusan admin. Tempahan akan disemak sebelum disahkan.
+          This facility requires admin approval. Bookings will be reviewed before confirmation.
         </p>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Memproses..." : "Hantar Tempahan"}
+        {loading ? "Processing..." : "Submit Booking"}
       </Button>
     </form>
   )

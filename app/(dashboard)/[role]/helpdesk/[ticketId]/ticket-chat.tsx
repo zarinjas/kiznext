@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { sendReply, closeTicket, getTicketMessages } from "../actions"
 import { Bot, ImageIcon, Send, XCircle } from "lucide-react"
 
-// Regex untuk detect image URL
+// Regex to detect image URL
 const IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
 
 function renderMessage(msg: string) {
-  // Cuma detect image URL — render sebagai <img>
+  // Only detect image URL — render as <img>
   if (IMAGE_URL_RE.test(msg.trim())) {
     return <img src={msg.trim()} alt="" className="max-w-full rounded-lg" loading="lazy" />
   }

@@ -29,17 +29,17 @@ export default async function UrusTempahanPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-heading text-2xl text-primary-foreground">
-        Urus Tempahan Fasiliti
+        Manage Facility Bookings
       </h1>
       <p className="mt-1 text-muted-foreground">
-        Lulus atau tolak tempahan fasiliti daripada pelajar.
+        Approve or reject student facility bookings.
       </p>
 
       {pending.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-3 flex items-center gap-2 font-heading text-lg text-amber-700">
             <Clock className="size-5" />
-            Menunggu Kelulusan ({pending.length})
+            Awaiting Approval ({pending.length})
           </h2>
           <div className="space-y-3">
             {pending.map((b) => (
@@ -69,14 +69,14 @@ export default async function UrusTempahanPage() {
       {pending.length === 0 && (
         <div className="mt-8 rounded-lg border bg-card p-8 text-center">
           <CheckCircle className="mx-auto size-8 text-green-600" />
-          <p className="mt-2 text-muted-foreground">Tiada tempahan menunggu kelulusan.</p>
+          <p className="mt-2 text-muted-foreground">No bookings awaiting approval.</p>
         </div>
       )}
 
       {others.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-3 font-heading text-lg text-primary-foreground">
-            Sejarah Tempahan
+            Booking History
           </h2>
           <div className="space-y-2">
             {others.map((b) => (
@@ -90,7 +90,7 @@ export default async function UrusTempahanPage() {
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                   b.status === "approved" ? "bg-green-100 text-green-700" : "bg-red-100 text-destructive"
                 }`}>
-                  {b.status === "approved" ? "Disahkan" : "Ditolak"}
+                  {b.status === "approved" ? "Approved" : "Rejected"}
                 </span>
               </div>
             ))}

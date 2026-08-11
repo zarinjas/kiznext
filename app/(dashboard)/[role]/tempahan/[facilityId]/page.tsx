@@ -23,7 +23,7 @@ export default async function BookFacilityPage({
   return (
     <div className="px-4 py-5">
       <h1 className="font-heading text-xl text-primary-foreground">
-        Tempah: {facility.name}
+        Book: {facility.name}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {facility.block.name} — {facility.description}

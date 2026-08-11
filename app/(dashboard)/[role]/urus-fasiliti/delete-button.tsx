@@ -33,19 +33,19 @@ export function DeleteButton({ facilityId, facilityName }: Props) {
         variant="destructive"
         onClick={() => setOpen(true)}
       >
-        Padam
+        Delete
       </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-lg">
             <h3 className="font-heading text-lg text-primary-foreground">
-              Padam Fasiliti
+              Delete Facility
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Adakah anda pasti mahu memadam <strong>{facilityName}</strong>?
-              Fasiliti ini akan disembunyikan daripada pelajar. Tindakan ini boleh
-              diundur dengan menghubungi super admin.
+              Are you sure you want to delete <strong>{facilityName}</strong>?
+              This facility will be hidden from students. This action can be
+              reversed by contacting a super admin.
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <Button
@@ -53,14 +53,14 @@ export function DeleteButton({ facilityId, facilityName }: Props) {
                 onClick={() => setOpen(false)}
                 disabled={loading}
               >
-                Batal
+                Cancel
               </Button>
               <Button
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={loading}
               >
-                {loading ? "Memadam..." : "Ya, Padam"}
+                {loading ? "Deleting..." : "Yes, Delete"}
               </Button>
             </div>
           </div>

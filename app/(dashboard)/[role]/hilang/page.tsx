@@ -22,12 +22,12 @@ export default async function HilangPage() {
         Lost & Found
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Lapor barang hilang atau jumpa barang di KIZ.
+        Report lost or found items at KIZ.
       </p>
 
       <div className={isAhli ? "mt-5 rounded-2xl border border-border bg-card p-5" : "mt-8 rounded-lg border bg-card p-6"}>
         <h2 className={isAhli ? "font-heading text-base text-primary-foreground mb-4" : "font-heading text-lg text-primary-foreground mb-4"}>
-          Laporan Baru
+          New Report
         </h2>
         <ReportForm role={session.user.role} />
       </div>

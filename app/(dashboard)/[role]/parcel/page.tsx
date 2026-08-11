@@ -14,25 +14,25 @@ export default async function ParcelPage() {
 
   const isAhli = session.user.role === "ahli"
 
-  // Coming Soon — Parcel tracker akan datang
+  // Coming Soon — Parcel tracker
   const comingSoon = true
 
   return (
     <div className={isAhli ? "px-4 py-5" : "mx-auto max-w-2xl"}>
       <h1 className={isAhli ? "font-heading text-xl text-primary-foreground" : "font-heading text-2xl text-primary-foreground"}>
-        Bungkusan Saya
+        My Parcels
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Semak status bungkusan yang tiba di pejabat KIZ.
+        Check the status of parcels arriving at the KIZ office.
       </p>
 
       {/* Coming Soon Banner */}
       {comingSoon && (
         <div className="mt-5 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-8 text-center">
           <span className="text-4xl">📦</span>
-          <h2 className="mt-3 font-heading text-lg text-primary-foreground">Ciri Ini Akan Datang</h2>
+          <h2 className="mt-3 font-heading text-lg text-primary-foreground">Coming Soon</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Modul Pengesanan Bungkusan sedang dalam pembangunan. Anda akan menerima notifikasi apabila bungkusan tiba melalui apps tidak lama lagi.
+            Parcel tracking module is under development. You will be notified when your parcels arrive through the app soon.
           </p>
           <div className="mt-4 inline-block rounded-full bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary-foreground">
             Coming Soon
@@ -55,17 +55,17 @@ export default async function ParcelPage() {
               </span>
               <div>
                 <p className="font-medium text-foreground">
-                  {p.status === "arrived" ? "Bungkusan Tiba" : "Sudah Diambil"}
+                  {p.status === "arrived" ? "Arrived" : "Collected"}
                 </p>
                 {p.description && (
                   <p className="text-sm text-muted-foreground">{p.description}</p>
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Didaftar: {p.createdAt.toLocaleDateString("ms-MY")}
+                  Registered: {p.createdAt.toLocaleDateString("ms-MY")}
                 </p>
                 {p.collectedAt && (
                   <p className="text-xs text-muted-foreground">
-                    Diambil: {p.collectedAt.toLocaleDateString("ms-MY")}
+                    Collected: {p.collectedAt.toLocaleDateString("ms-MY")}
                   </p>
                 )}
               </div>
@@ -74,7 +74,7 @@ export default async function ParcelPage() {
         ))}
         {parcels.length === 0 && (
           <div className={isAhli ? "rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" : "rounded-lg border bg-card p-8 text-center text-muted-foreground"}>
-            Tiada bungkusan.
+            No parcels.
           </div>
         )}
       </div>

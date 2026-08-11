@@ -123,21 +123,21 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Nama Fasiliti */}
+      {/* Facility Name */}
       <div className="space-y-2">
-        <Label htmlFor="name">Nama Fasiliti</Label>
+        <Label htmlFor="name">Facility Name</Label>
         <Input
           id="name"
           name="name"
           required
           defaultValue={initialData?.name}
-          placeholder="Cth: Dewan Serbaguna"
+          placeholder="e.g. Multipurpose Hall"
         />
       </div>
 
-      {/* Blok */}
+      {/* Block */}
       <div className="space-y-2">
-        <Label htmlFor="blockId">Blok / Lokasi</Label>
+        <Label htmlFor="blockId">Block / Location</Label>
         <select
           id="blockId"
           name="blockId"
@@ -146,7 +146,7 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
           className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <option value="" disabled>
-            Pilih blok...
+            Select block...
           </option>
           {blocks.map((b) => (
             <option key={b.id} value={b.id}>
@@ -156,27 +156,27 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
         </select>
       </div>
 
-      {/* Penerangan */}
+      {/* Description */}
       <div className="space-y-2">
-        <Label htmlFor="description">Penerangan</Label>
+        <Label htmlFor="description">Description</Label>
         <textarea
           id="description"
           name="description"
           rows={3}
           required
           defaultValue={initialData?.description}
-          placeholder="Terangkan fasiliti ini..."
+          placeholder="Describe this facility..."
           className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
 
       {/* Featured Image */}
       <div className="space-y-2">
-        <Label>Gambar Utama</Label>
+        <Label>Featured Image</Label>
         <div className="flex items-start gap-3">
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input px-4 py-3 text-sm text-muted-foreground hover:border-primary hover:text-primary-foreground">
             <Upload className="mb-1 size-5" />
-            {uploading ? "Memuat naik..." : "Pilih Gambar"}
+            {uploading ? "Uploading..." : "Choose Image"}
             <input
               type="file"
               accept="image/*"
@@ -206,7 +206,7 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
 
       {/* Gallery */}
       <div className="space-y-2">
-        <Label>Galeri Gambar</Label>
+        <Label>Image Gallery</Label>
         <div className="flex flex-wrap gap-2">
           {gallery.map((url, i) => (
             <div key={i} className="relative size-20 overflow-hidden rounded-lg border">
@@ -227,7 +227,7 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
           ))}
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-input px-3 py-3 text-sm text-muted-foreground hover:border-primary hover:text-primary-foreground">
             <Plus className="mb-1 size-5" />
-            Tambah
+            Add
             <input
               type="file"
               accept="image/*"
@@ -239,10 +239,10 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
         </div>
       </div>
 
-      {/* Harga & Kapasiti — row on desktop */}
+      {/* Price & Capacity */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="price">Harga (RM) — Kosongkan jika percuma</Label>
+          <Label htmlFor="price">Price (RM) — Leave empty if free</Label>
           <Input
             id="price"
             name="price"
@@ -254,14 +254,14 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="capacity">Kapasiti (orang)</Label>
+          <Label htmlFor="capacity">Capacity (people)</Label>
           <Input
             id="capacity"
             name="capacity"
             type="number"
             min="1"
             defaultValue={initialData?.capacity?.toString() ?? ""}
-            placeholder="Cth: 50"
+            placeholder="e.g. 50"
           />
         </div>
       </div>
@@ -269,7 +269,7 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
       {/* Tempoh slot & Maks sehari */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="timeSlotDuration">Tempoh Slot (minit)</Label>
+          <Label htmlFor="timeSlotDuration">Slot Duration (minutes)</Label>
           <Input
             id="timeSlotDuration"
             name="timeSlotDuration"
@@ -281,7 +281,7 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="maxPerDay">Maks Tempahan Sehari</Label>
+          <Label htmlFor="maxPerDay">Max Bookings Per Day</Label>
           <Input
             id="maxPerDay"
             name="maxPerDay"
@@ -303,10 +303,10 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
         />
         <div className="text-sm">
           <span className="font-medium text-primary-foreground">
-            Perlukan Kelulusan
+            Requires Approval
           </span>
           <p className="text-muted-foreground">
-            Jika ditanda, tempahan pelajar perlu diluluskan oleh admin.
+            If checked, student bookings need admin approval.
           </p>
         </div>
       </label>
@@ -319,14 +319,14 @@ export function FacilityForm({ role, blocks, initialData }: Props) {
           onClick={() => router.back()}
           disabled={loading}
         >
-          Batal
+          Cancel
         </Button>
         <Button type="submit" disabled={loading || uploading}>
           {loading
-            ? "Menyimpan..."
+            ? "Saving..."
             : isEditing
-              ? "Simpan Perubahan"
-              : "Tambah Fasiliti"}
+              ? "Save Changes"
+              : "Add Facility"}
         </Button>
       </div>
     </form>

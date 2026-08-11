@@ -29,7 +29,7 @@ export async function createBooking(
       timeSlotEnd: { gt: timeSlotStart },
     },
   })
-  if (clash) throw new Error("Masa sudah ditempah oleh pengguna lain")
+  if (clash) throw new Error("Time slot already booked by another user")
 
   await prisma.facilityBooking.create({
     data: {

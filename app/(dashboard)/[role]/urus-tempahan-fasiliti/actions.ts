@@ -39,8 +39,8 @@ export async function cancelBooking(bookingId: string) {
   const booking = await prisma.facilityBooking.findUnique({
     where: { id: bookingId },
   })
-  if (!booking || booking.userId !== session.user.id) throw new Error("Bukan tempahan anda")
-  if (booking.status !== "pending") throw new Error("Hanya tempahan menunggu boleh dibatalkan")
+  if (!booking || booking.userId !== session.user.id) throw new Error("Not your booking")
+  if (booking.status !== "pending") throw new Error("Only pending bookings can be cancelled")
 
   await prisma.facilityBooking.update({
     where: { id: bookingId },

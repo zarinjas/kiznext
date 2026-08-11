@@ -60,7 +60,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
   )
 
   function formatPrice(price: number | null): string {
-    if (price == null) return "Percuma"
+    if (price == null) return "Free"
     return `RM ${price.toFixed(2)}`
   }
 
@@ -69,7 +69,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
     if (minutes < 60) return `${minutes} min`
     const h = Math.floor(minutes / 60)
     const m = minutes % 60
-    return m > 0 ? `${h}j ${m}m` : `${h} jam`
+    return m > 0 ? `${h}h ${m}m` : `${h} hrs`
   }
 
   return (
@@ -79,7 +79,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Cari fasiliti..."
+            placeholder="Search facilities..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -90,7 +90,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
           onChange={(e) => setBlockFilter(e.target.value)}
           className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <option value="all">Semua Blok</option>
+          <option value="all">All Blocks</option>
           {blockNames.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -99,7 +99,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
         </select>
         <Button onClick={() => setShowForm(true)} className="shrink-0">
           <Plus className="size-4" />
-          Tambah Fasiliti
+          Add Facility
         </Button>
       </div>
 
@@ -109,8 +109,8 @@ export function FacilityList({ facilities, blocks, role }: Props) {
           <Building2 className="mx-auto size-10 text-muted-foreground" />
           <p className="mt-3 text-muted-foreground">
             {search || blockFilter !== "all"
-              ? "Tiada fasiliti yang sepadan dengan carian."
-              : "Belum ada fasiliti lagi. Klik 'Tambah Fasiliti' untuk bermula."}
+              ? "No facilities match your search."
+              : "No facilities yet. Click 'Add Facility' to get started."}
           </p>
         </div>
       ) : (
@@ -148,7 +148,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
                   {facility.capacity && (
                     <span className="flex items-center gap-1">
                       <Users className="size-3.5 shrink-0" />
-                      {facility.capacity} org
+                      {facility.capacity} pax
                     </span>
                   )}
                   <span className="flex items-center gap-1">
@@ -157,7 +157,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
                   </span>
                   <span className="flex items-center gap-1">
                     <CalendarDays className="size-3.5 shrink-0" />
-                    {facility.maxPerDay ?? 3}/hari
+                    {facility.maxPerDay ?? 3}/day
                   </span>
                 </div>
 
@@ -165,12 +165,12 @@ export function FacilityList({ facilities, blocks, role }: Props) {
                   {facility.requiresApproval ? (
                     <span className="flex items-center gap-1 text-amber-600">
                       <CheckCircle className="size-3.5" />
-                      Perlukan kelulusan
+                      Requires approval
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-green-600">
                       <XCircle className="size-3.5" />
-                      Auto-lulus
+                      Auto-approved
                     </span>
                   )}
                 </div>
@@ -194,18 +194,18 @@ export function FacilityList({ facilities, blocks, role }: Props) {
         </div>
       )}
 
-      {/* Tambah Fasiliti Modal */}
+      {/* Add Facility Modal */}
       {showForm && (
-        <Modal onClose={() => setShowForm(false)} title="Tambah Fasiliti Baru">
+        <Modal onClose={() => setShowForm(false)} title="Add New Facility">
           <FacilityForm role={role} blocks={blocks} />
         </Modal>
       )}
 
-      {/* Edit Fasiliti Modal */}
+      {/* Edit Facility Modal */}
       {editingFacility && (
         <Modal
           onClose={() => setEditingId(null)}
-          title={`Edit Fasiliti: ${editingFacility.name}`}
+          title={`Edit Facility: ${editingFacility.name}`}
         >
           <FacilityForm
             role={role}
@@ -230,7 +230,7 @@ export function FacilityList({ facilities, blocks, role }: Props) {
   )
 }
 
-/** Simple modal wrapper — mobile-friendly full-screen overlay */
+/** Modal wrapper — mobile-friendly full-screen overlay */
 function Modal({
   children,
   onClose,

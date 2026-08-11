@@ -91,7 +91,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
         <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <Clock className="size-5 shrink-0 text-amber-700" />
           <p className="text-sm text-amber-800">
-            Ada <span className="font-semibold">{totalPending}</span> bookings pending your approval.
+            You have <span className="font-semibold">{totalPending}</span> bookings pending your approval.
           </p>
         </div>
       )}

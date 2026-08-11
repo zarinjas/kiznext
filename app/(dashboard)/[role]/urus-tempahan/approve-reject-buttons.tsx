@@ -20,7 +20,7 @@ export function ApproveRejectButtons({ bookingId }: Props) {
           router.refresh()
         }}
       >
-        Lulus
+        Approve
       </Button>
       <Button
         size="sm"
@@ -30,7 +30,7 @@ export function ApproveRejectButtons({ bookingId }: Props) {
           router.refresh()
         }}
       >
-        Tolak
+        Reject
       </Button>
     </div>
   )

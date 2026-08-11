@@ -15,38 +15,38 @@ import { SignOutButton } from "@/components/shared/sign-out-button"
 
 const menuItems = [
   {
-    label: "Rumah Tamu",
-    description: "Tempah penginapan untuk tetamu",
+    label: "Guest House",
+    description: "Book accommodation for guests",
     href: "rumah-tamu",
     icon: Luggage,
   },
   {
     label: "Helpdesk",
-    description: "Hubungi pengurusan KIZ",
+    description: "Contact KIZ management",
     href: "helpdesk",
     icon: LifeBuoy,
   },
   {
-    label: "Bungkusan Saya",
-    description: "Semak status parcel anda",
+    label: "My Parcels",
+    description: "Check your parcel status",
     href: "parcel",
     icon: Package,
   },
   {
     label: "Lost & Found",
-    description: "Lapor atau semak barang hilang",
+    description: "Report or check lost items",
     href: "hilang",
     icon: EyeOff,
   },
   {
-    label: "Direktori Blok",
-    description: "Panduan lokasi blok & fasiliti",
+    label: "Block Directory",
+    description: "Guide to block & facility locations",
     href: "direktori",
     icon: MapPin,
   },
   {
-    label: "Profil Saya",
-    description: "Kemaskini maklumat peribadi",
+    label: "My Profile",
+    description: "Update personal info",
     href: "profile",
     icon: User,
   },
@@ -63,9 +63,9 @@ export default async function LagiPage({
 
   return (
     <div className="px-4 py-5">
-      <h1 className="font-heading text-xl text-primary-foreground">Lagi</h1>
+      <h1 className="font-heading text-xl text-primary-foreground">More</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Semua ciri lain KIZ Super App.
+        All other KIZ Super App features.
       </p>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-card">
@@ -99,7 +99,7 @@ export default async function LagiPage({
       <div className="mt-5">
         <SignOutButton className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card px-4 py-3.5 text-sm font-medium text-destructive active:bg-destructive/10">
           <LogOut className="size-4" />
-          Log Keluar
+          Log Out
         </SignOutButton>
       </div>
     </div>
