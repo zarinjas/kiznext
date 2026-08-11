@@ -82,9 +82,9 @@ export function BookingForm({ facility, role }: Props) {
         >
           <KIcon icon="check_circle" size={32} />
         </Box>
-        <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>Booking Submitted!</Typography>
+        <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>Booking Submitted!</Typography>
         <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
-          Reference No.: <Box component="span" sx={{ fontFamily: "monospace", fontWeight: 700 }}>{bookingRef}</Box>
+          Reference No.: <Box component="span" sx={{ fontFamily: "var(--font-mono), monospace", fontWeight: 700 }}>{bookingRef}</Box>
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
           Your booking is pending admin approval.
@@ -162,7 +162,7 @@ export function BookingForm({ facility, role }: Props) {
       )}
 
       <Box sx={{ mb: 2.5 }}>
-        <Typography variant="h2" sx={{ fontFamily: "var(--font-fraunces), serif" }}>{facility.name}</Typography>
+        <Typography variant="h2" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>{facility.name}</Typography>
         <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>{facility.description}</Typography>
 
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mt: 1.5 }}>

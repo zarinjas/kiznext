@@ -75,7 +75,7 @@ export default async function HelpdeskPage() {
       </FormSection>
 
       <Box sx={{ mt: 3, mb: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-        <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+        <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
           Your Conversations
         </Typography>
         {unreadCount > 0 && (

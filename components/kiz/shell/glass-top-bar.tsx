@@ -58,7 +58,7 @@ export function GlassTopBar({
                 justifyContent: "center",
                 backgroundColor: color.brand[900],
                 color: color.brand[300],
-                fontFamily: "var(--font-fraunces), serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontSize: 13,
                 fontWeight: 600,
               }}

@@ -79,7 +79,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
             <Typography variant="overline" sx={{ color: "text.secondary" }}>
               {isPengetua ? "Principal view · read only" : "College operations"}
             </Typography>
-            <Typography variant="h1" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+            <Typography variant="h1" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
               {title}
             </Typography>
             <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
@@ -87,7 +87,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
             </Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1, pr: 2, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}>
-            <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[900], color: color.brand[300], fontFamily: "var(--font-fraunces), serif", fontWeight: 600 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[900], color: color.brand[300], fontFamily: "var(--font-sans), sans-serif", fontWeight: 600 }}>
               {initial}
             </Box>
             <Box>
@@ -142,7 +142,7 @@ export function AdminHome({ title, description, userName, role, stats }: Props) 
       <Box sx={{ mt: 3 }}>
         <KCard>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-            <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+            <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
               Quick Actions
             </Typography>
           </Box>

@@ -37,7 +37,7 @@ export default async function UrusRumahTamuPage() {
 
       {pending.length > 0 && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5, color: color.warning.ink }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5, color: color.warning.ink }}>
             Pending Approval ({pending.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -71,7 +71,7 @@ export default async function UrusRumahTamuPage() {
 
       {active.length > 0 && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5, color: color.info.ink }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5, color: color.info.ink }}>
             Active ({active.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -101,7 +101,7 @@ export default async function UrusRumahTamuPage() {
 
       {done.length > 0 && (
         <Box sx={{ mt: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
             History ({done.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

@@ -68,7 +68,7 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
             <Typography variant="overline" sx={{ color: "text.secondary" }}>
               {formatMalaysia(now)}
             </Typography>
-            <Typography variant="h1" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+            <Typography variant="h1" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
               {greeting}, {firstName(user.name)}
             </Typography>
           </Box>
@@ -139,7 +139,7 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
             <Typography variant="overline" sx={{ color: "rgba(255,255,255,0.6)" }}>
               KIZ eCard
             </Typography>
-            <Typography sx={{ fontFamily: "var(--font-fraunces), serif", fontSize: 18, fontWeight: 600 }}>
+            <Typography sx={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 18, fontWeight: 600 }}>
               {user.name}
             </Typography>
             <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
@@ -161,7 +161,7 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
       {bookings.length > 0 && (
         <Box sx={{ mt: 3 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-            <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+            <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
               Recent Bookings
             </Typography>
             <Button component={Link} href={`/${role}/tempahan`} size="small">
@@ -206,7 +206,7 @@ export function AhliHome({ user, announcements, bookings, role }: Props) {
       {/* Announcements */}
       <Box sx={{ mt: 3 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
             Announcements
           </Typography>
           <Button component={Link} href={`/${role}/pengumuman`} size="small">

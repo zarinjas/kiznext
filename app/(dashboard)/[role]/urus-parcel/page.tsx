@@ -46,7 +46,7 @@ export default async function UrusParcelPage() {
         </Box>
       ) : (
         <Box sx={{ mt: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5, color: color.warning.ink }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5, color: color.warning.ink }}>
             Not Collected ({active.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -96,7 +96,7 @@ export default async function UrusParcelPage() {
 
       {done.length > 0 && (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
             Collected ({done.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

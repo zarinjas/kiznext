@@ -34,8 +34,9 @@ export const color = {
 } as const
 
 export const font = {
-  heading: 'var(--font-fraunces), "Fraunces", Georgia, serif',
-  body: 'var(--font-dm-sans), "DM Sans", -apple-system, "Segoe UI", sans-serif',
+  heading: 'var(--font-sans), "Geist", -apple-system, "Segoe UI", sans-serif',
+  body: 'var(--font-sans), "Geist", -apple-system, "Segoe UI", sans-serif',
+  mono: 'var(--font-mono), "Geist Mono", ui-monospace, SFMono-Regular, monospace',
 } as const
 
 export const radius = {

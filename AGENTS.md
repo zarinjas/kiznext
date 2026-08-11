@@ -64,8 +64,9 @@ enum value plus an `approvedById` check, no schema restructure.
 
 ## Design tokens
 
-- Primary `#91C953` · Dark green `#004B23` · Background `#F5F7F5`
-- Headings `Fraunces` · Body/UI `DM Sans`
+- Primary `#91C953` · Dark green `#004B23` · Background `#FFFFFF`
+- UI font `Geist` (single family, `next/font` → `--font-sans`) · Mono `Geist Mono` (`--font-mono`)
+- Sidebar is dark green `#004B23`; app canvas is white
 
 ## Structure
 

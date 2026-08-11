@@ -110,7 +110,7 @@ export default async function MyBookingsPage() {
                         {b.timeSlotStart.toLocaleDateString("ms-MY", { day: "numeric", month: "short", year: "numeric" })} ·{" "}
                         {b.timeSlotStart.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })} –{" "}
                         {b.timeSlotEnd.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
-                        {b.bookingRef && <> · <Box component="span" sx={{ fontFamily: "monospace" }}>{b.bookingRef}</Box></>}
+                        {b.bookingRef && <> · <Box component="span" sx={{ fontFamily: "var(--font-mono), monospace" }}>{b.bookingRef}</Box></>}
                       </Typography>
                     </Box>
                     <StatusChip status={b.status} />

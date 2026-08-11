@@ -72,7 +72,7 @@ export function StatCard({
         <Typography
           variant="h2"
           sx={{
-            fontFamily: "var(--font-fraunces), serif",
+            fontFamily: "var(--font-sans), sans-serif",
             fontWeight: 560,
             mt: 1,
             letterSpacing: "-0.01em",

@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
-import { Fraunces, DM_Sans } from "next/font/google"
+import { Geist, Geist_Mono } from "next/font/google"
 import InitColorSchemeScript from "@mui/material/InitColorSchemeScript"
 import { AppProviders } from "@/components/providers/app-providers"
 import "./globals.css"
 
-const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], display: "swap" })
-const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"], display: "swap" })
+const geist = Geist({ variable: "--font-sans", subsets: ["latin"], display: "swap" })
+const geistMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"], display: "swap" })
 
 export const metadata: Metadata = {
   title: "KIZ Super App",
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ms" className={`${fraunces.variable} ${dmSans.variable}`} suppressHydrationWarning>
+    <html lang="ms" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <link
           rel="stylesheet"

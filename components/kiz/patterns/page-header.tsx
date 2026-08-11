@@ -38,7 +38,7 @@ export function PageHeader({
         <Typography
           variant="h1"
           sx={{
-            fontFamily: "var(--font-fraunces), serif",
+            fontFamily: "var(--font-sans), sans-serif",
             fontWeight: 560,
             letterSpacing: "-0.01em",
           }}

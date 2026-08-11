@@ -39,7 +39,7 @@ export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl
       <Box sx={{ position: "relative", px: 3, pt: 3 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
-            <Typography sx={{ fontFamily: "var(--font-fraunces), serif", fontSize: 20, lineHeight: 1, letterSpacing: "0.04em", fontWeight: 600 }}>
+            <Typography sx={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 20, lineHeight: 1, letterSpacing: "0.04em", fontWeight: 600 }}>
               eCARD
             </Typography>
             <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.7)", mt: 0.5 }}>
@@ -77,7 +77,7 @@ export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontFamily: "var(--font-fraunces), serif",
+                fontFamily: "var(--font-sans), sans-serif",
                 fontSize: 30,
                 border: "2px solid rgba(255,255,255,0.35)",
               }}
@@ -94,10 +94,10 @@ export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl
         </Box>
 
         <Box sx={{ textAlign: "center", pb: 2.5 }}>
-          <Typography sx={{ fontFamily: "var(--font-fraunces), serif", fontSize: 20, fontWeight: 600, lineHeight: 1.3 }}>
+          <Typography sx={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 20, fontWeight: 600, lineHeight: 1.3 }}>
             {name}
           </Typography>
-          <Typography sx={{ fontSize: 13, letterSpacing: "0.12em", fontFamily: "monospace", mt: 0.25 }}>
+          <Typography sx={{ fontSize: 13, letterSpacing: "0.12em", fontFamily: "var(--font-mono), monospace", mt: 0.25 }}>
             {matricId}
           </Typography>
           {(block || roomNumber) && (

@@ -42,8 +42,9 @@ export function NavRail({
         display: { xs: "none", md: "flex" },
         flexDirection: "column",
         borderRight: "1px solid",
-        borderColor: "divider",
-        backgroundColor: "background.paper",
+        borderColor: "rgba(255,255,255,0.06)",
+        backgroundColor: color.brand[900],
+        backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0) 40%)",
         transition: "width 200ms ease",
         zIndex: 10,
       }}
@@ -58,7 +59,7 @@ export function NavRail({
           justifyContent: collapsed ? "center" : "flex-start",
           gap: 1.5,
           borderBottom: "1px solid",
-          borderColor: "divider",
+          borderColor: "rgba(255,255,255,0.06)",
         }}
       >
         {logoUrl ? (
@@ -72,11 +73,11 @@ export function NavRail({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: color.brand[900],
-              color: color.brand[300],
-              fontFamily: "var(--font-fraunces), serif",
+              backgroundColor: color.brand[400],
+              color: color.brand[900],
+              fontFamily: "var(--font-sans), sans-serif",
               fontSize: 14,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
             KIZ
@@ -84,10 +85,10 @@ export function NavRail({
         )}
         {!collapsed && (
           <Box>
-            <Box sx={{ fontWeight: 700, fontSize: 15, color: "text.primary", lineHeight: 1.2 }}>
+            <Box sx={{ fontWeight: 700, fontSize: 15, color: "#FFFFFF", lineHeight: 1.2 }}>
               KIZ Super App
             </Box>
-            <Box sx={{ fontSize: 11, color: "text.secondary", fontWeight: 500 }}>Kolej Ibu Zain · UKM</Box>
+            <Box sx={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>Kolej Ibu Zain · UKM</Box>
           </Box>
         )}
       </Box>
@@ -97,7 +98,7 @@ export function NavRail({
         {groups.map((group) => (
           <Box key={group.label} sx={{ mb: 2.5 }}>
             {!collapsed && (
-              <Box sx={{ px: 1.5, pb: 0.75, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "text.disabled" }}>
+              <Box sx={{ px: 1.5, pb: 0.75, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>
                 {group.label}
               </Box>
             )}
@@ -118,16 +119,16 @@ export function NavRail({
                       minHeight: 38,
                       fontSize: 13.5,
                       fontWeight: active ? 600 : 500,
-                      color: active ? "primary.contrastText" : "text.secondary",
-                      backgroundColor: active ? color.brand[900] : "transparent",
+                      color: active ? color.brand[900] : "rgba(255,255,255,0.72)",
+                      backgroundColor: active ? color.brand[400] : "transparent",
                       "&:hover": {
-                        backgroundColor: active ? color.brand[900] : "action.hover",
-                        color: active ? "primary.contrastText" : "text.primary",
+                        backgroundColor: active ? color.brand[300] : "rgba(255,255,255,0.08)",
+                        color: active ? color.brand[900] : "#FFFFFF",
                       },
                       transition: "background-color 150ms ease, color 150ms ease",
                     }}
                   >
-                    <KIcon icon={item.icon} size={20} color={active ? color.brand[300] : "inherit"} />
+                    <KIcon icon={item.icon} size={20} color={active ? color.brand[900] : "inherit"} />
                     {!collapsed && item.label}
                   </Box>
                 </Link>
@@ -145,7 +146,7 @@ export function NavRail({
       </Box>
 
       {/* User / collapse footer */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", p: collapsed ? 1 : 1.5 }}>
+      <Box sx={{ borderTop: "1px solid", borderColor: "rgba(255,255,255,0.06)", p: collapsed ? 1 : 1.5 }}>
         <Box
           sx={{
             display: "flex",
@@ -165,21 +166,21 @@ export function NavRail({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: color.brand[900],
-                  color: color.brand[300],
-                  fontFamily: "var(--font-fraunces), serif",
+                  backgroundColor: color.brand[400],
+                  color: color.brand[900],
+                  fontFamily: "var(--font-sans), sans-serif",
                   fontSize: 14,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   flexShrink: 0,
                 }}
               >
                 {(userName.trim().charAt(0) || "K").toUpperCase()}
               </Box>
               <Box sx={{ minWidth: 0 }}>
-                <Box sx={{ fontSize: 13, fontWeight: 600, color: "text.primary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <Box sx={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {userName}
                 </Box>
-                <Box sx={{ fontSize: 11, color: "text.secondary", fontWeight: 500 }}>{ROLE_LABELS[role]}</Box>
+                <Box sx={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>{ROLE_LABELS[role]}</Box>
               </Box>
             </Box>
           )}
@@ -192,14 +193,14 @@ export function NavRail({
                 border: "none",
                 background: "transparent",
                 cursor: "pointer",
-                color: "text.secondary",
+                color: "rgba(255,255,255,0.7)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 width: 30,
                 height: 30,
                 borderRadius: 1.5,
-                "&:hover": { backgroundColor: "action.hover" },
+                "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
                 margin: collapsed ? "0 auto" : 0,
               }}
             >
@@ -222,11 +223,11 @@ export function NavRail({
               borderRadius: 1.75,
               fontSize: 13,
               fontWeight: 500,
-              color: "text.secondary",
+              color: "rgba(255,255,255,0.7)",
               background: "transparent",
               border: "none",
               cursor: "pointer",
-              "&:hover": { backgroundColor: "action.hover", color: "error.main" },
+              "&:hover": { backgroundColor: "rgba(255,255,255,0.08)", color: "#FFB4A8" },
             }}
           >
             <KIcon icon="logout" size={19} />

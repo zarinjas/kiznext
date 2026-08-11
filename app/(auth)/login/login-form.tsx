@@ -91,7 +91,7 @@ export function LoginForm({ logoUrl }: Props) {
           ) : (
             <Typography
               variant="h1"
-              sx={{ fontFamily: "var(--font-fraunces), serif", color: color.brand[900] }}
+              sx={{ fontFamily: "var(--font-sans), sans-serif", color: color.brand[900] }}
             >
               KIZ
             </Typography>

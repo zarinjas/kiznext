@@ -60,7 +60,7 @@ export default async function UrusTempahanFasilitiPage() {
 
       {pending.length > 0 && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
             Awaiting Approval ({pending.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -97,7 +97,7 @@ export default async function UrusTempahanFasilitiPage() {
                 <Box sx={{ flex: 1, minWidth: 220 }}>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
                     {b.facility.name}
-                    <Box component="span" sx={{ ml: 1, fontSize: 12, fontWeight: 500, color: "text.secondary", fontFamily: "monospace" }}>
+                    <Box component="span" sx={{ ml: 1, fontSize: 12, fontWeight: 500, color: "text.secondary", fontFamily: "var(--font-mono), monospace" }}>
                       {b.bookingRef}
                     </Box>
                   </Typography>
@@ -146,7 +146,7 @@ export default async function UrusTempahanFasilitiPage() {
 
       {done.length > 0 && (
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif", mb: 1.5 }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
             History ({done.length})
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -171,7 +171,7 @@ export default async function UrusTempahanFasilitiPage() {
                     <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}> — {b.user.name}</Box>
                   </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ color: "text.disabled", fontFamily: "monospace" }}>{b.bookingRef}</Typography>
+                <Typography variant="caption" sx={{ color: "text.disabled", fontFamily: "var(--font-mono), monospace" }}>{b.bookingRef}</Typography>
                 <StatusChip status={b.status} />
               </Box>
             ))}

@@ -42,7 +42,7 @@ export default async function UrusPengumumanPage() {
         </Box>
       ) : (
         <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 1.5 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-fraunces), serif" }}>
+          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
             All Announcements ({announcements.length})
           </Typography>
           {announcements.map((a) => (

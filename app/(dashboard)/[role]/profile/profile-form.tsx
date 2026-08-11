@@ -74,7 +74,7 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
                   justifyContent: "center",
                   backgroundColor: color.brand[50],
                   color: color.brand[700],
-                  fontFamily: "var(--font-fraunces), serif",
+                  fontFamily: "var(--font-sans), sans-serif",
                   fontSize: 30,
                 }}
               >
