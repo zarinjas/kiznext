@@ -107,6 +107,100 @@ async function main() {
   }
 
   console.log("Facilities seeded")
+
+  const student = await prisma.user.findUnique({ where: { matricId: "A123456" } })
+  const admin = await prisma.user.findUnique({ where: { matricId: "ADMIN002" } })
+
+  if (student && admin) {
+    const facilities = await prisma.facility.findMany()
+
+    const now = new Date()
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+    const bookingData = [
+      {
+        facilityName: "Bilik Mesyuarat Utama",
+        timeSlotStart: tomorrow,
+        status: "approved" as const,
+      },
+      {
+        facilityName: "Padang Futsal",
+        timeSlotStart: nextWeek,
+        status: "pending" as const,
+      },
+      {
+        facilityName: "Bilik TV Blok A",
+        timeSlotStart: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+        status: "approved" as const,
+      },
+    ]
+
+    for (const bd of bookingData) {
+      const facility = facilities.find((f) => f.name === bd.facilityName)
+      if (!facility) continue
+      await prisma.facilityBooking.create({
+        data: {
+          facilityId: facility.id,
+          userId: student.id,
+          timeSlotStart: bd.timeSlotStart,
+          timeSlotEnd: new Date(bd.timeSlotStart.getTime() + 60 * 60 * 1000),
+          status: bd.status,
+          approvedById: bd.status === "approved" ? admin.id : null,
+          purpose: "Dummy booking",
+        },
+      })
+    }
+
+    console.log("Dummy bookings seeded")
+
+    const announcementData = [
+      {
+        title: "Selamat Datang ke Semester Baru 2024/2025!",
+        content: "Pihak KIZ mengalu-alukan kedatangan semua pelajar...",
+        tag: "umum",
+        isPinned: true,
+      },
+      {
+        title: "Gangguan Bekalan Air Blok A & B — 17 Julai",
+        content: "Pihak pengurusan memaklumkan...",
+        tag: "penting",
+        isPinned: true,
+      },
+      {
+        title: "Pendaftaran Kad Maya Wajib Sebelum 31 Ogos",
+        content: "Semua penghuni diwajibkan...",
+        tag: "umum",
+        isPinned: false,
+      },
+      {
+        title: "Aktiviti Gotong-Royong KIZ — Sabtu Ini",
+        content: "Sertai gotong-royong perdana...",
+        tag: "aktiviti",
+        isPinned: false,
+      },
+      {
+        title: "Tempahan Rumah Tamu Kini Dibuka!",
+        content: "Penghuni boleh membuat tempahan...",
+        tag: "umum",
+        isPinned: false,
+      },
+    ]
+
+    for (const ad of announcementData) {
+      await prisma.announcement.create({
+        data: {
+          title: ad.title,
+          content: ad.content,
+          tag: ad.tag,
+          isPinned: ad.isPinned,
+          postedBy: admin.id,
+        },
+      })
+    }
+
+    console.log("Dummy announcements seeded")
+  }
 }
 
 main()
