@@ -40,121 +40,123 @@ interface NavGroup {
 const roleNavGroups: Record<"admin_kiz" | "superadmin" | "pengetua", NavGroup[]> = {
   admin_kiz: [
     {
-      label: "Ringkasan",
+      label: "Overview",
       items: [
         { label: "Dashboard", href: "/admin_kiz", icon: <LayoutDashboard className="size-4" /> },
       ],
     },
     {
-      label: "Kelulusan",
+      label: "Approvals",
       items: [
-        { label: "Urus Tempahan Fasiliti", href: "/admin_kiz/urus-tempahan-fasiliti", icon: <CheckSquare className="size-4" /> },
-        { label: "Urus Tempahan (Lama)", href: "/admin_kiz/urus-tempahan", icon: <CalendarRange className="size-4" /> },
-        { label: "Urus Rumah Tamu", href: "/admin_kiz/urus-rumah-tamu", icon: <Hotel className="size-4" /> },
+        { label: "Manage Facility Bookings", href: "/admin_kiz/urus-tempahan-fasiliti", icon: <CheckSquare className="size-4" /> },
+        { label: "Manage Bookings (Old)", href: "/admin_kiz/urus-tempahan", icon: <CalendarRange className="size-4" /> },
+        { label: "Manage Guest House", href: "/admin_kiz/urus-rumah-tamu", icon: <Hotel className="size-4" /> },
       ],
     },
     {
-      label: "Fasiliti",
+      label: "Facilities",
       items: [
-        { label: "Semua Fasiliti", href: "/admin_kiz/tempahan-fasiliti", icon: <Building2 className="size-4" /> },
-        { label: "Urus Fasiliti", href: "/admin_kiz/urus-fasiliti", icon: <Settings className="size-4" /> },
+        { label: "All Facilities", href: "/admin_kiz/tempahan-fasiliti", icon: <Building2 className="size-4" /> },
+        { label: "Manage Facilities", href: "/admin_kiz/urus-fasiliti", icon: <Settings className="size-4" /> },
       ],
     },
     {
-      label: "Komuniti",
+      label: "Community",
       items: [
-        { label: "Urus Pengumuman", href: "/admin_kiz/urus-pengumuman", icon: <Megaphone className="size-4" /> },
-        { label: "Chat Komuniti", href: "/admin_kiz/chat", icon: <MessageCircle className="size-4" /> },
-        { label: "Urus Helpdesk", href: "/admin_kiz/urus-helpdesk", icon: <MessageSquare className="size-4" /> },
+        { label: "Manage Announcements", href: "/admin_kiz/urus-pengumuman", icon: <Megaphone className="size-4" /> },
+        { label: "Community Chat", href: "/admin_kiz/chat", icon: <MessageCircle className="size-4" /> },
+        { label: "Manage Helpdesk", href: "/admin_kiz/urus-helpdesk", icon: <MessageSquare className="size-4" /> },
       ],
     },
     {
-      label: "Operasi",
+      label: "Operations",
       items: [
-        { label: "Urus Parcel (Coming Soon)", href: "/admin_kiz/urus-parcel", icon: <Package className="size-4" /> },
+        { label: "Manage Parcels (Coming Soon)", href: "/admin_kiz/urus-parcel", icon: <Package className="size-4" /> },
         { label: "Lost & Found", href: "/admin_kiz/hilang", icon: <EyeOff className="size-4" /> },
-        { label: "Direktori Blok", href: "/admin_kiz/direktori", icon: <MapPin className="size-4" /> },
+        { label: "Block Directory", href: "/admin_kiz/direktori", icon: <MapPin className="size-4" /> },
+        { label: "App Settings", href: "/admin_kiz/urus-tetapan", icon: <Settings className="size-4" /> },
       ],
     },
     {
-      label: "Akaun",
+      label: "Account",
       items: [
-        { label: "Kad Maya", href: "/admin_kiz/kad-maya", icon: <QrCode className="size-4" /> },
-        { label: "Profil", href: "/admin_kiz/profile", icon: <User className="size-4" /> },
+        { label: "eCard", href: "/admin_kiz/kad-maya", icon: <QrCode className="size-4" /> },
+        { label: "Profile", href: "/admin_kiz/profile", icon: <User className="size-4" /> },
       ],
     },
   ],
   superadmin: [
     {
-      label: "Ringkasan",
+      label: "Overview",
       items: [
         { label: "Dashboard", href: "/superadmin", icon: <LayoutDashboard className="size-4" /> },
       ],
     },
     {
-      label: "Kelulusan",
+      label: "Approvals",
       items: [
-        { label: "Urus Tempahan Fasiliti", href: "/superadmin/urus-tempahan-fasiliti", icon: <CheckSquare className="size-4" /> },
-        { label: "Urus Tempahan (Lama)", href: "/superadmin/urus-tempahan", icon: <CalendarRange className="size-4" /> },
-        { label: "Urus Rumah Tamu", href: "/superadmin/urus-rumah-tamu", icon: <Hotel className="size-4" /> },
+        { label: "Manage Facility Bookings", href: "/superadmin/urus-tempahan-fasiliti", icon: <CheckSquare className="size-4" /> },
+        { label: "Manage Bookings (Old)", href: "/superadmin/urus-tempahan", icon: <CalendarRange className="size-4" /> },
+        { label: "Manage Guest House", href: "/superadmin/urus-rumah-tamu", icon: <Hotel className="size-4" /> },
       ],
     },
     {
-      label: "Fasiliti",
+      label: "Facilities",
       items: [
-        { label: "Semua Fasiliti", href: "/superadmin/tempahan-fasiliti", icon: <Building2 className="size-4" /> },
-        { label: "Urus Fasiliti", href: "/superadmin/urus-fasiliti", icon: <Settings className="size-4" /> },
+        { label: "All Facilities", href: "/superadmin/tempahan-fasiliti", icon: <Building2 className="size-4" /> },
+        { label: "Manage Facilities", href: "/superadmin/urus-fasiliti", icon: <Settings className="size-4" /> },
       ],
     },
     {
-      label: "Komuniti",
+      label: "Community",
       items: [
-        { label: "Urus Pengumuman", href: "/superadmin/urus-pengumuman", icon: <Megaphone className="size-4" /> },
-        { label: "Chat Komuniti", href: "/superadmin/chat", icon: <MessageCircle className="size-4" /> },
-        { label: "Urus Helpdesk", href: "/superadmin/urus-helpdesk", icon: <MessageSquare className="size-4" /> },
+        { label: "Manage Announcements", href: "/superadmin/urus-pengumuman", icon: <Megaphone className="size-4" /> },
+        { label: "Community Chat", href: "/superadmin/chat", icon: <MessageCircle className="size-4" /> },
+        { label: "Manage Helpdesk", href: "/superadmin/urus-helpdesk", icon: <MessageSquare className="size-4" /> },
       ],
     },
     {
-      label: "Operasi",
+      label: "Operations",
       items: [
-        { label: "Urus Parcel (Coming Soon)", href: "/superadmin/urus-parcel", icon: <Package className="size-4" /> },
+        { label: "Manage Parcels (Coming Soon)", href: "/superadmin/urus-parcel", icon: <Package className="size-4" /> },
         { label: "Lost & Found", href: "/superadmin/hilang", icon: <EyeOff className="size-4" /> },
-        { label: "Direktori Blok", href: "/superadmin/direktori", icon: <MapPin className="size-4" /> },
+        { label: "Block Directory", href: "/superadmin/direktori", icon: <MapPin className="size-4" /> },
+        { label: "App Settings", href: "/superadmin/urus-tetapan", icon: <Settings className="size-4" /> },
       ],
     },
     {
-      label: "Akaun",
+      label: "Account",
       items: [
-        { label: "Kad Maya", href: "/superadmin/kad-maya", icon: <QrCode className="size-4" /> },
-        { label: "Profil", href: "/superadmin/profile", icon: <User className="size-4" /> },
+        { label: "eCard", href: "/superadmin/kad-maya", icon: <QrCode className="size-4" /> },
+        { label: "Profile", href: "/superadmin/profile", icon: <User className="size-4" /> },
       ],
     },
   ],
   pengetua: [
     {
-      label: "Ringkasan",
+      label: "Overview",
       items: [
         { label: "Dashboard", href: "/pengetua", icon: <LayoutDashboard className="size-4" /> },
       ],
     },
     {
-      label: "Komuniti",
+      label: "Community",
       items: [
-        { label: "Pengumuman", href: "/pengetua/pengumuman", icon: <Megaphone className="size-4" /> },
-        { label: "Chat Komuniti", href: "/pengetua/chat", icon: <MessageCircle className="size-4" /> },
+        { label: "Announcements", href: "/pengetua/pengumuman", icon: <Megaphone className="size-4" /> },
+        { label: "Community Chat", href: "/pengetua/chat", icon: <MessageCircle className="size-4" /> },
       ],
     },
     {
-      label: "Operasi",
+      label: "Operations",
       items: [
         { label: "Lost & Found", href: "/pengetua/hilang", icon: <EyeOff className="size-4" /> },
-        { label: "Direktori Blok", href: "/pengetua/direktori", icon: <MapPin className="size-4" /> },
+        { label: "Block Directory", href: "/pengetua/direktori", icon: <MapPin className="size-4" /> },
       ],
     },
     {
-      label: "Akaun",
+      label: "Account",
       items: [
-        { label: "Profil", href: "/pengetua/profile", icon: <User className="size-4" /> },
+        { label: "Profile", href: "/pengetua/profile", icon: <User className="size-4" /> },
       ],
     },
   ],
@@ -164,9 +166,10 @@ interface Props {
   role: Exclude<Role, "ahli">
   userName: string
   roleLabel: string
+  logoUrl: string | null
 }
 
-export function DashboardNav({ role, userName, roleLabel }: Props) {
+export function DashboardNav({ role, userName, roleLabel, logoUrl }: Props) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const groups = roleNavGroups[role]
@@ -187,9 +190,17 @@ export function DashboardNav({ role, userName, roleLabel }: Props) {
         }`}
       >
         <div className="flex items-center gap-3 border-b border-sidebar-border p-4">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-base text-primary-foreground">
-            {initial}
-          </span>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="KIZ"
+              className="h-9 w-auto object-contain"
+            />
+          ) : (
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-base text-primary-foreground">
+              {initial}
+            </span>
+          )}
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-sidebar-foreground">{userName}</p>
             <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-sidebar-foreground">
@@ -235,7 +246,7 @@ export function DashboardNav({ role, userName, roleLabel }: Props) {
             onClick={() => signOut({ callbackUrl: "/login" })}
           >
             <LogOut className="size-4" />
-            Log Keluar
+            Log Out
           </Button>
         </div>
       </aside>

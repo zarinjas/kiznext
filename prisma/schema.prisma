@@ -251,6 +251,15 @@ enum LostFoundStatus {
   claimed
 }
 
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
 model LostFoundItem {
   id           String          @id @default(uuid())
   reportedBy   String          @map("reported_by")

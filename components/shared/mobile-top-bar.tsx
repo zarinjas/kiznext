@@ -9,18 +9,23 @@ interface Props {
   userName: string
   roleLabel: string
   role: string
+  logoUrl: string | null
 }
 
-export function MobileTopBar({ userName, roleLabel, role }: Props) {
+export function MobileTopBar({ userName, roleLabel, role, logoUrl }: Props) {
   const [open, setOpen] = useState(false)
   const initial = userName.trim().charAt(0).toUpperCase() || "K"
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/95 px-4 pt-safe backdrop-blur pb-3 pt-3">
       <Link href={`/${role}`} className="flex items-center gap-2">
-        <span className="font-heading text-lg leading-none text-primary-foreground">
-          KIZ
-        </span>
+        {logoUrl ? (
+          <img src={logoUrl} alt="KIZ" className="h-7 w-auto object-contain" />
+        ) : (
+          <span className="font-heading text-lg leading-none text-primary-foreground">
+            KIZ
+          </span>
+        )}
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
           {roleLabel}
         </span>

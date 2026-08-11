@@ -4,12 +4,13 @@ import { DashboardNav } from "@/components/shared/dashboard-nav"
 import { MobileTopBar } from "@/components/shared/mobile-top-bar"
 import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav"
 import { Role } from "@/lib/rbac"
+import { getAppLogoUrl } from "@/lib/settings"
 
 const roleLabels: Record<Role, string> = {
   superadmin: "Super Admin",
   admin_kiz: "Admin KIZ",
-  pengetua: "Pengetua",
-  ahli: "Pelajar",
+  pengetua: "Principal",
+  ahli: "Student",
 }
 
 export default async function DashboardLayout({
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
   }
 
   const { role, name } = session.user
+  const logoUrl = await getAppLogoUrl()
 
   if (role === "ahli") {
     return (
@@ -32,6 +34,7 @@ export default async function DashboardLayout({
           userName={name ?? ""}
           roleLabel={roleLabels[role]}
           role={role}
+          logoUrl={logoUrl}
         />
         <main className="flex-1 pb-24">{children}</main>
         <MobileBottomNav role={role} />
@@ -45,6 +48,7 @@ export default async function DashboardLayout({
         role={role}
         userName={name ?? ""}
         roleLabel={roleLabels[role]}
+        logoUrl={logoUrl}
       />
       <main className="flex-1 p-6 lg:p-8">{children}</main>
     </div>
