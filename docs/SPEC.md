@@ -1,0 +1,173 @@
+# SPEC.md — KIZ Super App
+
+Product scope, data model, and route map. For build status and known issues see
+`STATUS.md`. For coding rules see `../AGENTS.md`.
+
+---
+
+## 1. Purpose
+
+A single app for residents of Kolej Ibu Zain (KIZ), UKM, replacing the mix of
+WhatsApp groups, paper forms, and notice boards used for college admin.
+
+Primary users: students (`ahli`) and college admins (`admin_kiz`).
+
+---
+
+## 2. Modules
+
+| Module | What it does |
+|---|---|
+| Auth & Profile | Login with matric ID + password. Role-based dashboard. Editable profile. |
+| Kad Maya | Digital resident card with a QR code, for identification at the gate/office. |
+| Facility Booking | Browse college facilities, view availability, book a time slot, admin approves. Approved bookings get a PDF slip. |
+| Guest House Booking | Book the college guest house daily/weekly/monthly. Admin approves, then check-in/check-out. Payment marked manually. |
+| Helpdesk | Per-student support tickets with a chat thread. Auto-reply outside office hours. |
+| Announcements | Admin-posted feed. Tags, pinning, scheduling, expiry, file attachments. |
+| Community Chat | One shared room for all residents. Admins can soft-delete messages. |
+| Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
+| Lost & Found | Community-reported lost/found items with a photo. |
+| Directory | Block and facility listing with navigation notes. |
+| App Settings | Superadmin uploads the app logo shown in the shell. |
+
+### Explicitly out of scope
+
+- Payment gateway (Stripe / ToyyibPay / e-wallet). `paymentStatus` is a manual flag.
+- Smart lock / IoT door access.
+- Marketplace / buy-and-sell.
+
+---
+
+## 3. Roles & access
+
+Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `ahli`.
+
+| Capability | superadmin | admin_kiz | pengetua | ahli |
+|---|---|---|---|---|
+| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ |
+| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ |
+| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ |
+| Approve bookings (facility + guest house) | ✓ | ✓ | — | — |
+| Answer & close helpdesk tickets | ✓ | ✓ | — | — |
+| Post / edit announcements | ✓ | ✓ | — | — |
+| Soft-delete chat messages | ✓ | ✓ | — | — |
+| Manage facilities, parcels | ✓ | ✓ | — | — |
+| App settings (logo) | ✓ | ✓ | — | — |
+| View-only reporting | ✓ | ✓ | ✓ | — |
+
+`pengetua` (principal) is read-only by design — no approval rights.
+
+`admin_ukmre` (external guest-house operator) is post-MVP: add the enum value and
+route guest-house approvals to it. No schema restructure needed.
+
+**Enforcement.** `requireRole(role, [...])` from `lib/rbac.ts` throws on failure.
+Every page also calls `await auth()` and redirects to `/login` when there is no
+session. See `STATUS.md` for gaps in this.
+
+---
+
+## 4. Data model
+
+Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
+(gitignored). Every model carries `id` (uuid), `createdAt`, `updatedAt`, and
+`deletedAt` for soft delete — except `AppSetting`, which is a known deviation.
+
+### Enums
+
+| Enum | Values |
+|---|---|
+| `Role` | superadmin, admin_kiz, pengetua, ahli |
+| `BookingStatus` | pending, approved, rejected, cancelled |
+| `GuestHouseBookingStatus` | pending, approved, rejected, checked_in, checked_out, cancelled |
+| `PeriodType` | daily, weekly, monthly |
+| `PaymentStatus` | unpaid, paid_manual |
+| `HelpdeskStatus` | open, in_progress, closed |
+| `LostFoundStatus` | lost, found, claimed |
+
+### Models
+
+| Model | Table | Notable fields |
+|---|---|---|
+| `User` | users | `matricId` unique (login ID), `passwordHash`, `role`, `block`, `roomNumber`, `residentCardQr`, `phone`, `avatarUrl` |
+| `Block` | blocks | `name` unique, `description`, `navigationNotes` |
+| `Facility` | facilities | `blockId`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `timeSlotDuration`, `maxPerDay` (default 3), `requiresApproval` |
+| `FacilityBooking` | facility_bookings | `timeSlotStart/End`, `purpose`, `status`, `approvedById`, `bookingRef` unique, `pdfUrl`, `adminNotes` |
+| `GuestHouseBooking` | guest_house_bookings | `guestName`, `periodType`, `startDate`/`endDate` (`@db.Date`), `status`, `approvedById`, `paymentStatus` |
+| `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `status`, `assignedTo` |
+| `HelpdeskMessage` | helpdesk_messages | `ticketId`, `senderId`, `message`, `isAutoReply` |
+| `Announcement` | announcements | `title`, `content`, `tag` (default `umum`), `attachmentUrl/Type`, `isPinned`, `scheduledAt`, `expiresAt`, `postedBy` |
+| `CommunityChatMessage` | community_chat_messages | `userId`, `message`, `deletedBy` (admin who removed it) |
+| `Parcel` | parcels | `userId`, `description`, `status` (plain String: `arrived`/`collected`), `notifiedAt`, `collectedAt` |
+| `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
+| `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
+
+Not implemented (post-MVP candidates): `audit_logs`, `notifications`.
+
+---
+
+## 5. Route map
+
+All app routes live under `app/(dashboard)/[role]/`. The `[role]` segment matches
+the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
+`urus-` prefix ("manage" in Malay).
+
+### Member routes
+
+| Route | Feature |
+|---|---|
+| `/` | Dashboard. Renders `ahli-home` (announcements + own bookings) or `admin-home` (pending-count cards). |
+| `pengumuman` | Announcement feed — tag filter, pinned first, "Baru" badge for 24h. |
+| `chat` | Community chat, one shared room, polls every 3s. |
+| `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
+| `rumah-tamu` | Guest house booking + own bookings + cancel. |
+| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. |
+| `hilang` | Lost & Found report form + list. |
+| `parcel` | My parcels. Currently behind a hardcoded "coming soon" banner. |
+| `kad-maya` | Digital resident card, QR generated server-side from matric ID. |
+| `direktori` | Blocks & facilities with navigation notes. |
+| `profile` | View / edit own profile. |
+| `lagi` | "More" menu for the mobile shell. |
+| `tempahan`, `tempahan/[facilityId]` | **Legacy** facility booking. Superseded — see `STATUS.md`. |
+
+### Admin routes (`urus-` prefix)
+
+| Route | Feature |
+|---|---|
+| `urus-pengumuman` | Announcement CRUD + soft delete. |
+| `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |
+| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid. |
+| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. |
+| `urus-fasiliti` | Facility CRUD. |
+| `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
+| `urus-tetapan` | App settings — upload / remove logo. |
+| `urus-tempahan` | **Legacy** booking approvals. Superseded. |
+
+### Layout
+
+`(dashboard)/layout.tsx` picks the shell by role: `ahli` gets the mobile shell
+(`MobileTopBar` + `MobileBottomNav`), everyone else gets the desktop sidebar
+(`DashboardNav`).
+
+---
+
+## 6. Engineering notes
+
+- **Auth.** Credentials provider, `matricId` + bcrypt. Users with `deletedAt` set
+  are rejected at sign-in. JWT strategy; `id`, `role`, and `matricId` are injected
+  into the token and session in `lib/auth.ts`.
+- **Timezone.** Everything renders in `Asia/Kuala_Lumpur` via `lib/timezone.ts`
+  (`nowMalaysia()`, `formatMalaysia()`). Never show raw UTC.
+- **Office hours.** Mon–Fri, 08:00–17:00 (`lib/office-hours.ts`). A helpdesk
+  message sent outside those hours triggers an auto-reply row with
+  `isAutoReply = true`.
+- **Booking PDF.** On facility booking, `lib/pdf.ts` builds an A4 slip with
+  `pdf-lib` into `public/uploads/pdfs/`. Reference format `KIZ-BKG-0001`, derived
+  from the row count.
+- **QR.** `kad-maya-card.tsx` renders a static QR encoding the matric ID. Not
+  rotating/signed — anyone can reproduce it from a known matric ID.
+- **Uploads.** `POST /api/upload` writes to `public/uploads/fasiliti/`.
+  `lib/settings.ts` handles logo uploads with a 2 MB cap and a MIME allowlist
+  (png/jpeg/webp/svg). The generic route has neither.
+- **Chat realtime.** Client polls a Server Action every 3s. No WebSocket layer.
+- **Seed.** `npm run seed` creates sample users, blocks, facilities, bookings, and
+  announcements. Login IDs are in `prisma/seed.ts`.

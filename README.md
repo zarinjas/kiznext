@@ -1,104 +1,93 @@
 # KIZ Super App
 
-Platform digital satu henti (one-stop centre) untuk penghuni Kolej Ibu Zain (KIZ), UKM.
+One-stop digital platform for Kolej Ibu Zain (KIZ) residents, UKM.
 
-> ⚠️ **Dalam fasa pembangunan.** Belum siap untuk digunakan.
-
----
-
-## Keperluan
-
-Sebelum install, pastikan laptop ada:
-
-- **Node.js** versi 18 atau lebih baru
-- **PostgreSQL** — database yang digunakan
-- **Git** — untuk clone repo
+> ⚠️ **Under development.** Not ready for production use.
 
 ---
 
-## Cara Install (Langkah demi Langkah)
+## Prerequisites
 
-### 1. Clone repo
+Make sure you have these installed:
+
+- **Node.js** 18+
+- **PostgreSQL**
+- **Git**
+
+---
+
+## Installation Guide
+
+### 1. Clone the repo
 
 ```bash
-git clone <url-repo-ini>
+git clone <repo-url>
 cd kiznext
 ```
 
-### 2. Install dependency
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Setup database PostgreSQL
+### 3. Setup PostgreSQL database
 
-Pastikan PostgreSQL dah jalan. Lepas tu buat database baru:
+Make sure PostgreSQL is running, then create a new database:
 
 ```bash
 psql -U postgres -c "CREATE DATABASE kiznext;"
 ```
 
-### 4. Setup fail persekitaran (`.env`)
+### 4. Configure environment variables (`.env`)
 
-Fail `.env` dah disediakan. Isi URL database PostgreSQL korang:
+A `.env` file is already provided. Update the database URL:
 
 ```
 DATABASE_URL="postgresql://user:password@localhost:5432/kiznext"
-AUTH_SECRET="<guna mana-mana string random sebagai secret>"
+AUTH_SECRET="<any-random-string>"
 ```
 
-Gantikan `user:password` dengan username dan password PostgreSQL korang.
+Replace `user:password` with your PostgreSQL credentials.
 
-### 5. Setup table database
+### 5. Setup database tables
 
 ```bash
-npx prisma generate    # jana Prisma client
-npx prisma db push     # push schema ke database
+npx prisma generate
+npx prisma db push
 ```
 
-### 6. (Optional) Seed data dummy
-
-Kalau nak isi data contoh untuk testing:
+### 6. (Optional) Seed dummy data
 
 ```bash
 npm run seed
 ```
 
-### 7. Jalan server
+### 7. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-Buka `http://localhost:3000` dalam browser.
+Open `http://localhost:3000` in your browser.
 
 ---
 
-## Command Berguna
+## Useful Commands
 
-| Command | Guna |
+| Command | Description |
 |---|---|
-| `npm run dev` | Jalan server untuk development |
-| `npm run build` | Build untuk production |
-| `npm run lint` | Check kod ada error/style tak betul |
-| `npx prisma studio` | Buka UI untuk tengok database |
-| `npm run seed` | Isi data dummy |
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run lint` | Check code for errors |
+| `npx prisma studio` | Open database UI |
+| `npm run seed` | Seed dummy data |
+| `docker compose up -d` | Start PostgreSQL via Docker |
 
 ---
 
-## Tech Stack
+## Docs
 
-- **Frontend:** React + Tailwind CSS + Shadcn UI
-- **Framework:** Next.js (App Router)
-- **Backend:** Server Actions & API Routes
-- **Database:** PostgreSQL
-- **ORM:** Prisma
-
----
-
-## Dokumentasi Lain
-
-- [PRD.md](docs/PRD.md) — Spesifikasi penuh projek
-- [SCHEMA.md](docs/SCHEMA.md) — Struktur database
-- [ROADMAP.md](docs/ROADMAP.md) — Task ikut epic
+- [docs/SPEC.md](docs/SPEC.md) — Modules, roles, data model, route map
+- [docs/STATUS.md](docs/STATUS.md) — What's built, known issues, backlog
+- [AGENTS.md](AGENTS.md) — Tech stack and conventions (for AI coding agents)
