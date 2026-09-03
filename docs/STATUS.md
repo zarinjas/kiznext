@@ -174,7 +174,7 @@ now resolved in code.
 |---|---|
 | Realtime engine | None. Client polling every 3s. No Pusher/Supabase. |
 | Auth provider | Auth.js v5 (next-auth beta), Credentials provider. |
-| Auth email | Resend (SDK `resend`). `RESEND_API_KEY` + `RESEND_FROM` in the server `.env`. Template is inline-HTML (no react-email dep), logo embedded from `/api/app-icon`. Registration identity anchor is **matric ID** — the eKolej CSV has no email column, so the email is an ownership gate + contact, not a join key. |
+| Auth email | Resend (SDK `resend`). Key + sender address are configurable in **App Settings (`urus-tetapan` → "Email (Resend)")** and stored in `app_settings` (server-only, key is masked in the UI and never sent back to the browser); `RESEND_API_KEY`/`RESEND_FROM` in the server `.env` act as fallback when unset. Template is inline-HTML (no react-email dep), logo embedded from `/api/app-icon`. Registration identity anchor is **matric ID** — the eKolej CSV has no email column, so the email is an ownership gate + contact, not a join key. |
 | Auth guard | `proxy.ts` at repo root (`getToken` + JWT), per-page `auth()` + redirect, per-mutation `requireRole()`. |
 | File storage | Local filesystem `public/uploads/`. Provisional — see #8. |
 | ORM | Prisma 7, `prisma-client` generator, `@prisma/adapter-pg`. |

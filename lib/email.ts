@@ -1,24 +1,40 @@
 import { Resend } from "resend"
+import { prisma } from "@/lib/db"
 
 /**
  * Outbound email via Resend. Used only for account verification — the app
  * has no other mail (no SMTP). Everything renders from the public origin so
  * links and images work both on the live host (mykiz.my) and in local dev.
+ *
+ * The API key + sender can be set two ways, DB wins over env so admins can
+ * configure Resend from App Settings without touching the server:
+ *   1. AppSetting keys `resend_api_key` / `resend_from` (see urus-tetapan)
+ *   2. `RESEND_API_KEY` / `RESEND_FROM` in `.env`
  */
 
 export const BRAND_NAME = "KIZ Super App"
+
+const RESEND_API_KEY_SETTING = "resend_api_key"
+const RESEND_FROM_SETTING = "resend_from"
 
 /** The public origin used to build absolute URLs for links and images. */
 export function appOrigin(): string {
   return (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "")
 }
 
-function sender(): string {
-  return process.env.RESEND_FROM ?? `KIZ Super App <no-reply@mykiz.my>`
+async function apiKey(): Promise<string | null> {
+  const stored = await prisma.appSetting.findUnique({ where: { key: RESEND_API_KEY_SETTING } })
+  if (stored?.value?.trim()) return stored.value.trim()
+  return process.env.RESEND_API_KEY ?? null
 }
 
-function resendClient(): Resend | null {
-  const key = process.env.RESEND_API_KEY
+async function sender(): Promise<string> {
+  const stored = await prisma.appSetting.findUnique({ where: { key: RESEND_FROM_SETTING } })
+  return stored?.value?.trim() || process.env.RESEND_FROM || "KIZ Super App <no-reply@mykiz.my>"
+}
+
+async function resendClient(): Promise<Resend | null> {
+  const key = await apiKey()
   if (!key) return null
   return new Resend(key)
 }
@@ -31,25 +47,25 @@ export interface VerificationMail {
 }
 
 /**
- * Sends the email-verification message. In local dev without a RESEND_API_KEY
- * the verification link is written to the server console instead of sent, so
- * the flow stays testable offline.
+ * Sends the email-verification message. In local dev without an API key the
+ * verification link is written to the server console instead of sent, so the
+ * flow stays testable offline.
  */
 export async function sendVerificationEmail({ to, name, matricId, verifyUrl }: VerificationMail): Promise<void> {
-  const client = resendClient()
+  const client = await resendClient()
 
   if (!client) {
     if (process.env.NODE_ENV !== "production") {
       console.info(`[email:dev] verification link for ${to}: ${verifyUrl}`)
       return
     }
-    throw new Error("Email is not configured. Set RESEND_API_KEY on the server.")
+    throw new Error("Email is not configured. Set your Resend API key in App Settings.")
   }
 
   const html = await buildVerificationHtml({ name, matricId, verifyUrl })
 
   const { error } = await client.emails.send({
-    from: sender(),
+    from: await sender(),
     to,
     subject: "Confirm your email — KIZ Super App",
     html,

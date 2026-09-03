@@ -189,7 +189,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `urus-fasiliti` | Facility CRUD. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
 | `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `pengetua` sees the occupancy tab read-only. |
-| `urus-tetapan` | App settings — upload / remove logo. |
+| `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
 | `urus-tempahan` | **Legacy** booking approvals. Superseded. |
 
 ### Layout
