@@ -6,10 +6,16 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "16mb",
-      // NOTE: `allowedOrigins` is accepted by the schema but NEVER wired into
-      // the runtime render pipeline in Next 16 — it's a dead config field.
-      // The reverse-proxy host mismatch (Origin: mykiz.my vs Host: localhost)
-      // is fixed in proxy.ts by injecting x-forwarded-host from AUTH_URL.
+      // Behind OpenLiteSpeed the upstream Host is 127.0.0.1:3010, so Next's
+      // Server-Action CSRF check sees `Origin: mykiz.my` != host and aborts
+      // every action with a 500 ("Invalid Server Actions request").
+      //
+      // `allowedOrigins` IS honoured in Next 16 — see
+      // node_modules/next/dist/server/app-render/action-handler.js:408
+      // (`isCsrfOriginAllowed`). When the browser Origin is in this list the
+      // host-mismatch check is skipped entirely, which is the reliable fix
+      // (the earlier claim that this field is dead was wrong).
+      allowedOrigins: ["mykiz.my", "www.mykiz.my"],
     },
   },
 };
