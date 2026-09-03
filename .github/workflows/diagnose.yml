@@ -16,13 +16,17 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== 1. FULL stack trace of 'Invalid URL' error (last 200 lines) ====="
-            journalctl -u mykiznext -n 200 --no-pager 2>/dev/null | grep -A40 "TypeError: Invalid URL" | tail -120
+            echo "===== 1. .env files present? ====="
+            ls -la /home/mykiz.my/kiznext/.env* 2>&1
             echo
-            echo "===== 2. AUTH_URL + all env keys (names only) ====="
-            grep -oE "^[A-Z_]+" /home/mykiz.my/kiznext/.env 2>/dev/null | sort
-            echo "--- AUTH_URL raw (masked value) ---"
-            grep -E "AUTH_URL" /home/mykiz.my/kiznext/.env 2>/dev/null | sed -E 's#(https?://)[^/]*#\1<host>#'
+            echo "===== 2. env var NAMES in .env (masked) ====="
+            sed -E 's#=.*##' /home/mykiz.my/kiznext/.env 2>&1 | sort
             echo
-            echo "===== 3. recent journalctl full tail (no grep) ====="
-            journalctl -u mykiznext -n 60 --no-pager 2>/dev/null
+            echo "===== 3. AUTH_URL / NEXTAUTH / SITE_URL values (host masked) ====="
+            grep -E "AUTH_URL|NEXTAUTH_URL|NEXT_PUBLIC_SITE_URL|AUTH_TRUST" /home/mykiz.my/kiznext/.env 2>&1 | sed -E 's#(https?://[^/ ]+)#\1#' | sed -E 's#(https?://)[^, ]+#\1<host>#'
+            echo
+            echo "===== 4. systemd unit ====="
+            cat /etc/systemd/system/mykiznext.service 2>&1
+            echo
+            echo "===== 5. systemd EnvironmentFile (if any) ====="
+            for f in $(grep -oE "/[^ ]+" /etc/systemd/system/mykiznext.service 2>/dev/null | grep -i env); do echo "--- $f ---"; sed -E 's#=.*##' "$f" 2>/dev/null; done
