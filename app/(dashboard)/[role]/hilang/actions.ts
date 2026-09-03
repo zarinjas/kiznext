@@ -3,8 +3,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
+import { saveUpload } from "@/lib/image-upload"
 
 export async function reportItem(formData: FormData) {
   const session = await auth()
@@ -21,13 +20,11 @@ export async function reportItem(formData: FormData) {
   let photoUrl: string | null = null
 
   if (photo && photo.size > 0) {
-    const ext = photo.name.split(".").pop() ?? "jpg"
-    const filename = `${session.user.id}-${Date.now()}.${ext}`
-    const uploadDir = join(process.cwd(), "public", "uploads")
-    await mkdir(uploadDir, { recursive: true })
-    const buffer = Buffer.from(await photo.arrayBuffer())
-    await writeFile(join(uploadDir, filename), buffer)
-    photoUrl = `/uploads/${filename}`
+    const result = await saveUpload(Buffer.from(await photo.arrayBuffer()), {
+      prefix: session.user.id,
+      maxBytes: 12 * 1024 * 1024,
+    })
+    photoUrl = result.url
   }
 
   await prisma.lostFoundItem.create({

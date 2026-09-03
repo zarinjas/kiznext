@@ -118,7 +118,11 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
                 fd.append("file", file)
                 try {
                   const res = await fetch("/api/upload", { method: "POST", body: fd })
-                  const data = await res.json()
+                  const data = await res.json().catch(() => ({}))
+                  if (!res.ok || !data.url) {
+                    alert(data.error || "Upload didn't go through — try again.")
+                    return
+                  }
                   setAvatarUrl(data.url)
                 } catch {
                   alert("Upload didn't go through — try again.")

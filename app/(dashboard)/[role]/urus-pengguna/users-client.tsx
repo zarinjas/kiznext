@@ -15,10 +15,12 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { ROLE_LABELS } from "@/components/kiz/shell/nav-config"
 import { color } from "@/lib/theme"
-import type { Role } from "@/lib/rbac"
+import type { AccountStatus, Role } from "@/lib/rbac"
 import { UserForm } from "./user-form"
 import { ResetPasswordDialog } from "./reset-password-dialog"
 import { DeleteUserButton } from "./delete-user-button"
+import { ActivateUserButton } from "./activate-user-button"
+import { ResendVerificationButton } from "./resend-verification-button"
 
 export interface UserRow {
   id: string
@@ -27,6 +29,8 @@ export interface UserRow {
   email: string | null
   phone: string | null
   role: Role
+  accountStatus: AccountStatus
+  emailVerifiedAt: string | null
   block: string | null
   roomNumber: string | null
   createdAt: string
@@ -38,7 +42,13 @@ interface Props {
   isSuperAdmin: boolean
 }
 
-const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "ahli"]
+const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "ahli", "staf"]
+const ACCOUNT_OPTIONS: AccountStatus[] = ["unverified", "pending", "active"]
+const ACCOUNT_LABELS: Record<AccountStatus, string> = {
+  unverified: "Unverified",
+  pending: "Pending",
+  active: "Active",
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })
@@ -47,6 +57,7 @@ function formatDate(iso: string): string {
 export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
+  const [accountFilter, setAccountFilter] = useState<string>("all")
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<UserRow | null>(null)
   const [resetting, setResetting] = useState<UserRow | null>(null)
@@ -56,7 +67,8 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
     const matchesSearch =
       !q || u.name.toLowerCase().includes(q) || u.matricId.toLowerCase().includes(q)
     const matchesRole = roleFilter === "all" || u.role === roleFilter
-    return matchesSearch && matchesRole
+    const matchesAccount = accountFilter === "all" || u.accountStatus === accountFilter
+    return matchesSearch && matchesRole && matchesAccount
   })
 
   const columns: GridColDef[] = [
@@ -95,6 +107,12 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
     {
       field: "role",
       headerName: "Role",
+      width: 130,
+      renderCell: ({ value }) => <StatusChip status={value as string} />,
+    },
+    {
+      field: "accountStatus",
+      headerName: "Account",
       width: 130,
       renderCell: ({ value }) => <StatusChip status={value as string} />,
     },
@@ -141,19 +159,29 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
       headerName: "",
       sortable: false,
       filterable: false,
-      width: 118,
+      width: 152,
       renderCell: ({ row }) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-          <Tooltip title="Edit">
-            <IconButton size="small" onClick={() => setEditing(row)} aria-label={`Edit ${row.name}`}>
-              <KIcon icon="edit" size={18} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Reset password">
-            <IconButton size="small" onClick={() => setResetting(row)} aria-label={`Reset password for ${row.name}`}>
-              <KIcon icon="key" size={18} />
-            </IconButton>
-          </Tooltip>
+          {row.accountStatus === "unverified" && (
+            <ResendVerificationButton userId={row.id} userName={row.name} />
+          )}
+          {row.accountStatus === "pending" && (
+            <ActivateUserButton userId={row.id} userName={row.name} userMatricId={row.matricId} />
+          )}
+          {row.accountStatus === "active" && (
+            <>
+              <Tooltip title="Edit">
+                <IconButton size="small" onClick={() => setEditing(row)} aria-label={`Edit ${row.name}`}>
+                  <KIcon icon="edit" size={18} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reset password">
+                <IconButton size="small" onClick={() => setResetting(row)} aria-label={`Reset password for ${row.name}`}>
+                  <KIcon icon="key" size={18} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
           <DeleteUserButton
             userId={row.id}
             userName={row.name}
@@ -206,13 +234,54 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
         ))}
       </Box>
 
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2.5, alignItems: "center" }}>
+        <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.5 }}>
+          Account:
+        </Typography>
+        <Chip
+          label="All"
+          size="small"
+          onClick={() => setAccountFilter("all")}
+          sx={{
+            backgroundColor: accountFilter === "all" ? "primary.main" : "transparent",
+            color: accountFilter === "all" ? "#fff" : "text.secondary",
+            border: "1px solid",
+            borderColor: "divider",
+            "&:hover": { backgroundColor: accountFilter === "all" ? "primary.main" : "action.hover" },
+          }}
+        />
+        {ACCOUNT_OPTIONS.map((s) => (
+          <Chip
+            key={s}
+            label={ACCOUNT_LABELS[s]}
+            size="small"
+            onClick={() => setAccountFilter(s)}
+            sx={{
+              backgroundColor: accountFilter === s ? "primary.main" : "transparent",
+              color: accountFilter === s ? "#fff" : "text.secondary",
+              border: "1px solid",
+              borderColor: "divider",
+              "&:hover": { backgroundColor: accountFilter === s ? "primary.main" : "action.hover" },
+            }}
+          />
+        ))}
+      </Box>
+
       <SmartTable
         columns={columns}
         rows={filtered}
         getRowId={(row) => row.id}
         emptyIcon="group"
-        emptyTitle={search || roleFilter !== "all" ? "No users match your filters" : "No users yet"}
-        emptyBody={search || roleFilter !== "all" ? undefined : "Click 'Add User' to create the first account."}
+        emptyTitle={
+          search || roleFilter !== "all" || accountFilter !== "all"
+            ? "No users match your filters"
+            : "No users yet"
+        }
+        emptyBody={
+          search || roleFilter !== "all" || accountFilter !== "all"
+            ? undefined
+            : "Click 'Add User' to create the first account."
+        }
       />
 
       <KDialog open={showCreate} onClose={() => setShowCreate(false)} title="Add User" icon="person_add">

@@ -43,7 +43,8 @@ export function GuestHouseForm({ initialData, onClose }: Props) {
     formData.append("file", file)
     const res = await fetch("/api/upload", { method: "POST", body: formData })
     if (!res.ok) {
-      console.error("Upload failed")
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || "Upload failed — try a different image.")
       return null
     }
     const data = await res.json()

@@ -39,12 +39,14 @@ export function AvatarPicker({
       const fd = new FormData()
       fd.append("file", file)
       const res = await fetch("/api/upload", { method: "POST", body: fd })
-      if (!res.ok) throw new Error("Upload failed")
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Upload failed")
+      }
       await updateAvatar(data.url)
       router.refresh()
-    } catch {
-      alert("Upload failed. Try a smaller image (JPG/PNG/WebP).")
+    } catch (err) {
+      alert(err instanceof Error && err.message ? err.message : "Upload failed. Try a JPG, PNG, or WebP image.")
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ""

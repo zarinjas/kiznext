@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void
 }
 
-const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "ahli"]
+const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "ahli", "staf"]
 
 export function UserForm({ initialData, isSuperAdmin, onClose }: Props) {
   const router = useRouter()

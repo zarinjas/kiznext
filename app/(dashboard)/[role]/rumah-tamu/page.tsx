@@ -36,7 +36,7 @@ export default async function RumahTamuPage() {
     }),
   ])
 
-  const isAhli = session.user.role === "ahli"
+  const isMember = session.user.role === "ahli" || session.user.role === "staf"
 
   return (
     <Box sx={{ maxWidth: 760, mx: "auto" }}>
@@ -81,7 +81,7 @@ export default async function RumahTamuPage() {
                 trailing={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <StatusChip status={b.status} />
-                    {b.status === "pending" && isAhli && <CancelGHButton bookingId={b.id} />}
+                    {b.status === "pending" && isMember && <CancelGHButton bookingId={b.id} />}
                   </Box>
                 }
               />

@@ -4,13 +4,12 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
-import { writeFile, unlink, mkdir } from "fs/promises"
+import { unlink } from "fs/promises"
 import path from "path"
 import type { Role } from "@/lib/rbac"
+import { saveUpload } from "@/lib/image-upload"
 
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"]
 const MAX_SIZE = 12 * 1024 * 1024
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "pejabat")
 
 async function requireAdmin(): Promise<Role> {
   const session = await auth()
@@ -25,20 +24,12 @@ function revalidateFor(role: Role) {
 }
 
 async function saveImage(file: File, prefix: string): Promise<string> {
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    throw new Error("Only PNG, JPEG, and WebP files are allowed")
-  }
-  if (file.size > MAX_SIZE) {
-    throw new Error("File must be under 12MB")
-  }
-  const ext = file.type.split("/")[1]
-  const filename = `${prefix}-${Date.now()}.${ext}`
-  await mkdir(UPLOAD_DIR, { recursive: true })
-  await writeFile(
-    path.join(UPLOAD_DIR, filename),
-    Buffer.from(await file.arrayBuffer()),
-  )
-  return `/uploads/pejabat/${filename}`
+  const { url } = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+    dir: "pejabat",
+    prefix,
+    maxBytes: MAX_SIZE,
+  })
+  return url
 }
 
 async function removeStoredFile(url: string | null | undefined) {

@@ -2,6 +2,7 @@
 
 import { signIn } from "next-auth/react"
 import { useState } from "react"
+import Link from "next/link"
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import TextField from "@mui/material/TextField"
@@ -9,6 +10,7 @@ import Typography from "@mui/material/Typography"
 import Alert from "@mui/material/Alert"
 import CircularProgress from "@mui/material/CircularProgress"
 import { color, gradient, glass } from "@/lib/theme"
+import { resendVerification } from "../daftar/actions"
 
 interface Props {
   logoUrl: string | null
@@ -22,11 +24,16 @@ const highlights = [
 
 export function LoginForm({ logoUrl }: Props) {
   const [error, setError] = useState<string>("")
+  const [emailNotice, setEmailNotice] = useState<string>("")
+  const [unverified, setUnverified] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
 
   async function handleLogin(matricId: string, password: string) {
     setLoading(true)
     setError("")
+    setEmailNotice("")
+    setUnverified(false)
 
     try {
       const result = await signIn("credentials", {
@@ -36,8 +43,13 @@ export function LoginForm({ logoUrl }: Props) {
         callbackUrl: "/dashboard",
       })
 
-      if (result?.error || !result?.url) {
-        setError("Hmm, that Matric No. or password doesn't match. Give it another go.")
+      if (!result?.url || result?.error) {
+        if ((result?.error ?? "").toUpperCase().includes("EMAIL_NOT_VERIFIED")) {
+          setUnverified(true)
+          setEmailNotice("Almost there — your email hasn't been confirmed yet. Check your inbox, or send a fresh link below.")
+        } else {
+          setError("Hmm, that Matric No. or password doesn't match. Give it another go.")
+        }
         setLoading(false)
         return
       }
@@ -46,6 +58,18 @@ export function LoginForm({ logoUrl }: Props) {
     } catch {
       setError("We could not connect to the login service. Please try again.")
       setLoading(false)
+    }
+  }
+
+  async function handleResend(matricId: string, password: string) {
+    setResending(true)
+    setEmailNotice("")
+    const result = await resendVerification(matricId.trim().toUpperCase(), password)
+    setResending(false)
+    if (result.ok) {
+      setEmailNotice("A fresh verification link is on its way. Check your inbox (and spam folder).")
+    } else {
+      setEmailNotice(`Couldn't resend: ${result.error}`)
     }
   }
 
@@ -67,7 +91,7 @@ export function LoginForm({ logoUrl }: Props) {
           p: { xs: 3, sm: 6 },
         }}
       >
-        <Box component="form" onSubmit={handleSubmit} sx={{ width: "100%", maxWidth: 360 }}>
+        <Box component="form" id="login-form" onSubmit={handleSubmit} sx={{ width: "100%", maxWidth: 360 }}>
           {/* Brand */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 5 }}>
             {logoUrl ? (
@@ -107,17 +131,45 @@ export function LoginForm({ logoUrl }: Props) {
             <TextField id="matricId" name="matricId" label="Matric No." type="text" placeholder="A123456" autoComplete="username" required fullWidth />
             <TextField id="password" name="password" label="Password" type="password" placeholder="••••••••" autoComplete="current-password" required fullWidth />
             {error && <Alert severity="error" variant="standard">{error}</Alert>}
+            {emailNotice && (
+              <Alert severity={unverified ? "warning" : "info"} variant="standard">
+                {emailNotice}
+              </Alert>
+            )}
             <Button
               type="submit"
               variant="contained"
               size="large"
-              disabled={loading}
+              disabled={loading || resending}
               fullWidth
               sx={{ mt: 1 }}
               startIcon={loading ? <CircularProgress size={15} color="inherit" /> : undefined}
             >
               {loading ? "Signing in…" : "Sign in"}
             </Button>
+            {unverified && (
+              <Button
+                type="button"
+                variant="text"
+                size="small"
+                disabled={resending}
+                onClick={() => {
+                  const f = new FormData(document.getElementById("login-form") as HTMLFormElement)
+                  handleResend((f.get("matricId") as string) ?? "", (f.get("password") as string) ?? "")
+                }}
+              >
+                {resending ? "Sending…" : "Resend verification email"}
+              </Button>
+            )}
+          </Box>
+
+          <Box sx={{ mt: 3, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              New to the app?{" "}
+              <Typography component={Link} href="/daftar" variant="caption" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
+                Create an account
+              </Typography>
+            </Typography>
           </Box>
 
           <Box sx={{ mt: 3, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
@@ -127,6 +179,9 @@ export function LoginForm({ logoUrl }: Props) {
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1.5 }}>
               <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("A123456", "kiz123")}>
                 Student (ahli)
+              </Button>
+              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("STAF001", "kiz123")}>
+                Staff (staf)
               </Button>
               <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("ADMIN002", "kiz123")}>
                 Admin KIZ
@@ -211,3 +266,4 @@ export function LoginForm({ logoUrl }: Props) {
     </Box>
   )
 }
+

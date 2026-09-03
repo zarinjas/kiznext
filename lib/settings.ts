@@ -3,14 +3,13 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { writeFile, unlink, mkdir } from "fs/promises"
+import { unlink } from "fs/promises"
 import path from "path"
+import { saveUpload } from "@/lib/image-upload"
 
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
 const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
 
-const CARD_BG_TYPES = ["image/png", "image/jpeg", "image/webp"]
 const CARD_BG_MAX_SIZE = 4 * 1024 * 1024
 const STUDENT_CARD_BG_KEY = "student_card_bg"
 const STUDENT_CARD_COLOR_KEY = "student_card_color"
@@ -38,29 +37,23 @@ export async function uploadAppLogo(formData: FormData): Promise<{ success: bool
     return { success: false, error: "No file selected" }
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return { success: false, error: "Only PNG, JPEG, WebP, and SVG files are allowed" }
-  }
-
-  if (file.size > MAX_SIZE) {
-    return { success: false, error: "File must be under 2MB" }
-  }
-
   const existing = await prisma.appSetting.findUnique({ where: { key: LOGO_KEY } })
   if (existing?.value) {
     const oldPath = path.join(process.cwd(), "public", existing.value)
     try { await unlink(oldPath) } catch {}
   }
 
-  const ext = file.type === "image/svg+xml" ? "svg" : file.type.split("/")[1]
-  const filename = `logo-${Date.now()}.${ext}`
-  const uploadDir = path.join(process.cwd(), "public", "uploads")
-  await mkdir(uploadDir, { recursive: true })
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(path.join(uploadDir, filename), buffer)
-
-  const url = `/uploads/${filename}`
+  let url: string
+  try {
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: "logo",
+      maxBytes: MAX_SIZE,
+      allowSvg: true,
+    })
+    url = result.url
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+  }
 
   await prisma.appSetting.upsert({
     where: { key: LOGO_KEY },
@@ -123,29 +116,22 @@ export async function uploadStudentCardBackground(
     return { success: false, error: "No file selected" }
   }
 
-  if (!CARD_BG_TYPES.includes(file.type)) {
-    return { success: false, error: "Only PNG, JPEG, and WebP files are allowed" }
-  }
-
-  if (file.size > CARD_BG_MAX_SIZE) {
-    return { success: false, error: "File must be under 4MB" }
-  }
-
   const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
   if (existing?.value) {
     const oldPath = path.join(process.cwd(), "public", existing.value)
     try { await unlink(oldPath) } catch {}
   }
 
-  const ext = file.type.split("/")[1]
-  const filename = `student-card-bg-${Date.now()}.${ext}`
-  const uploadDir = path.join(process.cwd(), "public", "uploads")
-  await mkdir(uploadDir, { recursive: true })
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(path.join(uploadDir, filename), buffer)
-
-  const url = `/uploads/${filename}`
+  let url: string
+  try {
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: "student-card-bg",
+      maxBytes: CARD_BG_MAX_SIZE,
+    })
+    url = result.url
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+  }
 
   await prisma.appSetting.upsert({
     where: { key: STUDENT_CARD_BG_KEY },

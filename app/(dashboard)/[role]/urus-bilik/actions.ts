@@ -7,6 +7,7 @@ import { getOccupancySummary, getActiveWindow, ALLOCATIONS_PUBLISHED_KEY } from 
 import { revalidatePath } from "next/cache"
 import { parseCsvToObjects } from "@/lib/csv"
 import { mapEkolejRows, nowMalaysia, windowState, type MappedRow } from "@/lib/room-selection"
+import { reconcileIntakeStudents } from "@/lib/registration"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
 const ADMIN: Role[] = ["superadmin", "admin_kiz"]
@@ -192,6 +193,14 @@ export async function activateIntake(intakeId: string) {
     prisma.intake.updateMany({ where: { status: "active" }, data: { status: "archived" } }),
     prisma.intake.update({ where: { id: intakeId }, data: { status: "active" } }),
   ])
+
+  // Tally self-registered accounts against the newly active list: unlock pending
+  // students whose matric appears and link every registered owner to their row.
+  const unlocked = await reconcileIntakeStudents(intakeId)
+  if (unlocked > 0) {
+    console.info(`[intake] activated intake ${intakeId} — unlocked ${unlocked} pending account(s)`)
+  }
+
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
 

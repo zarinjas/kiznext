@@ -35,13 +35,30 @@ async function main() {
     },
   })
 
+  // Demo self-service staff account (@ukm.edu.my → role `staf`, member access,
+  // no admin panel until promoted). Email is marked verified so it can log in.
+  await prisma.user.upsert({
+    where: { matricId: "STAF001" },
+    update: { passwordHash, deletedAt: null, role: "staf", accountStatus: "active" },
+    create: {
+      matricId: "STAF001",
+      name: "Staff Demo",
+      email: "staff@ukm.edu.my",
+      emailVerifiedAt: new Date(),
+      accountStatus: "active",
+      passwordHash,
+      role: "staf",
+      residentCardQr: "STAF001",
+    },
+  })
+
   await prisma.user.upsert({
     where: { matricId: "A123456" },
-    update: { passwordHash, deletedAt: null },
+    update: { passwordHash, deletedAt: null, email: "pelajar@siswa.ukm.edu.my" },
     create: {
       matricId: "A123456",
       name: "Example Student",
-      email: "pelajar@ukm.edu.my",
+      email: "pelajar@siswa.ukm.edu.my",
       passwordHash,
       role: "ahli",
       block: "A",
@@ -385,11 +402,11 @@ async function main() {
   for (const e of eligibleData) {
     const user = await prisma.user.upsert({
       where: { matricId: e.matricId },
-      update: {},
+      update: { role: "ahli", deletedAt: null },
       create: {
         matricId: e.matricId,
         name: e.name,
-        email: `${e.matricId.toLowerCase()}@ukm.edu.my`,
+        email: `${e.matricId.toLowerCase()}@siswa.ukm.edu.my`,
         passwordHash,
         role: "ahli",
         residentCardQr: e.matricId,

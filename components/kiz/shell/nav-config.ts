@@ -23,6 +23,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin_kiz: "Admin KIZ",
   pengetua: "Principal",
   ahli: "Student",
+  staf: "Staff",
 }
 
 export const ROLE_OVERLINES: Record<Role, string> = {
@@ -30,6 +31,7 @@ export const ROLE_OVERLINES: Record<Role, string> = {
   admin_kiz: "College operations",
   pengetua: "Principal view · read only",
   ahli: "Resident",
+  staf: "Staff",
 }
 
 export function navForRole(role: Role): NavGroup[] {

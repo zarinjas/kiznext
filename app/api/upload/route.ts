@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { writeFile, mkdir } from "fs/promises"
-import path from "path"
+import { saveUpload, UploadError } from "@/lib/image-upload"
+
+const MAX_UPLOAD = 15 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -15,18 +16,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 })
   }
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
+  const buffer = Buffer.from(await file.arrayBuffer())
 
-  // Save with unique filename
-  const ext = file.name.split(".").pop() || "jpg"
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "fasiliti")
-  await mkdir(uploadDir, { recursive: true })
-  await writeFile(path.join(uploadDir, filename), buffer)
-
-  return NextResponse.json({
-    url: `/uploads/fasiliti/${filename}`,
-    filename,
-  })
+  try {
+    const { url, filename } = await saveUpload(buffer, {
+      dir: "fasiliti",
+      prefix: "upload",
+      maxBytes: MAX_UPLOAD,
+      allowPdf: true,
+    })
+    return NextResponse.json({ url, filename })
+  } catch (err) {
+    const message = err instanceof UploadError ? err.message : "Upload failed"
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }

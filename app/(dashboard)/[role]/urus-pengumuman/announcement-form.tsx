@@ -60,6 +60,10 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData })
       const data = await res.json()
+      if (!res.ok || !data.url) {
+        alert(data.error || "That file didn't upload — try again.")
+        return
+      }
       setAttachmentUrl(data.url)
       const isImage = file.type.startsWith("image/")
       setAttachmentType(isImage ? "image" : "pdf")

@@ -35,6 +35,10 @@ const toneByStatus: Record<string, StatusTone> = {
   admin_kiz: "warning",
   pengetua: "info",
   ahli: "neutral",
+  staf: "info",
+  // account status (urus-pengguna)
+  unverified: "warning",
+  active: "success",
 }
 
 const labelByStatus: Record<string, string> = {
@@ -59,6 +63,10 @@ const labelByStatus: Record<string, string> = {
   admin_kiz: "Admin KIZ",
   pengetua: "Principal",
   ahli: "Student",
+  staf: "Staff",
+  // account status (urus-pengguna)
+  unverified: "Unverified",
+  active: "Active",
 }
 
 export function statusTone(status: string): StatusTone {

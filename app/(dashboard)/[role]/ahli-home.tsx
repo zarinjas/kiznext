@@ -36,6 +36,8 @@ interface Props {
     facility: { name: string }
   }[]
   role: string
+  /** Hero badge label — "Resident" for students, "Staff" for staff accounts. */
+  memberTag?: string
   roomReminder: BilikReminder | null
   /** Computed on the server so SSR and hydration always agree. */
   greeting: string
@@ -54,7 +56,7 @@ const quickActions = [
 const shortDate = (d: Date) =>
   new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short" })
 
-export function AhliHome({ user, announcements, bookings, role, roomReminder, greeting }: Props) {
+export function AhliHome({ user, announcements, bookings, role, memberTag, roomReminder, greeting }: Props) {
   const firstName = user.name.trim().split(" ")[0]
 
   const upcoming = bookings.filter((b) => b.status !== "rejected" && b.status !== "cancelled")
@@ -150,8 +152,8 @@ export function AhliHome({ user, announcements, bookings, role, roomReminder, gr
             <Box sx={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box sx={{ minWidth: 0 }}>
                 <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, px: 1, py: 0.375, borderRadius: 999, backgroundColor: color.accent[100], color: color.accent[700], fontSize: 11, fontWeight: 600 }}>
-                  <KIcon icon="verified_user" size={13} />
-                  Resident
+                  <KIcon icon={memberTag === "Staff" ? "work" : "verified_user"} size={13} />
+                  {memberTag ?? "Resident"}
                 </Box>
                 <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 1 }}>
                   {greeting}

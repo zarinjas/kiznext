@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
+import { issueVerificationTokenAndEmail } from "@/lib/registration"
 
 /**
  * User management (urus-pengguna) — create, edit, soft-delete, and reset
@@ -162,5 +163,47 @@ export async function resetUserPassword(id: string, password: string) {
     data: { passwordHash: await bcrypt.hash(password, 10) },
   })
 
+  revalidatePath(`/${sessionRole}/urus-pengguna`)
+}
+
+/**
+ * Self-service accounts land `unverified` (email not clicked) or `pending`
+ * (email verified, matric not yet on the KIZ list). This lets an admin unlock a
+ * legit account the intake matching hasn't caught — e.g. a resident whose row
+ * wasn't in the eKolej export.
+ */
+export async function activateUser(id: string) {
+  const session = await assertAdmin()
+  const sessionRole = session.user.role as Role
+
+  const target = await prisma.user.findUnique({ where: { id } })
+  if (!target || target.deletedAt) throw new Error("User not found")
+  if (!canManageRole(sessionRole, target.role)) {
+    throw new Error("Only the Super Admin can manage Super Admin accounts")
+  }
+
+  await prisma.user.update({
+    where: { id },
+    data: { accountStatus: "active" },
+  })
+
+  revalidatePath(`/${sessionRole}/urus-pengguna`)
+}
+
+/** Re-sends the verification email for an account whose link never arrived. */
+export async function resendUserVerification(id: string) {
+  const session = await assertAdmin()
+  const sessionRole = session.user.role as Role
+
+  const target = await prisma.user.findUnique({ where: { id } })
+  if (!target || target.deletedAt) throw new Error("User not found")
+  if (!canManageRole(sessionRole, target.role)) {
+    throw new Error("Only the Super Admin can manage Super Admin accounts")
+  }
+  if (target.accountStatus !== "unverified") {
+    throw new Error("This account has already verified its email")
+  }
+
+  await issueVerificationTokenAndEmail(target)
   revalidatePath(`/${sessionRole}/urus-pengguna`)
 }

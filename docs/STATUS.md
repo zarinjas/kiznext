@@ -38,8 +38,9 @@ and work in dev. The gaps below are what stands between this and a real deployme
 | **Role differentiation (admin vs student)** | Done | (a) **"Choose Room" is student-only** — removed from the sidebar/drawer/⌘K/mobile menu for `superadmin`/`admin_kiz`/`pengetua` (`navForRole` filters by `item.roles`; the `lagi` page builds its menu per role). `bilik` page + its actions are `ahli`-gated (non-students are redirected to their own dashboard). Admins manage rooms via `urus-bilik` instead. (b) **Guest house management** — new `GuestHouse` model (name, description, images, price, capacity, max stay, requires-approval). The admin `urus-rumah-tamu` page gained a **Bookings / Guest Houses** tab (searchParams-driven): add/edit/soft-delete guest houses; deleting is refused while a guest house still has active bookings. The member `rumah-tamu` flow now picks a guest house first (per-house availability calendar, `maxDays` and per-house clash checks in `createGHBooking`, guest-house name shown on admin rows and "My Bookings"). (c) **`[role]` segment enforced for every child route** (new `(dashboard)/[role]/layout.tsx` redirects to the session's own segment) — closes old issue #6. (d) **`pengetua` occupancy crash fixed** — occupancy summary extracted to a read-only `lib/bilik.ts` helper; the gated action wraps it, the page uses it directly for `pengetua`. |
 | Parcel tracker | Hidden | Module removed from all navigation & shortcuts (nav, quick actions, admin dashboard, `lagi` menu). Route files `/parcel` & `/urus-parcel` kept in place but unreachable via UI. |
 | App settings | Done | Logo upload/remove by superadmin/admin_kiz. The uploaded logo doubles as the browser favicon — served dynamically at 512×512 PNG from `/api/app-icon` (falls back to the default `/favicon.ico` when no logo is set). |
-| **Administrative Offices module** | Done | New `Office` model + `/pejabat` (all roles) and `/urus-pejabat` (admin). Student page shows an **interactive block panorama** — one wide shot covering both offices, **drag-to-pan** left/right via framer-motion `drag="x"` (no 360 lib), with two labels glued to the image at admin-configurable % positions (left = Pejabat Pentadbiran KIZ, right = Pejabat UKM Real Estate) that pan with the building. Below: two office cards (featured photo, function) opening a photo dialog with clickable gallery thumbnails. Admin `urus-pejabat` edits office name/function + uploads featured/gallery, and edits the panorama (uploads image + two X-position sliders). Uploads go through **validated server actions** (`lib/offices.ts`, MIME allowlist + 12 MB cap, `public/uploads/pejabat/`) — deliberately NOT the unvalidated `/api/upload` (issue #5). Labels derive from `Office.name` (single source of truth). Note: local-FS storage caveat (#8) applies. |
+| **Administrative Offices module** | Done | New `Office` model + `/pejabat` (all roles) and `/urus-pejabat` (admin). Student page shows an **interactive block panorama** — one wide shot covering both offices, **drag-to-pan** left/right via framer-motion `drag="x"` (no 360 lib), with two labels glued to the image at admin-configurable % positions (left = Pejabat Pentadbiran KIZ, right = Pejabat UKM Real Estate) that pan with the building. Below: two office cards (featured photo, function) opening a photo dialog with clickable gallery thumbnails. Admin `urus-pejabat` edits office name/function + uploads featured/gallery, and edits the panorama (uploads image + two X-position sliders). All uploads go through the shared validated `saveUpload` pipeline (`lib/image-upload.ts`, same one as `/api/upload` and settings) with a 12 MB cap. Labels derive from `Office.name` (single source of truth). Note: local-FS storage caveat (#8) applies. |
 | **User management** | Done | New `/urus-pengguna` admin module (superadmin + admin_kiz). Full CRUD on all accounts: add (with password), edit (name/email/phone/role; matric ID immutable), soft-delete (blocks login, keeps history), and **reset password** (generate/copy or type a new one). Guards: only Super Admin can manage/create/delete/demote Super Admin accounts; can't delete yourself; can't delete or demote the last Super Admin. Re-adding a soft-deleted matric ID restores the account. Login already rejects `deletedAt` users. Roles rendered via `StatusChip` (role tones/labels added to `lib/theme/status.ts`). |
+| **Self-registration + email verification + `staf` role** | Done | Students and staff register themselves (`/daftar`, public). Email domain picks the role: `@siswa.ukm.edu.my` → `ahli`, `@ukm.edu.my` → `staf` (new `Role` value: member experience like a student — resident home with a "Staff" tag — minus `bilik`, and zero `urus-*` access until a superadmin promotes them via user management). Every self-service account must click a **Resend** verification link (`/sahkan`, public) before first sign-in; login shows a distinct "check your inbox / resend" state (`EMAIL_NOT_VERIFIED` error code from `authorize()`). State machine = `AccountStatus` enum on `users` (`unverified` → `pending` → `active`), admin-created accounts default `active` and skip email. Matric ID stays the identity anchor — the eKolej CSV has no email column — and the "tally" is automatic: on email verify, on login (`autoUpgradePendingUser`), and in bulk when an intake is activated (`reconcileIntakeStudents` in `urus-bilik`), the account is unlocked, `EligibleStudent.userId` linked, and the name backfilled from the official list. Non-active accounts get a status wall instead of the app shell (`(dashboard)/layout.tsx` → `PendingGate`). `urus-pengguna` gains an Account-status column + filter and per-row **Activate** (pending) and **Resend email** (unverified) actions. Token links are single-use SHA-256 hashes (raw never stored), 24 h expiry, soft-deleted on use. Professional HTML template embeds the admin-uploaded logo via `/api/app-icon`. Dev fallback: without `RESEND_API_KEY` the link logs to the server console so the flow is testable offline. |
 | **Live deployment** | Done | Running on the VPS behind CyberPanel/OpenLiteSpeed at `mykiz.my` (single VPS, PostgreSQL 16, `mykiznext` systemd service on `127.0.0.1:3010`). Deploy = `./deploy.sh` (lint → auto-commit → push to `main`) → GitHub Action → `scripts/remote-deploy.sh` on the server (pull, npm ci, prisma db push, build, restart). `.env` + uploads stay server-side only — the GitHub repo is public. Note: the server `.env` must set `AUTH_URL=https://mykiz.my` — Next/Auth.js otherwise builds redirect URLs from the backend origin (`localhost:3010`) instead of the public host. |
 | Dark mode | Done | Dual color schemes via MUI CSS variables; toggle in the top bar; follows system by default. |
 | UI language | Done | Interface is English. URL slugs kept Malaysian (`pengumuman`, `tempahan`, etc.) by design; not converted to avoid breaking links. Seed `umum/penting/aktiviti` tags changed to English form values (`general`/`important`/`event`); dates localized to `en-MY`. |
@@ -86,11 +87,19 @@ The only table missing soft-delete columns — it also lacks `createdAt`. Violat
 the project-wide rule in `AGENTS.md`. Low practical impact (it is a key/value
 store) but it is an inconsistency.
 
-### #5 — `/api/upload` does not validate uploads (medium)
+### #5 — ~~`/api/upload` does not validate uploads~~ FIXED
 
-`POST /api/upload` is authenticated but accepts any file type and any size, writing
-straight to `public/uploads/fasiliti/`. `lib/settings.ts` does this correctly
-(2 MB cap, MIME allowlist) — the API route should match.
+All image uploads are now routed through one shared, validated pipeline —
+`lib/image-upload.ts` (`saveUpload`). The upload is sniffed by content (via
+`sharp`, never trusted `file.type`), must **fully decode** before anything is
+written, and is capped by size everywhere. Web-safe rasters (jpeg/png/webp/gif)
+pass through unchanged; exotic phone/camera formats (HEIC/HEIF, TIFF, BMP, AVIF)
+are re-encoded to jpeg/png so the stored file always renders in a browser
+preview — this fixed intermittent "corrupt / broken image" uploads on the live
+server (iPhone HEIC uploads were being stored raw). Corrupt/truncated uploads
+are now rejected with a clear message instead of being persisted. Adopted by
+`/api/upload` (now images + PDF, 15 MB cap), `lib/settings.ts` (logo 2 MB + SVG,
+student-card bg 4 MB), `lib/offices.ts` (12 MB), and lost & found photos.
 
 ### #6 — ~~Child routes don't re-check the `[role]` segment~~ FIXED
 
@@ -141,7 +150,7 @@ generate an identical code. Fine for casual identification, not for access contr
 
 Not started, roughly in priority order.
 
-- **Production hardening** — resolve #4, #5, #8 before any real deployment.
+- **Production hardening** — resolve #4, #8 before any real deployment.
 - **`admin_ukmre` role** — external guest-house operator. Add the enum value and
   route guest-house approvals to it; no schema restructure needed.
 - **`audit_logs` table** — actor, action, target type/id, JSON meta. Was specced
@@ -165,6 +174,7 @@ now resolved in code.
 |---|---|
 | Realtime engine | None. Client polling every 3s. No Pusher/Supabase. |
 | Auth provider | Auth.js v5 (next-auth beta), Credentials provider. |
+| Auth email | Resend (SDK `resend`). `RESEND_API_KEY` + `RESEND_FROM` in the server `.env`. Template is inline-HTML (no react-email dep), logo embedded from `/api/app-icon`. Registration identity anchor is **matric ID** — the eKolej CSV has no email column, so the email is an ownership gate + contact, not a join key. |
 | Auth guard | `proxy.ts` at repo root (`getToken` + JWT), per-page `auth()` + redirect, per-mutation `requireRole()`. |
 | File storage | Local filesystem `public/uploads/`. Provisional — see #8. |
 | ORM | Prisma 7, `prisma-client` generator, `@prisma/adapter-pg`. |

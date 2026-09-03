@@ -24,6 +24,10 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
     title: "Student Dashboard",
     description: "Book facilities, check announcements, and more.",
   },
+  staf: {
+    title: "Staff Dashboard",
+    description: "Book facilities, check announcements, and more.",
+  },
 }
 
 /** Time-of-day greeting, computed server-side so it can never mismatch on hydration. */
@@ -45,7 +49,11 @@ export default async function RoleDashboardPage({
   const userRole = session.user.role as string
   if (role !== userRole) redirect(`/${userRole}`)
 
-  if (userRole === "ahli") {
+  // Students (ahli) and staff (staf) both get the resident-style member home.
+  // Only students can apply for accommodation, so the room reminder is ahli-only.
+  const isMember = userRole === "ahli" || userRole === "staf"
+
+  if (isMember) {
     const [user, announcements, bookings, roomReminder] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.user.id },
@@ -70,7 +78,7 @@ export default async function RoleDashboardPage({
         orderBy: { createdAt: "desc" },
         take: 3,
       }),
-      getBilikReminder(session.user.id, session.user.matricId),
+      userRole === "ahli" ? getBilikReminder(session.user.id, session.user.matricId) : Promise.resolve(null),
     ])
 
     if (!user) redirect("/login")
@@ -81,6 +89,7 @@ export default async function RoleDashboardPage({
         announcements={announcements}
         bookings={bookings}
         role={session.user.role}
+        memberTag={userRole === "staf" ? "Staff" : "Resident"}
         roomReminder={roomReminder}
         greeting={greetingFor(nowMalaysia())}
       />

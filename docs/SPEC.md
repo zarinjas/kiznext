@@ -41,27 +41,49 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 
 ## 3. Roles & access
 
-Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `ahli`.
+Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `ahli`, `staf`.
 
-| Capability | superadmin | admin_kiz | pengetua | ahli |
-|---|---|---|---|---|
-| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ |
-| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ |
-| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ |
-| Approve bookings (facility + guest house) | ✓ | ✓ | — | — |
-| Answer & close helpdesk tickets | ✓ | ✓ | — | — |
-| Post / edit announcements | ✓ | ✓ | — | — |
-| Soft-delete chat messages | ✓ | ✓ | — | — |
-| Manage facilities, parcels | ✓ | ✓ | — | — |
-| App settings (logo) | ✓ | ✓ | — | — |
-| View-only reporting | ✓ | ✓ | ✓ | — |
-| Submit an accommodation application (`bilik`) | — | — | — | ✓ |
-| Configure guest houses | ✓ | ✓ | — | — |
+| Capability | superadmin | admin_kiz | pengetua | ahli | staf |
+|---|---|---|---|---|---|
+| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — |
+| Answer & close helpdesk tickets | ✓ | ✓ | — | — | — |
+| Post / edit announcements | ✓ | ✓ | — | — | — |
+| Soft-delete chat messages | ✓ | ✓ | — | — | — |
+| Manage facilities, parcels | ✓ | ✓ | — | — | — |
+| App settings (logo) | ✓ | ✓ | — | — | — |
+| View-only reporting | ✓ | ✓ | ✓ | — | — |
+| Submit an accommodation application (`bilik`) | — | — | — | ✓ | — |
+| Configure guest houses | ✓ | ✓ | — | — | — |
 
 `pengetua` (principal) is read-only by design — no approval rights.
 
+`staf` (staff) is a self-registered UKM staff account (`@ukm.edu.my`). Member
+experience is identical to `ahli` (resident home, bookings, helpdesk, chat,
+eCard) **except** `bilik` (accommodation application is student-only) and with no
+access to any `urus-*` route — until a superadmin promotes them to `admin_kiz`
+or `superadmin` via user management. The role carries a visible "Staff" tag.
+
 `admin_ukmre` (external guest-house operator) is post-MVP: add the enum value and
 route guest-house approvals to it. No schema restructure needed.
+
+### Registration & verification
+
+Students and staff register themselves (`/daftar`) and must confirm their email
+through a Resend link before their first sign-in. The email domain selects the
+role — `@siswa.ukm.edu.my` → `ahli`, `@ukm.edu.my` → `staf`. Accounts created by
+an admin (or the seed) default to `active` and skip email verification.
+
+The identity anchor is the matric ID, **not** the email: the eKolej KIZ intake
+CSV has no email column, so a student is matched to the official list by matric.
+The state machine is `AccountStatus`: `unverified` (link not clicked; login
+blocked) → `pending` (email verified but matric not yet on an active intake;
+login allowed but the app shows a status wall) → `active`. Unlock happens
+automatically when the office uploads + activates an intake containing the
+matric (`reconcileIntakeStudents`, called on intake activation and at login),
+or manually via user management (`urus-pengguna`).
 
 **Enforcement.** `requireRole(role, [...])` from `lib/rbac.ts` throws on failure.
 Every page also calls `await auth()` and redirects to `/login` when there is no
@@ -79,7 +101,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 
 | Enum | Values |
 |---|---|
-| `Role` | superadmin, admin_kiz, pengetua, ahli |
+| `Role` | superadmin, admin_kiz, pengetua, ahli, staf |
+| `AccountStatus` | unverified, pending, active |
 | `BookingStatus` | pending, approved, rejected, cancelled |
 | `GuestHouseBookingStatus` | pending, approved, rejected, checked_in, checked_out, cancelled |
 | `PeriodType` | daily, weekly, monthly |
@@ -91,7 +114,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 
 | Model | Table | Notable fields |
 |---|---|---|
-| `User` | users | `matricId` unique (login ID), `passwordHash`, `role`, `block`, `roomNumber`, `residentCardQr`, `phone`, `avatarUrl` |
+| `User` | users | `matricId` unique (login ID), `email` unique, `emailVerifiedAt`, `accountStatus` (enum), `passwordHash`, `role`, `block`, `roomNumber`, `residentCardQr`, `phone`, `avatarUrl` |
 | `Block` | blocks | `name` unique, `description`, `navigationNotes` |
 | `GuestHouse` | guest_houses | `name` unique, `description`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `maxDays`, `requiresApproval` |
 | `Facility` | facilities | `blockId`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `timeSlotDuration`, `maxPerDay` (default 3), `requiresApproval` |
@@ -104,6 +127,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `Parcel` | parcels | `userId`, `description`, `status` (plain String: `arrived`/`collected`), `notifiedAt`, `collectedAt` |
 | `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
 | `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
+| `VerificationToken` | verification_tokens | single-use email-verify links. `userId`, `tokenHash` unique (SHA-256 of the raw token — never stored), `expiresAt`, `usedAt`. Soft-deleted when consumed. |
 | `ResidenceBlock` | residence_blocks | `name` unique, `gender`, `floors`, `sortOrder`. Physical residential block, gender-restricted. Distinct from `Block` (facility grouping). |
 | `ResidenceRoom` | residence_rooms | `blockId`, `floor`, `number` (`@@unique([blockId, number])`), `type` (single/double), `status` (available/maintenance/closed). |
 | `Bed` | beds | `roomId`, `position` (single/left/right), `occupantId` unique → `EligibleStudent`. `@@unique([roomId, position])`. Single room = 1 bed, double = 2. |
@@ -127,11 +151,19 @@ All app routes live under `app/(dashboard)/[role]/`. The `[role]` segment matche
 the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 `urus-` prefix ("manage" in Malay).
 
+### Public routes (outside the dashboard shell)
+
+| Route | Feature |
+|---|---|
+| `/login` | Credentials sign-in. |
+| `/daftar` | Self-service registration. Email domain picks the role (`@siswa.ukm.edu.my` → student, `@ukm.edu.my` → staff); sends a Resend verification link. |
+| `/sahkan` | Email-verification landing. Consumes the token, marks the account, matches against the active intake (see §3). |
+
 ### Member routes
 
 | Route | Feature |
 |---|---|
-| `/` | Dashboard. Renders `ahli-home` (announcements + own bookings) or `admin-home` (pending-count cards). |
+| `/` | Dashboard. `ahli`/`staf` render the member home (`ahli-home`, hero tag Resident/Staff); everyone else `admin-home` (pending-count cards). |
 | `pengumuman` | Announcement feed — tag filter, pinned first, "Baru" badge for 24h. |
 | `chat` | Community chat, one shared room, polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
@@ -171,8 +203,14 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 ## 6. Engineering notes
 
 - **Auth.** Credentials provider, `matricId` + bcrypt. Users with `deletedAt` set
-  are rejected at sign-in. JWT strategy; `id`, `role`, and `matricId` are injected
-  into the token and session in `lib/auth.ts`.
+  are rejected at sign-in. JWT strategy; `id`, `role`, `matricId`, and
+  `accountStatus` are injected into the token and session in `lib/auth.ts`.
+  Self-service accounts (`/daftar`) must click a Resend verification link
+  (`/sahkan`) before first sign-in; unverified logins throw a dedicated error
+  code (`EMAIL_NOT_VERIFIED`) surfaced by the login form with a resend action.
+  Matching against the KIZ intake happens in `lib/registration.ts` — the intake
+  list has no email column, so matric ID is the join key. Dev fallback: without
+  `RESEND_API_KEY` the verification link is logged to the server console.
 - **Timezone.** Everything renders in `Asia/Kuala_Lumpur` via `lib/timezone.ts`
   (`nowMalaysia()`, `formatMalaysia()`). Never show raw UTC.
 - **Office hours.** Mon–Fri, 08:00–17:00 (`lib/office-hours.ts`). A helpdesk

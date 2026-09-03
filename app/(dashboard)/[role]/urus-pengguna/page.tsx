@@ -16,12 +16,18 @@ export default async function UrusPenggunaPage() {
     orderBy: [{ role: "asc" }, { name: "asc" }],
   })
 
+  const needsReview = users.filter((u) => u.accountStatus !== "active").length
+
   return (
     <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <PageHeader
         overline="Admin"
         title="Users"
-        subtitle="Create and edit accounts, reset passwords, and remove users from the app."
+        subtitle={
+          needsReview > 0
+            ? `Create and edit accounts, reset passwords, and remove users. ${needsReview} self-registered account${needsReview === 1 ? "" : "s"} ${needsReview === 1 ? "is" : "are"} waiting for review.`
+            : "Create and edit accounts, reset passwords, and remove users from the app."
+        }
       />
       <UsersClient
         currentUserId={session.user.id}
@@ -33,6 +39,8 @@ export default async function UrusPenggunaPage() {
           email: u.email,
           phone: u.phone,
           role: u.role,
+          accountStatus: u.accountStatus,
+          emailVerifiedAt: u.emailVerifiedAt?.toISOString() ?? null,
           block: u.block,
           roomNumber: u.roomNumber,
           createdAt: u.createdAt.toISOString(),
