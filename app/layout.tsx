@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"], disp
 export const metadata: Metadata = {
   title: "KIZ Super App",
   description: "Platform digital bersepadu Kolej Ibu Zain, UKM",
+  icons: {
+    icon: [{ url: "/api/app-icon", type: "image/png", sizes: "512x512" }],
+  },
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
