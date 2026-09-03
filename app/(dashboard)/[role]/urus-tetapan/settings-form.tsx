@@ -6,19 +6,25 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
 import Alert from "@mui/material/Alert"
-import { uploadAppLogo, removeAppLogo } from "@/lib/settings"
+import { uploadAppLogo, removeAppLogo, uploadLoginBackground, removeLoginBackground } from "@/lib/settings"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KIcon } from "@/components/kiz/primitives/icon"
 
 interface Props {
   currentLogoUrl: string | null
+  currentLoginBackgroundUrl: string | null
 }
 
-export function SettingsForm({ currentLogoUrl }: Props) {
+export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl }: Props) {
   const router = useRouter()
   const [preview, setPreview] = useState<string | null>(currentLogoUrl)
   const [uploading, setUploading] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [backgroundPreview, setBackgroundPreview] = useState<string | null>(currentLoginBackgroundUrl)
+  const [backgroundUploading, setBackgroundUploading] = useState(false)
+  const [backgroundRemoving, setBackgroundRemoving] = useState(false)
+  const [backgroundError, setBackgroundError] = useState("")
+  const [backgroundSuccess, setBackgroundSuccess] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -38,8 +44,8 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     let result
     try {
       result = await uploadAppLogo(formData)
-    } catch {
-      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Upload didn't go through — give it another shot." }
     } finally {
       setUploading(false)
     }
@@ -61,8 +67,8 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     let result
     try {
       result = await removeAppLogo()
-    } catch {
-      result = { success: false, error: "Couldn't remove it — try again." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't remove it — try again." }
     } finally {
       setRemoving(false)
     }
@@ -76,7 +82,60 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     }
   }
 
+  async function handleBackgroundUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setBackgroundError("")
+    setBackgroundSuccess("")
+    const formData = new FormData(e.currentTarget)
+    const file = formData.get("background") as File
+    if (!file || file.size === 0) {
+      setBackgroundError("Pick a photo first.")
+      return
+    }
+
+    setBackgroundUploading(true)
+    let result
+    try {
+      result = await uploadLoginBackground(formData)
+    } catch {
+      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } finally {
+      setBackgroundUploading(false)
+    }
+
+    if (result.success) {
+      setBackgroundPreview(result.url ?? null)
+      setBackgroundSuccess("College photo updated. It is now live on the login page.")
+      router.refresh()
+    } else {
+      setBackgroundError(result.error ?? "Upload didn't go through — give it another shot.")
+    }
+  }
+
+  async function handleBackgroundRemove() {
+    setBackgroundError("")
+    setBackgroundSuccess("")
+    setBackgroundRemoving(true)
+    let result
+    try {
+      result = await removeLoginBackground()
+    } catch {
+      result = { success: false, error: "Couldn't remove it — try again." }
+    } finally {
+      setBackgroundRemoving(false)
+    }
+
+    if (result.success) {
+      setBackgroundPreview(null)
+      setBackgroundSuccess("College photo removed. The default gradient is back.")
+      router.refresh()
+    } else {
+      setBackgroundError(result.error ?? "Couldn't remove it — try again.")
+    }
+  }
+
   return (
+    <>
     <FormSection title="App Logo" subtitle="PNG, JPEG, WebP, or SVG. Max 2MB. Shows on the login page and sidebar." icon="image">
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
         {preview ? (
@@ -120,5 +179,36 @@ export function SettingsForm({ currentLogoUrl }: Props) {
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
     </FormSection>
+    <FormSection title="Login Background" subtitle="Optional college photo for the desktop login panel. A soft gradient overlay keeps the text clear. PNG, JPEG, or WebP. Max 12MB." icon="landscape">
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+        {backgroundPreview ? (
+          <Box component="img" src={backgroundPreview} alt="Login background preview" sx={{ width: 112, height: 72, borderRadius: 2, border: "1px solid", borderColor: "divider", objectFit: "cover" }} />
+        ) : (
+          <Box sx={{ width: 112, height: 72, borderRadius: 2, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled", fontSize: 12 }}>
+            Default gradient
+          </Box>
+        )}
+        {backgroundPreview && (
+          <Button size="small" onClick={handleBackgroundRemove} disabled={backgroundRemoving} startIcon={<KIcon icon="delete" size={15} />} sx={{ color: "error.main" }}>
+            {backgroundRemoving ? "Removing…" : "Remove photo"}
+          </Button>
+        )}
+      </Box>
+      <form onSubmit={handleBackgroundUpload} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <Button component="label" variant="outlined" startIcon={<KIcon icon="upload" size={16} />}>
+          Choose photo
+          <input type="file" name="background" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) setBackgroundPreview(URL.createObjectURL(file))
+          }} />
+        </Button>
+        <Button type="submit" variant="contained" disabled={backgroundUploading} startIcon={backgroundUploading ? undefined : <KIcon icon="save" size={16} />}>
+          {backgroundUploading ? "Uploading…" : "Upload photo"}
+        </Button>
+      </form>
+      {backgroundError && <Alert severity="error" sx={{ mt: 2 }}>{backgroundError}</Alert>}
+      {backgroundSuccess && <Alert severity="success" sx={{ mt: 2 }}>{backgroundSuccess}</Alert>}
+    </FormSection>
+    </>
   )
 }

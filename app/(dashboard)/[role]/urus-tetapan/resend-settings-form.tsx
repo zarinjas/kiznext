@@ -34,8 +34,8 @@ export function ResendSettingsForm({ apiKeySet, initialFrom }: Props) {
     let result
     try {
       result = await saveResendConfig({ apiKey, from, removeKey })
-    } catch {
-      result = { success: false, error: "Couldn't save — try again." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save — try again." }
     } finally {
       setLoading(false)
     }

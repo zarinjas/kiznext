@@ -1,8 +1,8 @@
-import { getAppLogoUrl } from "@/lib/settings"
+import { getAppLogoUrl, getLoginBackgroundUrl } from "@/lib/settings"
 import { LoginForm } from "./login-form"
 
 export default async function LoginPage() {
-  const logoUrl = await getAppLogoUrl()
+  const [logoUrl, loginBackgroundUrl] = await Promise.all([getAppLogoUrl(), getLoginBackgroundUrl()])
 
-  return <LoginForm logoUrl={logoUrl} />
+  return <LoginForm logoUrl={logoUrl} loginBackgroundUrl={loginBackgroundUrl} />
 }

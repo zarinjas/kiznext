@@ -54,8 +54,8 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     let result
     try {
       result = await uploadStudentCardBackground(formData)
-    } catch {
-      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Upload didn't go through — give it another shot." }
     } finally {
       setUploading(false)
     }
@@ -77,8 +77,8 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     let result
     try {
       result = await removeStudentCardBackground()
-    } catch {
-      result = { success: false, error: "Couldn't remove it — try again." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't remove it — try again." }
     } finally {
       setRemoving(false)
     }
@@ -99,8 +99,8 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     let result
     try {
       result = await setStudentCardColor(next)
-    } catch {
-      result = { success: false, error: "Couldn't save the colour." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the colour." }
     } finally {
       setSavingColor(false)
     }
@@ -119,8 +119,8 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     let result
     try {
       result = await setStudentCardColorEnd(next)
-    } catch {
-      result = { success: false, error: "Couldn't save the colour." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the colour." }
     } finally {
       setSavingColor(false)
     }
@@ -138,8 +138,8 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     let result
     try {
       result = await setStudentCardColorEnd(enabled ? colorEnd : null)
-    } catch {
-      result = { success: false, error: "Couldn't save the colour." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the colour." }
     } finally {
       setSavingColor(false)
     }

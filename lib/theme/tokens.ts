@@ -124,6 +124,8 @@ export const gradient = {
   `,
   /** Feature/marketing surface (login panel). */
   panel: "linear-gradient(150deg, #FAF9FF 0%, #F2F5FF 40%, #EFF8FF 72%, #FFFFFF 100%)",
+  /** Translucent wash that keeps login-panel copy legible over a campus photo. */
+  loginImageOverlay: "linear-gradient(150deg, rgba(250,249,255,0.90) 0%, rgba(242,245,255,0.82) 40%, rgba(239,248,255,0.76) 72%, rgba(255,255,255,0.88) 100%)",
 } as const
 
 /**

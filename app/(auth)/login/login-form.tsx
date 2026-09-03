@@ -14,6 +14,7 @@ import { resendVerification } from "../daftar/actions"
 
 interface Props {
   logoUrl: string | null
+  loginBackgroundUrl: string | null
 }
 
 const highlights = [
@@ -22,7 +23,7 @@ const highlights = [
   { icon: "support_agent", title: "Support", body: "Helpdesk, lost & found and community in one place." },
 ]
 
-export function LoginForm({ logoUrl }: Props) {
+export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
   const [error, setError] = useState<string>("")
   const [emailNotice, setEmailNotice] = useState<string>("")
   const [unverified, setUnverified] = useState(false)
@@ -208,7 +209,11 @@ export function LoginForm({ logoUrl }: Props) {
           borderRadius: 5,
           border: "1px solid",
           borderColor: "divider",
-          backgroundImage: gradient.panel,
+          backgroundImage: loginBackgroundUrl
+            ? `${gradient.loginImageOverlay}, url("${loginBackgroundUrl}")`
+            : gradient.panel,
+          backgroundPosition: "center",
+          backgroundSize: "cover",
           "[data-mui-color-scheme='dark'] &": { backgroundImage: "none", backgroundColor: "background.paper" },
         }}
       >
@@ -216,13 +221,13 @@ export function LoginForm({ logoUrl }: Props) {
 
         <Box sx={{ position: "relative" }}>
           <Typography sx={{ fontSize: 34, fontWeight: 640, lineHeight: 1.15, letterSpacing: "-0.032em" }}>
-            Everything for college life,
+            Life at Kolej Ibu Zain,
             <br />
-            in one place.
+            UKM.
           </Typography>
           <Typography variant="body1" sx={{ color: "text.secondary", mt: 2, maxWidth: 400 }}>
-            The digital home of Kolej Ibu Zain — bookings, announcements, support and
-            community, built for residents and staff.
+            The connected campus experience for Kolej Ibu Zain, Universiti Kebangsaan
+            Malaysia — for residents and staff.
           </Typography>
 
           <Box sx={{ mt: 5, display: "flex", flexDirection: "column", gap: 1.25 }}>
@@ -260,4 +265,3 @@ export function LoginForm({ logoUrl }: Props) {
     </Box>
   )
 }
-

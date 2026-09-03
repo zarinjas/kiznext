@@ -9,6 +9,8 @@ import { saveUpload } from "@/lib/image-upload"
 
 const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
+const LOGIN_BACKGROUND_KEY = "login_background"
+const LOGIN_BACKGROUND_MAX_SIZE = 12 * 1024 * 1024
 
 const CARD_BG_MAX_SIZE = 4 * 1024 * 1024
 const STUDENT_CARD_BG_KEY = "student_card_bg"
@@ -24,6 +26,18 @@ const RESEND_FROM_SETTING = "resend_from"
 const DEFAULT_RESEND_FROM = "KIZ Super App <no-reply@mykiz.my>"
 const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/
 
+/**
+ * Log an unexpected server-action failure and turn it into a plain result so
+ * the client never hangs and always surfaces a readable message. The raw error
+ * is written to the server log (journalctl) for diagnosis.
+ */
+function actionError(label: string, err: unknown): { success: false; error: string } {
+  console.error(`[settings:${label}]`, err)
+  return {
+    success: false,
+    error: err instanceof Error ? err.message : "Something went wrong — try again.",
+  }
+}
 
 export async function getAppSetting(key: string): Promise<string | null> {
   const setting = await prisma.appSetting.findUnique({ where: { key } })
@@ -34,61 +48,73 @@ export async function getAppLogoUrl(): Promise<string | null> {
   return getAppSetting(LOGO_KEY)
 }
 
+export async function getLoginBackgroundUrl(): Promise<string | null> {
+  return getAppSetting(LOGIN_BACKGROUND_KEY)
+}
+
 export async function uploadAppLogo(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-    return { success: false, error: "Unauthorized" }
-  }
-
-  const file = formData.get("logo") as File | null
-  if (!file || file.size === 0) {
-    return { success: false, error: "No file selected" }
-  }
-
-  const existing = await prisma.appSetting.findUnique({ where: { key: LOGO_KEY } })
-  if (existing?.value) {
-    const oldPath = path.join(process.cwd(), "public", existing.value)
-    try { await unlink(oldPath) } catch {}
-  }
-
-  let url: string
   try {
-    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
-      prefix: "logo",
-      maxBytes: MAX_SIZE,
-      allowSvg: true,
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const file = formData.get("logo") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: LOGO_KEY } })
+    if (existing?.value) {
+      const oldPath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(oldPath) } catch {}
+    }
+
+    let url: string
+    try {
+      const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+        prefix: "logo",
+        maxBytes: MAX_SIZE,
+        allowSvg: true,
+      })
+      url = result.url
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+    }
+
+    await prisma.appSetting.upsert({
+      where: { key: LOGO_KEY },
+      update: { value: url },
+      create: { key: LOGO_KEY, value: url },
     })
-    url = result.url
+
+    revalidatePath("/", "layout")
+    return { success: true, url }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+    return actionError("uploadAppLogo", err)
   }
-
-  await prisma.appSetting.upsert({
-    where: { key: LOGO_KEY },
-    update: { value: url },
-    create: { key: LOGO_KEY, value: url },
-  })
-
-  revalidatePath("/", "layout")
-  return { success: true, url }
 }
 
 export async function removeAppLogo(): Promise<{ success: boolean; error?: string }> {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-    return { success: false, error: "Unauthorized" }
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: LOGO_KEY } })
+    if (existing?.value) {
+      const filePath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(filePath) } catch {}
+    }
+
+    await prisma.appSetting.deleteMany({ where: { key: LOGO_KEY } })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeAppLogo", err)
   }
-
-  const existing = await prisma.appSetting.findUnique({ where: { key: LOGO_KEY } })
-  if (existing?.value) {
-    const filePath = path.join(process.cwd(), "public", existing.value)
-    try { await unlink(filePath) } catch {}
-  }
-
-  await prisma.appSetting.deleteMany({ where: { key: LOGO_KEY } })
-
-  revalidatePath("/", "layout")
-  return { success: true }
 }
 
 /** Student Digital Card design — background image + name-bar colour/gradient, admin-configurable. */
@@ -114,109 +140,180 @@ export async function getStudentCardDesign(): Promise<StudentCardDesign> {
 export async function uploadStudentCardBackground(
   formData: FormData
 ): Promise<{ success: boolean; error?: string; url?: string }> {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-    return { success: false, error: "Unauthorized" }
-  }
-
-  const file = formData.get("background") as File | null
-  if (!file || file.size === 0) {
-    return { success: false, error: "No file selected" }
-  }
-
-  const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
-  if (existing?.value) {
-    const oldPath = path.join(process.cwd(), "public", existing.value)
-    try { await unlink(oldPath) } catch {}
-  }
-
-  let url: string
   try {
-    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
-      prefix: "student-card-bg",
-      maxBytes: CARD_BG_MAX_SIZE,
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const file = formData.get("background") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+    if (existing?.value) {
+      const oldPath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(oldPath) } catch {}
+    }
+
+    let url: string
+    try {
+      const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+        prefix: "student-card-bg",
+        maxBytes: CARD_BG_MAX_SIZE,
+      })
+      url = result.url
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+    }
+
+    await prisma.appSetting.upsert({
+      where: { key: STUDENT_CARD_BG_KEY },
+      update: { value: url },
+      create: { key: STUDENT_CARD_BG_KEY, value: url },
     })
-    url = result.url
+
+    revalidatePath("/", "layout")
+    return { success: true, url }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+    return actionError("uploadStudentCardBackground", err)
   }
-
-  await prisma.appSetting.upsert({
-    where: { key: STUDENT_CARD_BG_KEY },
-    update: { value: url },
-    create: { key: STUDENT_CARD_BG_KEY, value: url },
-  })
-
-  revalidatePath("/", "layout")
-  return { success: true, url }
 }
 
 export async function removeStudentCardBackground(): Promise<{ success: boolean; error?: string }> {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-    return { success: false, error: "Unauthorized" }
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+    if (existing?.value) {
+      const filePath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(filePath) } catch {}
+    }
+
+    await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_BG_KEY } })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeStudentCardBackground", err)
   }
-
-  const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
-  if (existing?.value) {
-    const filePath = path.join(process.cwd(), "public", existing.value)
-    try { await unlink(filePath) } catch {}
-  }
-
-  await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_BG_KEY } })
-
-  revalidatePath("/", "layout")
-  return { success: true }
 }
 
 export async function setStudentCardColor(
   colorHex: string
 ): Promise<{ success: boolean; error?: string }> {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-    return { success: false, error: "Unauthorized" }
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    if (!HEX_RE.test(colorHex)) {
+      return { success: false, error: "Invalid colour value" }
+    }
+
+    await prisma.appSetting.upsert({
+      where: { key: STUDENT_CARD_COLOR_KEY },
+      update: { value: colorHex },
+      create: { key: STUDENT_CARD_COLOR_KEY, value: colorHex },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("setStudentCardColor", err)
   }
-
-  if (!HEX_RE.test(colorHex)) {
-    return { success: false, error: "Invalid colour value" }
-  }
-
-  await prisma.appSetting.upsert({
-    where: { key: STUDENT_CARD_COLOR_KEY },
-    update: { value: colorHex },
-    create: { key: STUDENT_CARD_COLOR_KEY, value: colorHex },
-  })
-
-  revalidatePath("/", "layout")
-  return { success: true }
 }
 
 export async function setStudentCardColorEnd(
   colorHex: string | null
 ): Promise<{ success: boolean; error?: string }> {
-  const session = await auth()
-  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-    return { success: false, error: "Unauthorized" }
-  }
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
 
-  if (colorHex === null) {
-    await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_COLOR_END_KEY } })
+    if (colorHex === null) {
+      await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_COLOR_END_KEY } })
+      revalidatePath("/", "layout")
+      return { success: true }
+    }
+
+    if (!HEX_RE.test(colorHex)) {
+      return { success: false, error: "Invalid colour value" }
+    }
+
+    await prisma.appSetting.upsert({
+      where: { key: STUDENT_CARD_COLOR_END_KEY },
+      update: { value: colorHex },
+      create: { key: STUDENT_CARD_COLOR_END_KEY, value: colorHex },
+    })
+
     revalidatePath("/", "layout")
     return { success: true }
+  } catch (err) {
+    return actionError("setStudentCardColorEnd", err)
   }
+}
 
-  if (!HEX_RE.test(colorHex)) {
-    return { success: false, error: "Invalid colour value" }
+export async function uploadLoginBackground(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const file = formData.get("background") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: LOGIN_BACKGROUND_KEY } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: "login-background",
+      maxBytes: LOGIN_BACKGROUND_MAX_SIZE,
+    })
+
+    await prisma.appSetting.upsert({
+      where: { key: LOGIN_BACKGROUND_KEY },
+      update: { value: result.url },
+      create: { key: LOGIN_BACKGROUND_KEY, value: result.url },
+    })
+
+    revalidatePath("/login")
+    return { success: true, url: result.url }
+  } catch (err) {
+    return actionError("uploadLoginBackground", err)
   }
+}
 
-  await prisma.appSetting.upsert({
-    where: { key: STUDENT_CARD_COLOR_END_KEY },
-    update: { value: colorHex },
-    create: { key: STUDENT_CARD_COLOR_END_KEY, value: colorHex },
-  })
+export async function removeLoginBackground(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
 
-  revalidatePath("/", "layout")
-  return { success: true }
+    const existing = await prisma.appSetting.findUnique({ where: { key: LOGIN_BACKGROUND_KEY } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+    await prisma.appSetting.deleteMany({ where: { key: LOGIN_BACKGROUND_KEY } })
+
+    revalidatePath("/login")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeLoginBackground", err)
+  }
 }
 
 // ── Resend email configuration ────────────────────────────────────────────────
@@ -249,43 +346,47 @@ export async function saveResendConfig(input: {
   from: string
   removeKey: boolean
 }): Promise<{ success: boolean; error?: string }> {
-  const session = await auth()
-  if (!isResendAdmin(session)) {
-    return { success: false, error: "Unauthorized" }
-  }
-
-  const from = input.from.trim()
-  if (!from) {
-    return { success: false, error: "From address is required" }
-  }
-
-  // "From" may carry a display name, e.g. "KIZ Super App <no-reply@mykiz.my>".
-  const match = from.match(/^.*<([^>]+)>$/)
-  const bareFrom = (match ? match[1] : from).trim()
-  if (!EMAIL_RE.test(bareFrom)) {
-    return { success: false, error: "From isn't a valid email address" }
-  }
-
-  if (input.removeKey) {
-    await prisma.appSetting.deleteMany({ where: { key: RESEND_API_KEY_SETTING } })
-  } else if (input.apiKey.trim()) {
-    const apiKey = input.apiKey.trim()
-    if (!apiKey.startsWith("re_") || apiKey.length < 20) {
-      return { success: false, error: "That doesn't look like a Resend API key (starts with 're_')" }
+  try {
+    const session = await auth()
+    if (!isResendAdmin(session)) {
+      return { success: false, error: "Unauthorized" }
     }
+
+    const from = input.from.trim()
+    if (!from) {
+      return { success: false, error: "From address is required" }
+    }
+
+    // "From" may carry a display name, e.g. "KIZ Super App <no-reply@mykiz.my>".
+    const match = from.match(/^.*<([^>]+)>$/)
+    const bareFrom = (match ? match[1] : from).trim()
+    if (!EMAIL_RE.test(bareFrom)) {
+      return { success: false, error: "From isn't a valid email address" }
+    }
+
+    if (input.removeKey) {
+      await prisma.appSetting.deleteMany({ where: { key: RESEND_API_KEY_SETTING } })
+    } else if (input.apiKey.trim()) {
+      const apiKey = input.apiKey.trim()
+      if (!apiKey.startsWith("re_") || apiKey.length < 20) {
+        return { success: false, error: "That doesn't look like a Resend API key (starts with 're_')" }
+      }
+      await prisma.appSetting.upsert({
+        where: { key: RESEND_API_KEY_SETTING },
+        update: { value: apiKey },
+        create: { key: RESEND_API_KEY_SETTING, value: apiKey },
+      })
+    }
+
     await prisma.appSetting.upsert({
-      where: { key: RESEND_API_KEY_SETTING },
-      update: { value: apiKey },
-      create: { key: RESEND_API_KEY_SETTING, value: apiKey },
+      where: { key: RESEND_FROM_SETTING },
+      update: { value: from },
+      create: { key: RESEND_FROM_SETTING, value: from },
     })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("saveResendConfig", err)
   }
-
-  await prisma.appSetting.upsert({
-    where: { key: RESEND_FROM_SETTING },
-    update: { value: from },
-    create: { key: RESEND_FROM_SETTING, value: from },
-  })
-
-  revalidatePath("/", "layout")
-  return { success: true }
 }

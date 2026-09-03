@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { getAppLogoUrl, getResendConfig, getStudentCardDesign } from "@/lib/settings"
+import { getAppLogoUrl, getLoginBackgroundUrl, getResendConfig, getStudentCardDesign } from "@/lib/settings"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { SettingsForm } from "./settings-form"
@@ -14,8 +14,9 @@ export default async function UrusTetapanPage() {
     redirect(`/${session.user.role}`)
   }
 
-  const [logoUrl, cardDesign, resend] = await Promise.all([
+  const [logoUrl, loginBackgroundUrl, cardDesign, resend] = await Promise.all([
     getAppLogoUrl(),
+    getLoginBackgroundUrl(),
     getStudentCardDesign(),
     getResendConfig(),
   ])
@@ -27,7 +28,7 @@ export default async function UrusTetapanPage() {
         title="App Settings"
         subtitle="Manage app-wide branding and configuration."
       />
-      <SettingsForm currentLogoUrl={logoUrl} />
+      <SettingsForm currentLogoUrl={logoUrl} currentLoginBackgroundUrl={loginBackgroundUrl} />
       <ResendSettingsForm apiKeySet={resend.apiKeySet} initialFrom={resend.from} />
       <StudentCardDesignForm
         currentBackgroundUrl={cardDesign.backgroundUrl}
