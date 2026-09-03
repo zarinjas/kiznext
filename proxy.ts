@@ -12,18 +12,24 @@ const PUBLIC_PATHS = ["/login", "/daftar", "/sahkan"]
  * the check pass.  In dev (no AUTH_URL or already matching) this is a no-op.
  */
 function forwardedHost(req: NextRequest): string | undefined {
-  // Already set by the proxy (e.g. a future proxy config fix) — leave it.
-  if (req.headers.get("x-forwarded-host")) return undefined
-
   const authUrl = process.env.AUTH_URL
   if (!authUrl) return undefined
 
   try {
-    const { hostname } = new URL(authUrl)
-    // If the request host already matches, nothing to fix.
+    const { host } = new URL(authUrl) // includes port if present, e.g. "mykiz.my"
+
+    // If the incoming request already presents the public host on BOTH the
+    // Host and x-forwarded-host headers, there's nothing to fix.
     const reqHost = req.headers.get("host")
-    if (reqHost === hostname) return undefined
-    return hostname
+    const xfHost = req.headers.get("x-forwarded-host")
+    if (reqHost === host && (!xfHost || xfHost === host)) return undefined
+
+    // Otherwise force the public host. The old guard bailed out whenever the
+    // reverse proxy had *already* set x-forwarded-host — but OpenLiteSpeed sets
+    // it to the internal upstream (127.0.0.1:3010), which is exactly the value
+    // that makes Next's Server-Action origin check reject `Origin: mykiz.my`
+    // with a 500. We overwrite it unconditionally.
+    return host
   } catch {
     return undefined
   }
@@ -33,10 +39,19 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // ── Fix reverse-proxy host mismatch for Server-Action CSRF ──────────────
+  // Next's Server-Action origin check compares the browser `Origin` against the
+  // request host. Behind OpenLiteSpeed the upstream host is 127.0.0.1:3010, so
+  // we rewrite both `x-forwarded-host` and `host` to the public host from
+  // AUTH_URL so the check sees a match.
   const xfHost = forwardedHost(req)
-  const nextOpts = xfHost
-    ? { request: { headers: new Headers({ ...Object.fromEntries(req.headers), "x-forwarded-host": xfHost }) } }
-    : undefined
+  let nextOpts: { request: { headers: Headers } } | undefined
+  if (xfHost) {
+    const headers = new Headers(req.headers)
+    headers.set("x-forwarded-host", xfHost)
+    headers.set("host", xfHost)
+    headers.set("x-forwarded-proto", "https")
+    nextOpts = { request: { headers } }
+  }
 
   const token = await getToken({
     req,
