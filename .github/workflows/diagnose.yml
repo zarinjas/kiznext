@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Check avatar urls
+      - name: Query avatar urls via prisma
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -16,17 +16,19 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== distinct avatar_url in DB ====="
-            sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -F" | " -c "SELECT DISTINCT avatar_url FROM users WHERE avatar_url IS NOT NULL AND avatar_url <> chr(39)||chr(39);"' 2>&1 | grep -v "^$" | head -30
+            echo "===== psql available? ====="
+            which psql 2>&1 || echo "psql NOT found"
             echo
-            echo "===== for each avatar_url: file + curl ====="
-            sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -c "SELECT DISTINCT avatar_url FROM users WHERE avatar_url IS NOT NULL;"' 2>/dev/null | while read -r url; do
-              [ -z "$url" ] && continue
-              REL="${url#/uploads/}"
-              if [ -f "/home/mykiz.my/kiznext/public/uploads/$REL" ]; then
-                echo "FILE EXISTS: $url"
-              else
-                echo "FILE MISSING: $url"
-              fi
-              echo "  curl -> HTTP $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3010$url")"
-            done
+            echo "===== avatar urls via app prisma ====="
+            sudo runuser -u mykiz7808 -- env HOME=/home/mykiz.my bash -lc 'cd /home/mykiz.my/kiznext && set -a && . ./.env && set +a && node -e "
+              const { PrismaClient } = require(\"./app/generated/prisma/client.js\");
+              const { PrismaPg } = require(\"@prisma/adapter-pg\");
+              const pg = require(\"pg\");
+              const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+              const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+              prisma.user.findMany({ where: { avatarUrl: { not: null } }, select: { matricId: true, role: true, avatarUrl: true } }).then(rows => {
+                console.log(\"count:\", rows.length);
+                for (const r of rows) console.log(JSON.stringify(r));
+                process.exit(0);
+              }).catch(e => { console.error(\"ERR:\", e.message); process.exit(1); });
+            "' 2>&1 | head -40
