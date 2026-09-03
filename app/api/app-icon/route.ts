@@ -6,8 +6,8 @@ import { prisma } from "@/lib/db"
 
 // Serves the browser/app icon at a fixed 512x512 PNG derived from the
 // admin-uploaded app logo (AppSetting key `app_logo`). Dynamic so a logo
-// change is reflected without a rebuild; falls back to the static
-// `/favicon.ico` when no logo is set.
+// change is reflected without a rebuild; falls back to the static default
+// icon (`/default-favicon.ico`) when no logo is set.
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
@@ -22,13 +22,24 @@ const MIME_BY_EXT: Record<string, string> = {
   svg: "image/svg+xml",
 }
 
-export async function GET(req: Request) {
-  const fallback = NextResponse.redirect(new URL("/favicon.ico", req.url))
+const FALLBACK_PATH = path.join(process.cwd(), "public", "default-favicon.ico")
+
+export async function GET() {
+  async function fallback() {
+    try {
+      const bytes = await readFile(FALLBACK_PATH)
+      return new NextResponse(new Uint8Array(bytes), {
+        headers: { "Content-Type": "image/x-icon", "Cache-Control": "public, max-age=300" },
+      })
+    } catch {
+      return new NextResponse(null, { status: 204 })
+    }
+  }
 
   const setting = await prisma.appSetting.findUnique({ where: { key: APP_LOGO_KEY } })
   const logoUrl = setting?.value
   if (!logoUrl || !logoUrl.startsWith("/uploads/") || logoUrl.includes("..")) {
-    return fallback
+    return fallback()
   }
 
   const absPath = path.join(process.cwd(), "public", logoUrl)
@@ -39,7 +50,7 @@ export async function GET(req: Request) {
   try {
     buffer = await readFile(absPath)
   } catch {
-    return fallback
+    return fallback()
   }
 
   if (ext === "svg") {
