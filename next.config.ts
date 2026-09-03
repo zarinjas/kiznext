@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
       // (`isCsrfOriginAllowed`). When the browser Origin is in this list the
       // host-mismatch check is skipped entirely, which is the reliable fix
       // (the earlier claim that this field is dead was wrong).
-      allowedOrigins: ["mykiz.my", "www.mykiz.my"],
+      allowedOrigins: ["mykiz.my", "*.mykiz.my", "www.mykiz.my"],
     },
   },
 };
