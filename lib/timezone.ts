@@ -16,7 +16,7 @@ export function nowMalaysia(): Date {
 }
 
 export function formatMalaysia(date: Date): string {
-  return new Intl.DateTimeFormat("ms-MY", {
+  return new Intl.DateTimeFormat("en-MY", {
     timeZone: TIMEZONE,
     dateStyle: "medium",
     timeStyle: "short",

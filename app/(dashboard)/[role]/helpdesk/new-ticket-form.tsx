@@ -37,7 +37,7 @@ export function NewTicketForm({ role }: Props) {
       const ticketId = await createTicket(subject, message)
       router.push(`/${role}/helpdesk/${ticketId}`)
     } catch {
-      setError("An error occurred. Please try again.")
+      setError("Oops, something went sideways. Give it another try.")
     } finally {
       setLoading(false)
     }

@@ -2,6 +2,8 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Role } from "@/lib/rbac"
 import { prisma } from "@/lib/db"
+import { getBilikReminder } from "@/lib/bilik"
+import { nowMalaysia } from "@/lib/timezone"
 import { AhliHome } from "./ahli-home"
 import { AdminHome } from "./admin-home"
 
@@ -24,6 +26,12 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
   },
 }
 
+/** Time-of-day greeting, computed server-side so it can never mismatch on hydration. */
+function greetingFor(now: Date): string {
+  const h = now.getHours()
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"
+}
+
 export default async function RoleDashboardPage({
   params,
 }: {
@@ -38,10 +46,10 @@ export default async function RoleDashboardPage({
   if (role !== userRole) redirect(`/${userRole}`)
 
   if (userRole === "ahli") {
-    const [user, announcements, bookings] = await Promise.all([
+    const [user, announcements, bookings, roomReminder] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { name: true, matricId: true, block: true, roomNumber: true },
+        select: { name: true, matricId: true, block: true, roomNumber: true, avatarUrl: true },
       }),
       prisma.announcement.findMany({
         where: { deletedAt: null },
@@ -62,6 +70,7 @@ export default async function RoleDashboardPage({
         orderBy: { createdAt: "desc" },
         take: 3,
       }),
+      getBilikReminder(session.user.id, session.user.matricId),
     ])
 
     if (!user) redirect("/login")
@@ -72,18 +81,19 @@ export default async function RoleDashboardPage({
         announcements={announcements}
         bookings={bookings}
         role={session.user.role}
+        roomReminder={roomReminder}
+        greeting={greetingFor(nowMalaysia())}
       />
     )
   }
 
   const info = welcomeMessages[session.user.role]
 
-  const [pendingFacility, pendingGuestHouse, openTickets, activeParcels, activeLostFound] =
+  const [pendingFacility, pendingGuestHouse, openTickets, activeLostFound] =
     await Promise.all([
       prisma.facilityBooking.count({ where: { status: "pending", deletedAt: null } }),
       prisma.guestHouseBooking.count({ where: { status: "pending", deletedAt: null } }),
       prisma.helpdeskTicket.count({ where: { status: { not: "closed" }, deletedAt: null } }),
-      prisma.parcel.count({ where: { status: "arrived", deletedAt: null } }),
       prisma.lostFoundItem.count({ where: { status: { not: "claimed" }, deletedAt: null } }),
     ])
 
@@ -97,7 +107,6 @@ export default async function RoleDashboardPage({
         pendingFacility,
         pendingGuestHouse,
         openTickets,
-        activeParcels,
         activeLostFound,
       }}
     />

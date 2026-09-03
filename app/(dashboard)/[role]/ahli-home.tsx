@@ -3,14 +3,15 @@
 import Link from "next/link"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
-import Grid from "@mui/material/Grid"
 import Button from "@mui/material/Button"
-import { motion } from "framer-motion"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { KCard } from "@/components/kiz/primitives/k-card"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
-import { color, elevation } from "@/lib/theme"
-import { formatMalaysia, nowMalaysia } from "@/lib/timezone"
+import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
+import { Bento, BentoItem, ActionTile } from "@/components/kiz/patterns/bento"
+import { AvatarPicker } from "@/components/shared/avatar-picker"
+import { gradient, font, radius, color } from "@/lib/theme"
+import { formatMalaysia } from "@/lib/timezone"
+import type { BilikReminder } from "@/lib/bilik"
 
 interface Props {
   user: {
@@ -18,6 +19,7 @@ interface Props {
     matricId: string
     block: string | null
     roomNumber: string | null
+    avatarUrl: string | null
   }
   announcements: {
     id: string
@@ -34,221 +36,320 @@ interface Props {
     facility: { name: string }
   }[]
   role: string
+  roomReminder: BilikReminder | null
+  /** Computed on the server so SSR and hydration always agree. */
+  greeting: string
 }
 
 const quickActions = [
-  { label: "Book Facility", href: "tempahan-fasiliti", icon: "meeting_room", tone: "brand" },
-  { label: "Guest House", href: "rumah-tamu", icon: "hotel", tone: "info" },
-  { label: "Helpdesk", href: "helpdesk", icon: "support_agent", tone: "warning" },
-  { label: "Parcel", href: "parcel", icon: "inventory_2", tone: "success" },
-  { label: "Lost & Found", href: "hilang", icon: "search", tone: "danger" },
-  { label: "Directory", href: "direktori", icon: "map", tone: "info" },
-] as const
+  { label: "Book facility", href: "tempahan-fasiliti", icon: "meeting_room", tint: color.info },
+  { label: "Guest house", href: "rumah-tamu", icon: "hotel", tint: { main: color.accent[600], soft: color.accent[100], ink: color.accent[700] } },
+  { label: "Helpdesk", href: "helpdesk", icon: "support_agent", tint: color.warning },
+  { label: "Lost & found", href: "hilang", icon: "search", tint: color.danger },
+  { label: "Offices", href: "pejabat", icon: "domain", tint: color.info },
+  { label: "Directory", href: "direktori", icon: "map", tint: color.success },
+  { label: "My bookings", href: "tempahan", icon: "calendar_month", tint: color.neutral },
+]
 
-const toneMap: Record<string, { bg: string; fg: string }> = {
-  brand: { bg: color.brand[50], fg: color.brand[700] },
-  success: { bg: color.success.soft, fg: color.success.ink },
-  warning: { bg: color.warning.soft, fg: color.warning.ink },
-  danger: { bg: color.danger.soft, fg: color.danger.ink },
-  info: { bg: color.info.soft, fg: color.info.ink },
-}
+const shortDate = (d: Date) =>
+  new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short" })
 
-const firstName = (name: string) => name.trim().split(" ")[0]
+export function AhliHome({ user, announcements, bookings, role, roomReminder, greeting }: Props) {
+  const firstName = user.name.trim().split(" ")[0]
 
-export function AhliHome({ user, announcements, bookings, role }: Props) {
-  const now = nowMalaysia()
-  const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening"
+  const upcoming = bookings.filter((b) => b.status !== "rejected" && b.status !== "cancelled")
+  const location = [user.block, user.roomNumber].filter(Boolean)
 
   return (
-    <Box sx={{ maxWidth: 960, mx: "auto" }}>
-      {/* Hero */}
-      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <Box sx={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 2, mb: 3, flexWrap: "wrap" }}>
-          <Box>
-            <Typography variant="overline" sx={{ color: "text.secondary" }}>
-              {formatMalaysia(now)}
-            </Typography>
-            <Typography variant="h1" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
-              {greeting}, {firstName(user.name)}
-            </Typography>
-          </Box>
-          <Button
-            component={Link}
-            href={`/${role}/kad-maya`}
-            variant="outlined"
-            startIcon={<KIcon icon="qr_code_2" size={18} />}
-          >
-            Show eCard
-          </Button>
-        </Box>
-      </motion.div>
-
-      {/* Quick actions */}
-      <Grid container spacing={1.5}>
-        {quickActions.map((a, i) => {
-          const t = toneMap[a.tone]
-          return (
-            <Grid key={a.href} size={{ xs: 6, sm: 4, lg: 2 }}>
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: i * 0.05 }}>
-                <Link href={`/${role}/${a.href}`} style={{ textDecoration: "none", color: "inherit" }}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 1,
-                      p: 2,
-                      borderRadius: 2.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      backgroundColor: "background.paper",
-                      boxShadow: elevation.e1,
-                      "&:hover": { boxShadow: elevation.e2 },
-                    }}
-                  >
-                    <Box sx={{ width: 44, height: 44, borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: t.bg, color: t.fg }}>
-                      <KIcon icon={a.icon} size={22} />
-                    </Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600, textAlign: "center" }}>
-                      {a.label}
-                    </Typography>
-                  </Box>
-                </Link>
-              </motion.div>
-            </Grid>
-          )
-        })}
-      </Grid>
-
-      {/* eCard strip */}
-      <Box
-        sx={{
-          mt: 2.5,
-          borderRadius: 3,
-          p: 2.5,
-          background: `linear-gradient(120deg, ${color.brand[900]}, #0a6b34 60%, ${color.brand[600]})`,
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-          boxShadow: elevation.e3,
-        }}
-      >
-        <Box sx={{ position: "absolute", top: -30, right: -20, width: 130, height: 130, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.06)" }} />
-        <Box sx={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
-          <Box>
-            <Typography variant="overline" sx={{ color: "rgba(255,255,255,0.6)" }}>
-              KIZ eCard
-            </Typography>
-            <Typography sx={{ fontFamily: "var(--font-sans), sans-serif", fontSize: 18, fontWeight: 600 }}>
-              {user.name}
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-              {user.matricId} · {[user.block, user.roomNumber].filter(Boolean).join(" • ") || "Block not assigned"}
-            </Typography>
-          </Box>
-          <Button
-            component={Link}
-            href={`/${role}/kad-maya`}
-            sx={{ color: "#fff", backgroundColor: "rgba(255,255,255,0.16)", "&:hover": { backgroundColor: "rgba(255,255,255,0.26)" } }}
-            startIcon={<KIcon icon="qr_code_2" size={18} />}
-          >
-            Show QR
-          </Button>
-        </Box>
-      </Box>
-
-      {/* Recent bookings */}
-      {bookings.length > 0 && (
-        <Box sx={{ mt: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-            <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
-              Recent Bookings
-            </Typography>
-            <Button component={Link} href={`/${role}/tempahan`} size="small">
-              View all
-            </Button>
-          </Box>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {bookings.map((b) => (
-              <Box
-                key={b.id}
-                sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}
-              >
+    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+      <Bento>
+        {/* Room-selection reminder */}
+        {roomReminder?.show && (
+          <BentoItem span={12} delay={0}>
+            <Box
+              sx={{
+                position: "relative",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 2,
+                p: { xs: 2, sm: 2.5 },
+                borderRadius: `${radius.cardLg}px`,
+                border: "1px solid",
+                borderColor: color.accent[300],
+                backgroundImage: gradient.panel,
+                "[data-mui-color-scheme='dark'] &": { backgroundImage: "none", backgroundColor: "background.paper" },
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.75, minWidth: 0, flex: 1 }}>
                 <Box
                   sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 2.5,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: b.status === "approved" ? color.success.soft : color.warning.soft,
-                    color: b.status === "approved" ? color.success.ink : color.warning.ink,
+                    flexShrink: 0,
+                    backgroundColor: color.accent[100],
+                    color: color.accent[700],
                   }}
                 >
-                  <KIcon icon={b.status === "approved" ? "check_circle" : "schedule"} size={18} />
+                  <KIcon icon="bedroom_parent" size={24} />
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {b.facility.name}
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 640, letterSpacing: "-0.02em", fontSize: { xs: 15, sm: 17 } }}>
+                    Time to pick your room
                   </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                    {new Date(b.timeSlotStart).toLocaleDateString("ms-MY", { day: "numeric", month: "short" })}
+                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
+                    Room selection is open{roomReminder.closesAt ? ` — closes ${formatMalaysia(new Date(roomReminder.closesAt))}` : ""}. Choose your bed before it closes.
                   </Typography>
                 </Box>
-                <StatusChip status={b.status} />
               </Box>
-            ))}
-          </Box>
-        </Box>
-      )}
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button
+                  component={Link}
+                  href={`/${role}/bilik`}
+                  variant="contained"
+                  startIcon={<KIcon icon="arrow_forward" size={17} />}
+                >
+                  Choose room
+                </Button>
+              </Box>
+            </Box>
+          </BentoItem>
+        )}
 
-      {/* Announcements */}
-      <Box sx={{ mt: 3 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
-            Announcements
-          </Typography>
-          <Button component={Link} href={`/${role}/pengumuman`} size="small">
-            View all
-          </Button>
-        </Box>
-        {announcements.length === 0 ? (
-          <KCard><Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", py: 3 }}>No announcements yet.</Typography></KCard>
-        ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {announcements.map((a) => (
-              <Link key={a.id} href={`/${role}/pengumuman`} style={{ textDecoration: "none", color: "inherit" }}>
-                <Box
+        {/* Hero + avatar */}
+        <BentoItem span={8} spanXs={2}>
+          <Box
+            sx={{
+              position: "relative",
+              overflow: "hidden",
+              height: "100%",
+              borderRadius: `${radius.cardLg}px`,
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundImage: gradient.hero,
+              "[data-mui-color-scheme='dark'] &": {
+                backgroundImage: "none",
+                backgroundColor: "background.paper",
+              },
+              p: { xs: 2.5, sm: 3.5 },
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: 3,
+              minHeight: { xs: 0, md: 210 },
+            }}
+          >
+            <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />
+
+            <Box sx={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, px: 1, py: 0.375, borderRadius: 999, backgroundColor: color.accent[100], color: color.accent[700], fontSize: 11, fontWeight: 600 }}>
+                  <KIcon icon="verified_user" size={13} />
+                  Resident
+                </Box>
+                <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 1 }}>
+                  {greeting}
+                </Typography>
+                <Typography
                   sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.5,
-                    p: 1.5,
-                    borderRadius: 2,
-                    border: "1px solid",
-                    borderColor: a.isPinned ? color.brand[400] : "divider",
-                    backgroundColor: "background.paper",
-                    "&:hover": { borderColor: color.brand[400] },
+                    fontSize: { xs: 26, sm: 30 },
+                    fontWeight: 640,
+                    lineHeight: 1.14,
+                    letterSpacing: "-0.032em",
+                    mt: 0.25,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  <Box sx={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: a.isPinned ? color.brand[50] : "action.hover", color: a.isPinned ? color.brand[700] : "text.secondary", flexShrink: 0 }}>
-                    <KIcon icon={a.isPinned ? "push_pin" : "campaign"} size={18} />
+                  {firstName}
+                </Typography>
+                <Typography
+                  sx={{ fontSize: 12.5, color: "text.secondary", fontFamily: font.mono, mt: 1 }}
+                >
+                  {user.matricId}
+                  {location.length > 0 && ` · ${location.join(" • ")}`}
+                </Typography>
+              </Box>
+
+              <AvatarPicker avatarUrl={user.avatarUrl} name={user.name} size={72} />
+            </Box>
+
+            <Box sx={{ position: "relative", display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <Button
+                component={Link}
+                href={`/${role}/kad-maya`}
+                variant="contained"
+                startIcon={<KIcon icon="qr_code_2" size={18} />}
+              >
+                Show eCard
+              </Button>
+              <Button
+                component={Link}
+                href={`/${role}/tempahan-fasiliti`}
+                variant="outlined"
+                startIcon={<KIcon icon="add" size={18} />}
+              >
+                Book
+              </Button>
+            </Box>
+          </Box>
+        </BentoItem>
+
+        {/* Upcoming bookings */}
+        <BentoItem span={4} spanXs={2} delay={0.05}>
+          <Box
+            sx={{
+              height: "100%",
+              borderRadius: `${radius.cardLg}px`,
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundColor: "background.paper",
+              p: { xs: 2, sm: 2.5 },
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                Your bookings
+              </Typography>
+              <Button
+                component={Link}
+                href={`/${role}/tempahan`}
+                size="small"
+                variant="text"
+                sx={{ minHeight: 26, px: 0.75 }}
+              >
+                All
+              </Button>
+            </Box>
+
+            {upcoming.length === 0 ? (
+              <Box
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1,
+                  py: 3,
+                }}
+              >
+                <KIcon icon="calendar_month" size={22} sx={{ color: "var(--mui-palette-text-disabled)" }} />
+                <Typography variant="caption" sx={{ color: "text.secondary", textAlign: "center" }}>
+                  No bookings yet
+                </Typography>
+                <Button component={Link} href={`/${role}/tempahan-fasiliti`} size="small" variant="outlined">
+                  Book a facility
+                </Button>
+              </Box>
+            ) : (
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                {upcoming.slice(0, 3).map((b) => (
+                  <Box key={b.id} sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 550,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {b.facility.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                        {shortDate(b.timeSlotStart)}
+                      </Typography>
+                    </Box>
+                    <StatusChip status={b.status} />
                   </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body1" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {a.title}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "capitalize" }}>
-                      {a.tag} · {new Date(a.createdAt).toLocaleDateString("ms-MY", { day: "numeric", month: "short" })}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Link>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </BentoItem>
+
+        {/* Quick actions */}
+        <BentoItem span={12} sx={{ mt: { xs: 1, md: 1.5 } }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary", mb: 1.5 }}>
+            Quick actions
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "repeat(3, minmax(0,1fr))",
+                sm: "repeat(3, minmax(0,1fr))",
+                md: "repeat(auto-fit, minmax(120px, 1fr))",
+              },
+              gap: { xs: 1.25, sm: 1.5, md: 2 },
+            }}
+          >
+            {quickActions.map((a) => (
+              <ActionTile key={a.href} {...a} href={`/${role}/${a.href}`} />
             ))}
           </Box>
-        )}
-      </Box>
+        </BentoItem>
+
+        {/* Announcements */}
+        <BentoItem span={12} sx={{ mt: { xs: 1, md: 1.5 } }}>
+          <ListGroup
+            title="Latest announcements"
+            action={
+              <Button
+                component={Link}
+                href={`/${role}/pengumuman`}
+                size="small"
+                variant="text"
+                sx={{ minHeight: 26, px: 0.75 }}
+              >
+                View all
+              </Button>
+            }
+          >
+            {announcements.length === 0 ? (
+              <ListRow>
+                <Typography variant="body2" sx={{ color: "text.secondary", py: 1 }}>
+                  No announcements yet.
+                </Typography>
+              </ListRow>
+            ) : (
+              announcements.map((a) => (
+                <ListRow
+                  key={a.id}
+                  href={`/${role}/pengumuman`}
+                  icon={a.isPinned ? "push_pin" : "campaign"}
+                  title={a.title}
+                  subtitle={
+                    <Box component="span" sx={{ textTransform: "capitalize" }}>
+                      {a.tag} · {shortDate(a.createdAt)}
+                    </Box>
+                  }
+                  trailing={
+                    a.attachmentType ? (
+                      <KIcon
+                        icon="attach_file"
+                        size={16}
+                        sx={{ color: "var(--mui-palette-text-disabled)" }}
+                      />
+                    ) : undefined
+                  }
+                />
+              ))
+            )}
+          </ListGroup>
+        </BentoItem>
+      </Bento>
     </Box>
   )
 }

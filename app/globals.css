@@ -1,8 +1,33 @@
 /* KIZ design system reset — tokens live in lib/theme (MUI cssVariables). */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; min-height: 100dvh; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  /* Native-app feel: no long-press callout, no blue tap flash, momentum scroll. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: none;
+}
+
+/* Re-enable selection where reading matters. */
+p, span, h1, h2, h3, h4, h5, h6, li, td, input, textarea {
+  -webkit-touch-callout: default;
+}
+
 img { max-width: 100%; display: block; }
+
+/* Momentum scrolling for horizontal rails (chips, carousels). */
+.scroll-x {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
+.scroll-x > * { scroll-snap-align: start; flex-shrink: 0; }
 
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }

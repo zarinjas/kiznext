@@ -42,6 +42,8 @@ model User {
   deletedChatMessages CommunityChatMessage[] @relation("DeletedMessages")
   parcels            Parcel[]
   lostFoundItems     LostFoundItem[]
+  importedIntakes    Intake[]
+  eligibleRecords    EligibleStudent[]
 
   @@map("users")
 }
@@ -58,6 +60,9 @@ model Block {
   name            String   @unique
   description     String
   navigationNotes String?  @map("navigation_notes")
+  panoramaImage   String?  @map("panorama_image")
+  panoramaLeftX   Int      @default(20) @map("panorama_left_x")
+  panoramaRightX  Int      @default(80) @map("panorama_right_x")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   deletedAt       DateTime? @map("deleted_at")
@@ -65,6 +70,20 @@ model Block {
   facilities Facility[]
 
   @@map("blocks")
+}
+
+model Office {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String?
+  featuredImage String?  @map("featured_image")
+  gallery       String[] @map("gallery")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@map("offices")
 }
 
 model Facility {
@@ -133,8 +152,28 @@ enum PaymentStatus {
   paid_manual
 }
 
+model GuestHouse {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  description      String
+  featuredImage    String?  @map("featured_image")
+  gallery          String[] @map("gallery")
+  price            Float?
+  capacity         Int?
+  maxDays          Int?     @map("max_days")
+  requiresApproval Boolean  @default(true) @map("requires_approval")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  bookings GuestHouseBooking[]
+
+  @@map("guest_houses")
+}
+
 model GuestHouseBooking {
   id            String                    @id @default(uuid())
+  guestHouseId  String                    @map("guest_house_id")
   userId        String                    @map("user_id")
   guestName     String                    @map("guest_name")
   periodType    PeriodType                @map("period_type")
@@ -148,9 +187,11 @@ model GuestHouseBooking {
   updatedAt     DateTime                  @updatedAt @map("updated_at")
   deletedAt     DateTime?                 @map("deleted_at")
 
-  user       User   @relation(fields: [userId], references: [id])
-  approvedBy User?  @relation("ApprovedGHBookings", fields: [approvedById], references: [id])
+  guestHouse GuestHouse @relation(fields: [guestHouseId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  approvedBy User?      @relation("ApprovedGHBookings", fields: [approvedById], references: [id])
 
+  @@index([guestHouseId])
   @@map("guest_house_bookings")
 }
 
@@ -249,6 +290,150 @@ enum LostFoundStatus {
   lost
   found
   claimed
+}
+
+enum Gender {
+  male
+  female
+}
+
+enum RoomType {
+  single
+  double
+}
+
+enum RoomStatus {
+  available
+  maintenance
+  closed
+}
+
+enum BedPosition {
+  single
+  left
+  right
+}
+
+enum IntakeStatus {
+  draft
+  imported
+  active
+  archived
+}
+
+model ResidenceBlock {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  gender      Gender
+  floors      Int      @default(4)
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  rooms ResidenceRoom[]
+
+  @@map("residence_blocks")
+}
+
+model ResidenceRoom {
+  id        String     @id @default(uuid())
+  blockId   String     @map("block_id")
+  floor     Int
+  number    String
+  type      RoomType   @default(double)
+  status    RoomStatus @default(available)
+  sortOrder Int        @default(0) @map("sort_order")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+
+  block ResidenceBlock @relation(fields: [blockId], references: [id])
+  beds  Bed[]
+
+  @@unique([blockId, number])
+  @@map("residence_rooms")
+}
+
+model Bed {
+  id         String      @id @default(uuid())
+  roomId     String      @map("room_id")
+  position   BedPosition
+  occupantId String?     @unique @map("occupant_id")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  deletedAt  DateTime?   @map("deleted_at")
+
+  room     ResidenceRoom    @relation(fields: [roomId], references: [id])
+  occupant EligibleStudent? @relation(fields: [occupantId], references: [id])
+
+  @@unique([roomId, position])
+  @@map("beds")
+}
+
+model SelectionWindow {
+  id               String    @id @default(uuid())
+  name             String
+  opensAt          DateTime  @map("opens_at")
+  closesAt         DateTime  @map("closes_at")
+  isActive         Boolean   @default(true) @map("is_active")
+  closingSoonHours Int       @default(24) @map("closing_soon_hours")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  @@map("selection_windows")
+}
+
+model Intake {
+  id           String       @id @default(uuid())
+  name         String
+  status       IntakeStatus @default(imported)
+  importedById String?      @map("imported_by")
+  rowCount     Int          @default(0) @map("row_count")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  importedBy User?             @relation(fields: [importedById], references: [id])
+  students   EligibleStudent[]
+
+  @@map("intakes")
+}
+
+model EligibleStudent {
+  id                String    @id @default(uuid())
+  intakeId          String    @map("intake_id")
+  matricId          String    @map("matric_id")
+  name              String
+  gender            Gender
+  faculty           String?
+  yearOfStudy       String?   @map("year_of_study")
+  religion          String?
+  race              String?
+  nationality       String    @default("Malaysia")
+  currentCollege    String?   @map("current_college")
+  choice1           String?
+  applicationDate   DateTime? @map("application_date")
+  applicationStatus String?   @map("application_status")
+  isB40             Boolean   @default(false) @map("is_b40")
+  isOku             Boolean   @default(false) @map("is_oku")
+  isUniform         Boolean   @default(false) @map("is_uniform")
+  merit             Float?
+  userId            String?   @map("user_id")
+  selectedAt        DateTime? @map("selected_at")
+  assignedByAdmin   Boolean   @default(false) @map("assigned_by_admin")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  intake Intake @relation(fields: [intakeId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+  bed    Bed?
+
+  @@unique([intakeId, matricId])
+  @@map("eligible_students")
 }
 
 model AppSetting {

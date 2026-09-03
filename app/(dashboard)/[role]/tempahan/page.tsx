@@ -3,13 +3,13 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
-import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color, elevation } from "@/lib/theme"
+import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
+import { font } from "@/lib/theme"
 
 export default async function MyBookingsPage() {
   const session = await auth()
@@ -24,6 +24,7 @@ export default async function MyBookingsPage() {
     }),
     prisma.guestHouseBooking.findMany({
       where: { userId: session.user.id, deletedAt: null },
+      include: { guestHouse: true },
       orderBy: { createdAt: "desc" },
     }),
   ])
@@ -31,11 +32,10 @@ export default async function MyBookingsPage() {
   const total = facilityBookings.length + guestHouseBookings.length
 
   return (
-    <Box sx={{ maxWidth: 800, mx: "auto" }}>
+    <Box sx={{ maxWidth: 820, mx: "auto" }}>
       <PageHeader
         overline="Bookings"
-        title="My Bookings"
-        subtitle="Every facility and guest house booking, in one timeline."
+        title="My bookings"
         actions={
           <>
             <Button
@@ -61,128 +61,84 @@ export default async function MyBookingsPage() {
       {total === 0 ? (
         <KEmpty
           icon="calendar_month"
-          title="No bookings yet"
-          body="Book a facility or the guest house to see it here."
+          title="Nothing booked yet"
+          body="Book a facility or the guest house and it'll show up here."
         />
       ) : (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {facilityBookings.length > 0 && (
-            <Box>
-              <Typography variant="overline" sx={{ color: "text.disabled", mb: 1, display: "block" }}>
-                Facilities · {facilityBookings.length}
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {facilityBookings.map((b) => (
-                  <Box
-                    key={b.id}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.5,
-                      p: 1.75,
-                      borderRadius: 2.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      backgroundColor: "background.paper",
-                      boxShadow: elevation.e1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: color.brand[50],
-                        color: color.brand[700],
-                        flexShrink: 0,
-                      }}
-                    >
-                      <KIcon icon="meeting_room" size={20} />
+            <ListGroup title={`Facilities · ${facilityBookings.length}`}>
+              {facilityBookings.map((b) => (
+                <ListRow
+                  key={b.id}
+                  icon="meeting_room"
+                  title={b.facility.name}
+                  subtitle={
+                    <>
+                      {b.timeSlotStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} ·{" "}
+                      {b.timeSlotStart.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}–
+                      {b.timeSlotEnd.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+                      {b.bookingRef && (
+                        <>
+                          {" · "}
+                          <Box component="span" sx={{ fontFamily: font.mono }}>
+                            {b.bookingRef}
+                          </Box>
+                        </>
+                      )}
+                    </>
+                  }
+                  trailing={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <StatusChip status={b.status} />
+                      {b.pdfUrl && (
+                        <Box
+                          component="a"
+                          href={b.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Booking slip (PDF)"
+                          sx={{
+                            color: "text.disabled",
+                            display: "flex",
+                            "&:hover": { color: "text.primary" },
+                          }}
+                        >
+                          <KIcon icon="description" size={18} />
+                        </Box>
+                      )}
                     </Box>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {b.facility.name}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        {b.timeSlotStart.toLocaleDateString("ms-MY", { day: "numeric", month: "short", year: "numeric" })} ·{" "}
-                        {b.timeSlotStart.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })} –{" "}
-                        {b.timeSlotEnd.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
-                        {b.bookingRef && <> · <Box component="span" sx={{ fontFamily: "var(--font-mono), monospace" }}>{b.bookingRef}</Box></>}
-                      </Typography>
-                    </Box>
-                    <StatusChip status={b.status} />
-                    {b.pdfUrl && (
-                      <Box
-                        component="a"
-                        href={b.pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Booking slip (PDF)"
-                        sx={{ color: "text.secondary", display: "flex", "&:hover": { color: color.brand[700] } }}
-                      >
-                        <KIcon icon="description" size={18} />
-                      </Box>
-                    )}
-                  </Box>
-                ))}
-              </Box>
-            </Box>
+                  }
+                />
+              ))}
+            </ListGroup>
           )}
 
           {guestHouseBookings.length > 0 && (
-            <Box>
-              <Typography variant="overline" sx={{ color: "text.disabled", mb: 1, display: "block" }}>
-                Guest House · {guestHouseBookings.length}
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {guestHouseBookings.map((b) => (
-                  <Box
-                    key={b.id}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.5,
-                      p: 1.75,
-                      borderRadius: 2.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      backgroundColor: "background.paper",
-                      boxShadow: elevation.e1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: color.info.soft,
-                        color: color.info.ink,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <KIcon icon="hotel" size={20} />
+            <ListGroup title={`Guest house · ${guestHouseBookings.length}`}>
+              {guestHouseBookings.map((b) => (
+                <ListRow
+                  key={b.id}
+                  icon="hotel"
+                  title={b.guestName}
+                  subtitle={
+                    <>
+                      {b.guestHouse.name} ·{" "}
+                      {b.startDate.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} –{" "}
+                      {b.endDate.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} · {b.periodType}
+                    </>
+                  }
+                  trailing={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                      <StatusChip status={b.status} />
+                      <Box sx={{ display: { xs: "none", sm: "flex" } }}>
+                        <StatusChip status={b.paymentStatus} tone="info" />
+                      </Box>
                     </Box>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {b.guestName}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        {b.startDate.toLocaleDateString("ms-MY")} – {b.endDate.toLocaleDateString("ms-MY")} ·{" "}
-                        {b.periodType}
-                      </Typography>
-                    </Box>
-                    <StatusChip status={b.status} />
-                    <StatusChip status={b.paymentStatus} tone="info" />
-                  </Box>
-                ))}
-              </Box>
-            </Box>
+                  }
+                />
+              ))}
+            </ListGroup>
           )}
         </Box>
       )}

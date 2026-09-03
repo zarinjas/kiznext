@@ -9,7 +9,7 @@ import { markClaimed } from "./actions"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color } from "@/lib/theme"
+import { radius } from "@/lib/theme"
 
 interface Item {
   id: string
@@ -33,87 +33,89 @@ export function LostFoundList({ items, userId }: Props) {
   const router = useRouter()
 
   if (items.length === 0) {
-    return (
-      <KEmpty
-        icon="search"
-        title="No reports yet"
-        body="Lost or found something? Report it above."
-      />
-    )
+    return <KEmpty icon="search" title="All clear!" body="Lost or found something? Report it above." />
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" },
+        gap: { xs: 1.25, sm: 1.5 },
+      }}
+    >
       {items.map((item, i) => (
         <motion.div
           key={item.id}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.3) }}
+          style={{ height: "100%" }}
         >
           <Box
             sx={{
-              borderRadius: 2.5,
+              height: "100%",
+              borderRadius: `${radius.cardLg}px`,
               border: "1px solid",
               borderColor: "divider",
               backgroundColor: "background.paper",
-              p: 2,
+              overflow: "hidden",
               display: "flex",
-              gap: 1.5,
+              flexDirection: "column",
             }}
           >
-            <Box
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                backgroundColor: item.status === "lost" ? color.danger.soft : color.success.soft,
-                color: item.status === "lost" ? color.danger.ink : color.success.ink,
-              }}
-            >
-              <KIcon icon={item.status === "lost" ? "visibility_off" : "search"} size={20} />
-            </Box>
+            {item.photoUrl && (
+              <Box
+                component="img"
+                src={item.photoUrl}
+                alt={item.itemName}
+                sx={{ width: "100%", aspectRatio: "16/10", objectFit: "cover" }}
+              />
+            )}
 
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                  {item.itemName}
-                </Typography>
+            <Box sx={{ p: 2, flex: 1, display: "flex", flexDirection: "column" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
                 <StatusChip status={item.status} />
+                <Box sx={{ flex: 1 }} />
+                <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                  {item.createdAt.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+                </Typography>
               </Box>
+
+              <Typography sx={{ fontWeight: 600, letterSpacing: "-0.015em" }}>
+                {item.itemName}
+              </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
                 {item.description}
               </Typography>
+
               {item.locationFound && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5, color: "text.secondary" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 1, color: "text.disabled" }}>
                   <KIcon icon="location_on" size={14} />
-                  <Typography variant="caption">Location: {item.locationFound}</Typography>
+                  <Typography variant="caption">{item.locationFound}</Typography>
                 </Box>
               )}
-              <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 0.5 }}>
-                {item.reporter.name} · {item.createdAt.toLocaleDateString("ms-MY")}
-              </Typography>
-              {item.photoUrl && (
-                <Box component="img" src={item.photoUrl} alt={item.itemName} sx={{ mt: 1, maxHeight: 128, borderRadius: 1.5, objectFit: "cover" }} />
-              )}
-            </Box>
 
-            {item.status === "found" && item.reportedBy === userId && (
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={async () => {
-                  await markClaimed(item.id)
-                  router.refresh()
-                }}
-              >
-                Claim
-              </Button>
-            )}
+              <Box sx={{ flex: 1 }} />
+
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mt: 1.5 }}>
+                <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                  {item.reporter.name}
+                </Typography>
+                {item.status === "found" && item.reportedBy === userId && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={async () => {
+                      await markClaimed(item.id)
+                      router.refresh()
+                    }}
+                  >
+                    Claim
+                  </Button>
+                )}
+              </Box>
+            </Box>
           </Box>
         </motion.div>
       ))}

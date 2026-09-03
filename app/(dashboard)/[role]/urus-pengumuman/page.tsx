@@ -11,7 +11,7 @@ import { EditAnnouncementButton } from "./edit-announcement-button"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 export default async function UrusPengumumanPage() {
   const session = await auth()
@@ -38,55 +38,53 @@ export default async function UrusPengumumanPage() {
 
       {announcements.length === 0 ? (
         <Box sx={{ mt: 3 }}>
-          <KEmpty icon="campaign" title="No announcements yet" body="Publish the first one above." />
+          <KEmpty icon="campaign" title="Nothing posted yet" body="Publish the first one above and get the word out!" />
         </Box>
       ) : (
         <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 1.5 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
-            All Announcements ({announcements.length})
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
+            All announcements · {announcements.length}
           </Typography>
           {announcements.map((a) => (
             <Box
               key={a.id}
               sx={{
-                borderRadius: 2.5,
+                borderRadius: `${radius.cardLg}px`,
                 border: "1px solid",
                 borderColor: "divider",
                 backgroundColor: "background.paper",
                 overflow: "hidden",
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 1.5 }}>
-                {a.isPinned && <KIcon icon="push_pin" size={16} sx={{ color: color.brand[700] }} />}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 2 }}>
+                {a.isPinned && <KIcon icon="push_pin" size={15} filled sx={{ flexShrink: 0 }} />}
                 <Box
                   component="span"
                   sx={{
-                    fontSize: 11,
-                    fontWeight: 600,
+                    fontSize: 11.5,
+                    fontWeight: 550,
                     textTransform: "capitalize",
                     px: 1,
                     py: 0.25,
                     borderRadius: 999,
-                    backgroundColor: a.tag === "penting" ? color.danger.soft : color.brand[50],
-                    color: a.tag === "penting" ? color.danger.ink : color.brand[700],
+                    flexShrink: 0,
+                    backgroundColor: a.tag === "important" ? color.danger.soft : "action.hover",
+                    color: a.tag === "important" ? color.danger.ink : "text.secondary",
                   }}
                 >
                   {a.tag}
                 </Box>
-                <Typography variant="body1" sx={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <Typography sx={{ fontWeight: 550, flex: 1, minWidth: 0, letterSpacing: "-0.011em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {a.title}
                 </Typography>
-                {a.attachmentUrl && (
-                  <KIcon icon={a.attachmentType === "pdf" ? "description" : "image"} size={16} sx={{ color: "text.secondary" }} />
-                )}
                 {a.scheduledAt && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, color: color.warning.ink, fontSize: 11.5, fontWeight: 600 }}>
+                  <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 0.25, color: color.warning.ink, fontSize: 11.5, fontWeight: 550 }}>
                     <KIcon icon="schedule" size={13} />
-                    {new Date(a.scheduledAt).toLocaleDateString("ms-MY")}
+                    {new Date(a.scheduledAt).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
                   </Box>
                 )}
-                <Typography variant="caption" sx={{ color: "text.disabled" }}>
-                  {new Date(a.createdAt).toLocaleDateString("ms-MY")}
+                <Typography variant="caption" sx={{ color: "text.disabled", display: { xs: "none", sm: "block" }, flexShrink: 0 }}>
+                  {new Date(a.createdAt).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
                 </Typography>
                 <EditAnnouncementButton
                   role={session.user.role}
@@ -103,8 +101,8 @@ export default async function UrusPengumumanPage() {
                   }}
                 />
               </Box>
-              <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 1.5, py: 1.25 }}>
-                <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap" }}>
+              <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 2, py: 1.75 }}>
+                <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {a.content}
                 </Typography>
                 {a.attachmentUrl && (
@@ -113,10 +111,25 @@ export default async function UrusPengumumanPage() {
                     href={a.attachmentUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, mt: 1.5, px: 1.5, py: 0.75, borderRadius: 1.5, backgroundColor: "action.hover", fontSize: 12.5, fontWeight: 600, textDecoration: "none", color: "text.primary", "&:hover": { color: color.brand[700] } }}
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.75,
+                      mt: 1.5,
+                      px: 1.5,
+                      py: 0.875,
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      fontSize: 13,
+                      fontWeight: 550,
+                      textDecoration: "none",
+                      color: "text.primary",
+                      "&:hover": { backgroundColor: "action.hover" },
+                    }}
                   >
                     <KIcon icon={a.attachmentType === "pdf" ? "description" : "image"} size={15} />
-                    {a.attachmentType === "pdf" ? "Open PDF" : "Open Image"}
+                    {a.attachmentType === "pdf" ? "Open PDF" : "Open image"}
                   </Box>
                 )}
                 <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 1 }}>

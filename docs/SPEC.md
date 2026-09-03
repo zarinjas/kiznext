@@ -21,12 +21,13 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Auth & Profile | Login with matric ID + password. Role-based dashboard. Editable profile. |
 | Kad Maya | Digital resident card with a QR code, for identification at the gate/office. |
 | Facility Booking | Browse college facilities, view availability, book a time slot, admin approves. Approved bookings get a PDF slip. |
-| Guest House Booking | Book the college guest house daily/weekly/monthly. Admin approves, then check-in/check-out. Payment marked manually. |
+| Guest House Booking | Admins configure the guest houses (name, description, photos, price, capacity, max stay). Students pick a guest house and book it daily/weekly/monthly; admin approves, then check-in/check-out. Payment marked manually. |
 | Helpdesk | Per-student support tickets with a chat thread. Auto-reply outside office hours. |
 | Announcements | Admin-posted feed. Tags, pinning, scheduling, expiry, file attachments. |
 | Community Chat | One shared room for all residents. Admins can soft-delete messages. |
 | Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
 | Lost & Found | Community-reported lost/found items with a photo. |
+| Room Selection | Accepted students (imported from eKolej via CSV) pick a block → floor → room → bed slot during an admin-defined window, cinema-seat style. Admin imports the list, sets the window, models the building, monitors occupancy, and backfills unselected students after the deadline. See `ROOM-SELECTION.md`. |
 | Directory | Block and facility listing with navigation notes. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
 
@@ -54,6 +55,8 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `ahli`.
 | Manage facilities, parcels | ✓ | ✓ | — | — |
 | App settings (logo) | ✓ | ✓ | — | — |
 | View-only reporting | ✓ | ✓ | ✓ | — |
+| Pick a residence room (`bilik`) | — | — | — | ✓ |
+| Configure guest houses | ✓ | ✓ | — | — |
 
 `pengetua` (principal) is read-only by design — no approval rights.
 
@@ -90,9 +93,10 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 |---|---|---|
 | `User` | users | `matricId` unique (login ID), `passwordHash`, `role`, `block`, `roomNumber`, `residentCardQr`, `phone`, `avatarUrl` |
 | `Block` | blocks | `name` unique, `description`, `navigationNotes` |
+| `GuestHouse` | guest_houses | `name` unique, `description`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `maxDays`, `requiresApproval` |
 | `Facility` | facilities | `blockId`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `timeSlotDuration`, `maxPerDay` (default 3), `requiresApproval` |
 | `FacilityBooking` | facility_bookings | `timeSlotStart/End`, `purpose`, `status`, `approvedById`, `bookingRef` unique, `pdfUrl`, `adminNotes` |
-| `GuestHouseBooking` | guest_house_bookings | `guestName`, `periodType`, `startDate`/`endDate` (`@db.Date`), `status`, `approvedById`, `paymentStatus` |
+| `GuestHouseBooking` | guest_house_bookings | `guestHouseId`, `guestName`, `periodType`, `startDate`/`endDate` (`@db.Date`), `status`, `approvedById`, `paymentStatus` |
 | `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `status`, `assignedTo` |
 | `HelpdeskMessage` | helpdesk_messages | `ticketId`, `senderId`, `message`, `isAutoReply` |
 | `Announcement` | announcements | `title`, `content`, `tag` (default `umum`), `attachmentUrl/Type`, `isPinned`, `scheduledAt`, `expiresAt`, `postedBy` |
@@ -100,6 +104,16 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `Parcel` | parcels | `userId`, `description`, `status` (plain String: `arrived`/`collected`), `notifiedAt`, `collectedAt` |
 | `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
 | `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
+| `ResidenceBlock` | residence_blocks | `name` unique, `gender`, `floors`, `sortOrder`. Physical residential block, gender-restricted. Distinct from `Block` (facility grouping). |
+| `ResidenceRoom` | residence_rooms | `blockId`, `floor`, `number` (`@@unique([blockId, number])`), `type` (single/double), `status` (available/maintenance/closed). |
+| `Bed` | beds | `roomId`, `position` (single/left/right), `occupantId` unique → `EligibleStudent`. `@@unique([roomId, position])`. Single room = 1 bed, double = 2. |
+| `SelectionWindow` | selection_windows | `name`, `opensAt`, `closesAt`, `closingSoonHours`, `isActive`. One active at a time. |
+| `Intake` | intakes | one CSV import batch. `name`, `status` (draft/imported/active/archived), `importedById`, `rowCount`. One `active` intake = the current accepted list. |
+| `EligibleStudent` | eligible_students | a row from the eKolej accepted list. `matricId`, `name`, `gender`, `religion`, `race`, `nationality`, B40/OKU/Uniform flags, `merit`, `userId` (linked on first login), `selectedAt`, `assignedByAdmin`. `@@unique([intakeId, matricId])`. |
+
+New enums: `Gender` (male/female), `RoomType` (single/double), `RoomStatus`
+(available/maintenance/closed), `BedPosition` (single/left/right), `IntakeStatus`
+(draft/imported/active/archived).
 
 Not implemented (post-MVP candidates): `audit_logs`, `notifications`.
 
@@ -122,6 +136,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `rumah-tamu` | Guest house booking + own bookings + cancel. |
 | `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. |
 | `hilang` | Lost & Found report form + list. |
+| `bilik` | Room selection — eligibility gate, window status, visual block/floor/room/bed picker. Desktop grid + detail panel; mobile bottom-sheet + sticky confirm bar. |
 | `parcel` | My parcels. Currently behind a hardcoded "coming soon" banner. |
 | `kad-maya` | Digital resident card, QR generated server-side from matric ID. |
 | `direktori` | Blocks & facilities with navigation notes. |
@@ -135,10 +150,11 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 |---|---|
 | `urus-pengumuman` | Announcement CRUD + soft delete. |
 | `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |
-| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid. |
+| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). |
 | `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. |
 | `urus-fasiliti` | Facility CRUD. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
+| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `pengetua` sees the occupancy tab read-only. |
 | `urus-tetapan` | App settings — upload / remove logo. |
 | `urus-tempahan` | **Legacy** booking approvals. Superseded. |
 

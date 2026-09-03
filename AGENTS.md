@@ -36,9 +36,23 @@ Status: MVP feature-complete, not production-ready.
 
 Tokens + MUI theme live in `lib/theme/` (tokens.ts, theme.ts, status.ts) — single
 source of truth, dual light/dark schemes via CSS variables. Component library in
-`components/kiz/` (primitives, patterns, shell). Use `KButton`, `KCard`,
-`StatusChip`, `PageHeader`, `StatCard`, `SmartTable` etc. instead of raw MUI where
-they exist. All colors/shadows/radius from tokens — never hardcode.
+`components/kiz/` (primitives, patterns, shell). All colors/shadows/radius from
+tokens — never hardcode.
+
+**Reach for these before writing markup:**
+
+| Need | Use |
+|---|---|
+| Row of items (any list) | `ListGroup` + `ListRow` — grouped iOS-style card, one row language app-wide |
+| Bordered block | `Surface` |
+| Dashboard mosaic | `Bento` + `BentoItem` (12-col; `span` per item) |
+| Dashboard tiles | `MetricTile`, `ActionTile`, `HeroTile` |
+| Page title | `PageHeader` (already compact — don't add your own h1) |
+| Form block | `FormSection` · Empty state | `KEmpty` · Status | `StatusChip` |
+
+Do **not** re-roll the old inline recipe (`borderRadius: 2.5` + 1px divider +
+`background.paper` + a 40×40 tinted icon tile). That pattern is replaced by
+`ListRow`/`Surface`.
 
 ## Non-negotiable rules
 
@@ -64,9 +78,21 @@ enum value plus an `approvedById` check, no schema restructure.
 
 ## Design tokens
 
-- Primary `#91C953` · Dark green `#004B23` · Background `#FFFFFF`
-- UI font `Geist` (single family, `next/font` → `--font-sans`) · Mono `Geist Mono` (`--font-mono`)
-- Sidebar is dark green `#004B23`; app canvas is white
+Clean, minimalist modern SaaS (Linear / Vercel / Stripe school). Source of truth
+in `lib/theme/tokens.ts` — change it there and the whole app follows.
+
+- **Primary colour is NOT decided yet.** `color.brand[*]` is a deliberately
+  neutral ramp (near-black `#26262B` action, light greys for tints). Swapping
+  those 10 values is the only step needed to introduce a brand hue later.
+- Surfaces are **pure white** `#FFFFFF` — no off-white/cream canvas.
+- Decoration comes from **soft gradients only** (`gradient.hero`, `.rail`,
+  `.mesh`, `.panel` — lavender/sky haze). Never solid saturated blocks.
+- Type is a **single sans** — `Inter` (`next/font` → `--font-sans`), mono
+  `Geist Mono`. No serif anywhere. Tight negative tracking on headings.
+- Structure comes from **hairline borders**, not shadows. Elevations are
+  near-invisible; cards default to `boxShadow: none` + 1px divider.
+- Sidebar is a light rail with a soft gradient wash; mobile uses a flush
+  frosted 5-slot tab bar (no raised FAB).
 
 ## Structure
 

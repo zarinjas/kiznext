@@ -7,10 +7,11 @@ import { glass, color } from "@/lib/theme"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import type { Role } from "@/lib/rbac"
 
-/** GlassTopBar — breadcrumb, ⌘K search, notifications, mobile brand. */
+/** GlassTopBar — minimal frosted bar: breadcrumb, ⌘K search, theme, notifications. */
 export function GlassTopBar({
   role,
   title,
+  onMenu,
   onCommand,
   onNotifications,
   notificationCount,
@@ -18,6 +19,7 @@ export function GlassTopBar({
 }: {
   role: Role
   title?: string
+  onMenu: () => void
   onCommand: () => void
   onNotifications: () => void
   notificationCount?: number
@@ -26,57 +28,83 @@ export function GlassTopBar({
   const { mode, setMode } = useColorScheme()
   const toggleColorScheme = () => setMode(mode === "dark" ? "light" : "dark")
 
+  const iconBtn = {
+    width: 34,
+    height: 34,
+    borderRadius: 2.5,
+    border: "none",
+    backgroundColor: "transparent",
+    color: "text.secondary",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "color 140ms, background-color 140ms",
+    "&:hover": { backgroundColor: "action.hover", color: "text.primary" },
+  } as const
+
   return (
     <Box
       sx={{
         position: "sticky",
         top: 0,
         zIndex: 5,
-        height: 64,
+        height: 60,
         display: "flex",
         alignItems: "center",
-        gap: 1.5,
-        px: { xs: 2, sm: 3 },
+        gap: 0.75,
+        px: { xs: 1.5, sm: 2.5 },
         background: glass.background,
         backdropFilter: glass.backdropFilter,
-        borderBottom: glass.border,
+        WebkitBackdropFilter: glass.backdropFilter,
+        borderBottom: "1px solid",
+        borderColor: "divider",
       }}
     >
+      {/* Mobile menu — opens the full sidebar as a drawer */}
+      <Box
+        component="button"
+        onClick={onMenu}
+        aria-label="Open menu"
+        sx={{ ...iconBtn, display: { xs: "flex", md: "none" } }}
+      >
+        <KIcon icon="menu" size={20} />
+      </Box>
+
       {/* Mobile brand */}
-      <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", gap: 1, mr: 1 }}>
-        <Link href={`/${role}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", mr: 0.5 }}>
+        <Link href={`/${role}`} style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
           {logoUrl ? (
-            <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 28, width: "auto", objectFit: "contain" }} />
+            <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 26, width: "auto", objectFit: "contain" }} />
           ) : (
             <Box
               sx={{
                 width: 30,
                 height: 30,
-                borderRadius: 8,
+                borderRadius: 2,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: color.brand[900],
-                color: color.brand[300],
-                fontFamily: "var(--font-sans), sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 650,
+                letterSpacing: "-0.02em",
               }}
             >
-              KIZ
+              K
             </Box>
           )}
         </Link>
       </Box>
 
-      {/* Breadcrumb / title */}
-      <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 1, minWidth: 0, flex: 1 }}>
-        <KIcon icon="apps" size={17} sx={{ color: "text.disabled" }} />
-        <Box component="span" sx={{ color: "text.disabled", fontSize: 13.5 }}>KIZ Super App</Box>
+      {/* Breadcrumb */}
+      <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 0.5, minWidth: 0, flex: 1 }}>
+        <Box component="span" sx={{ color: "text.disabled", fontSize: 13.5, letterSpacing: "-0.011em" }}>KIZ</Box>
         {title && (
           <>
-            <KIcon icon="chevron_right" size={16} sx={{ color: "text.disabled" }} />
-            <Box component="span" sx={{ color: "text.primary", fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <Box component="span" sx={{ color: "text.disabled", fontSize: 13.5, mx: 0.25 }}>/</Box>
+            <Box component="span" sx={{ color: "text.primary", fontSize: 13.5, fontWeight: 550, letterSpacing: "-0.011em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {title}
             </Box>
           </>
@@ -85,7 +113,7 @@ export function GlassTopBar({
 
       <Box sx={{ flex: { xs: 1, sm: 0 } }} />
 
-      {/* Command palette trigger */}
+      {/* Search */}
       <Box
         component="button"
         onClick={onCommand}
@@ -94,102 +122,83 @@ export function GlassTopBar({
           alignItems: "center",
           gap: 1,
           height: 34,
-          px: 1.5,
-          borderRadius: 2,
+          pl: 1.25,
+          pr: 0.75,
+          mr: 0.5,
+          borderRadius: 2.5,
           border: "1px solid",
           borderColor: "divider",
           backgroundColor: "background.paper",
-          color: "text.secondary",
+          color: "text.disabled",
           fontSize: 13,
+          letterSpacing: "-0.011em",
           cursor: "pointer",
-          "&:hover": { borderColor: color.brand[400] },
+          transition: "border-color 140ms",
+          "&:hover": { borderColor: color.borderStrong },
         }}
       >
-        <KIcon icon="search" size={17} />
-        Search…
+        <KIcon icon="search" size={16} />
+        <Box component="span" sx={{ mr: 2.5 }}>Search</Box>
         <Box
           component="span"
           sx={{
-            ml: 2,
             fontSize: 11,
-            fontWeight: 600,
+            fontWeight: 500,
             color: "text.disabled",
-            border: "1px solid",
-            borderColor: "divider",
+            backgroundColor: "action.hover",
             borderRadius: 1,
-            px: 0.75,
+            px: 0.625,
             py: 0.25,
+            lineHeight: 1.4,
           }}
         >
           ⌘K
         </Box>
       </Box>
 
-      {/* Dark mode toggle */}
+      <Box component="button" onClick={onCommand} aria-label="Search" sx={{ ...iconBtn, display: { xs: "flex", sm: "none" } }}>
+        <KIcon icon="search" size={19} />
+      </Box>
+
       <Box
         component="button"
         onClick={toggleColorScheme}
         aria-label={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        sx={{
-          width: 36,
-          height: 36,
-          borderRadius: 1.5,
-          border: "1px solid",
-          borderColor: "divider",
-          backgroundColor: "background.paper",
-          color: "text.secondary",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          "&:hover": { borderColor: color.brand[400] },
-        }}
+        sx={iconBtn}
       >
         <KIcon icon={mode === "dark" ? "light_mode" : "dark_mode"} size={19} />
       </Box>
 
-      {/* Notifications */}
       <Box
         component="button"
         onClick={onNotifications}
         aria-label="Notifications"
-        sx={{
-          position: "relative",
-          width: 36,
-          height: 36,
-          borderRadius: 1.5,
-          border: "1px solid",
-          borderColor: "divider",
-          backgroundColor: "background.paper",
-          color: "text.secondary",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          "&:hover": { borderColor: color.brand[400] },
-        }}
+        sx={{ ...iconBtn, position: "relative" }}
       >
         <KIcon icon="notifications" size={19} />
         {(notificationCount ?? 0) > 0 && (
           <Box
             sx={{
               position: "absolute",
-              top: -4,
-              right: -4,
-              minWidth: 17,
-              height: 17,
-              borderRadius: 9,
+              top: 1,
+              right: 1,
+              minWidth: 16,
+              height: 16,
+              borderRadius: 8,
               paddingInline: 0.5,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: color.danger.main,
               color: "#fff",
-              fontSize: 10,
-              fontWeight: 700,
+              fontSize: 9.5,
+              fontWeight: 600,
+              border: "2px solid",
+              borderColor: "background.default",
+              zIndex: 1,
             }}
           >
-            {notificationCount}
+            {(notificationCount ?? 0) > 99 ? "99+" : notificationCount}
           </Box>
         )}
       </Box>

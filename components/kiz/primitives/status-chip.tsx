@@ -30,10 +30,11 @@ export function StatusChip({
         border: "none",
         fontWeight: 600,
         fontSize: size === "small" ? "0.6875rem" : "0.75rem",
-        height: size === "small" ? 24 : 28,
-        "& .MuiChip-label": { px: 1.5 },
+        minHeight: size === "small" ? 24 : 28,
+        "& .MuiChip-label": { px: 1, py: 0.25, lineHeight: 1.4, display: "flex", alignItems: "center" },
+        "& .MuiChip-icon": { marginLeft: "10px", marginRight: 0 },
       }}
-      icon={<span style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: colors.main, display: "inline-block", marginLeft: 10 }} />}
+      icon={<span style={{ width: 6, height: 6, borderRadius: 99, backgroundColor: colors.main, display: "inline-block", flexShrink: 0 }} />}
     />
   )
 }

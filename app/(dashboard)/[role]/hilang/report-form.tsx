@@ -30,7 +30,7 @@ export function ReportForm({ role: _role }: Props) {
       router.refresh()
       ;(e.target as HTMLFormElement).reset()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error")
+      setError(err instanceof Error ? err.message : "Oops, something slipped — try again.")
     } finally {
       setLoading(false)
     }

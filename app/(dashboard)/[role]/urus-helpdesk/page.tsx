@@ -3,14 +3,13 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
-import Link from "next/link"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color } from "@/lib/theme"
+import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 
 export default async function UrusHelpdeskPage() {
   const session = await auth()
@@ -29,81 +28,70 @@ export default async function UrusHelpdeskPage() {
 
   const openTickets = tickets.filter((t) => t.status !== "closed")
   const closedTickets = tickets.filter((t) => t.status === "closed")
+  const role = session.user.role
 
   return (
     <Box sx={{ maxWidth: 900, mx: "auto" }}>
       <PageHeader
         overline="Admin"
-        title="Helpdesk Inbox"
-        subtitle="Reply and manage student support tickets."
+        title="Helpdesk inbox"
+        subtitle={
+          openTickets.length > 0
+            ? `${openTickets.length} open ticket${openTickets.length === 1 ? "" : "s"}.`
+            : "Reply and manage student support tickets."
+        }
       />
 
-      {openTickets.length === 0 ? (
-        <KEmpty icon="inbox" title="Inbox zero" body="No open tickets. Great job." />
-      ) : (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-          {openTickets.map((ticket) => (
-            <Link key={ticket.id} href={`/${session.user.role}/urus-helpdesk/${ticket.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  p: 1.75,
-                  borderRadius: 2.5,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  backgroundColor: "background.paper",
-                  "&:hover": { borderColor: color.brand[400] },
-                }}
-              >
-                <Box sx={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[50], color: color.brand[700], flexShrink: 0 }}>
-                  <KIcon icon="support_agent" size={20} />
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {ticket.user.name} ({ticket.user.matricId})
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {ticket.messages[0]?.message || "(empty)"}
-                  </Typography>
-                </Box>
-                {ticket.assignee && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
-                    <KIcon icon="person" size={14} />
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>{ticket.assignee.name}</Typography>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {openTickets.length === 0 ? (
+          <KEmpty icon="inbox" title="Inbox zero 🎉" body="No open tickets — nice work!" />
+        ) : (
+          <ListGroup title={`Open · ${openTickets.length}`}>
+            {openTickets.map((ticket) => (
+              <ListRow
+                key={ticket.id}
+                href={`/${role}/urus-helpdesk/${ticket.id}`}
+                icon="support_agent"
+                title={ticket.user.name}
+                subtitle={ticket.messages[0]?.message || "(empty)"}
+                trailing={
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    {ticket.assignee && (
+                      <Box
+                        sx={{
+                          display: { xs: "none", md: "flex" },
+                          alignItems: "center",
+                          gap: 0.375,
+                          color: "text.disabled",
+                        }}
+                      >
+                        <KIcon icon="person" size={14} />
+                        <Typography variant="caption">{ticket.assignee.name}</Typography>
+                      </Box>
+                    )}
+                    <StatusChip status={ticket.status} />
                   </Box>
-                )}
-                <StatusChip status={ticket.status} />
-                <KIcon icon="chevron_right" size={18} sx={{ color: "text.disabled" }} />
-              </Box>
-            </Link>
-          ))}
-        </Box>
-      )}
-
-      {closedTickets.length > 0 && (
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
-            Closed ({closedTickets.length})
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {closedTickets.map((ticket) => (
-              <Link key={ticket.id} href={`/${session.user.role}/urus-helpdesk/${ticket.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper", "&:hover": { borderColor: color.brand[400] } }}>
-                  <KIcon icon="support_agent" size={18} sx={{ color: "text.disabled" }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {ticket.user.name} ({ticket.user.matricId})
-                    </Typography>
-                  </Box>
-                  <StatusChip status="closed" />
-                </Box>
-              </Link>
+                }
+              />
             ))}
-          </Box>
-        </Box>
-      )}
+          </ListGroup>
+        )}
+
+        {closedTickets.length > 0 && (
+          <ListGroup title={`Closed · ${closedTickets.length}`}>
+            {closedTickets.map((ticket) => (
+              <ListRow
+                key={ticket.id}
+                href={`/${role}/urus-helpdesk/${ticket.id}`}
+                icon="history"
+                title={ticket.user.name}
+                subtitle={ticket.user.matricId}
+                trailing={<StatusChip status="closed" />}
+              />
+            ))}
+          </ListGroup>
+        )}
+      </Box>
     </Box>
   )
 }

@@ -1,13 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
-import Chip from "@mui/material/Chip"
 import { motion } from "framer-motion"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color, elevation } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 interface Announcement {
   id: string
@@ -37,39 +36,69 @@ export function AnnouncementFeed({ announcements, tags }: Props) {
     [announcements, activeTag]
   )
 
-  const [now] = useState(() => Date.now())
-  const isNew = (d: Date) => now - new Date(d).getTime() < 86400000
+  // "New" badge time. Starts null so the server and first client render agree
+  // (no time-based text), then fills after mount to avoid a hydration mismatch.
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    const id = window.setTimeout(() => setNow(Date.now()), 0)
+    return () => window.clearTimeout(id)
+  }, [])
+  const isNew = (d: Date) => now !== null && now - new Date(d).getTime() < 86400000
 
   return (
     <Box>
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2.5 }}>
-        {["all", ...tags].map((tag) => (
-          <Chip
-            key={tag}
-            label={tag === "all" ? "All" : tag}
-            size="small"
-            onClick={() => setActiveTag(tag)}
-            sx={{
-              textTransform: "capitalize",
-              backgroundColor: activeTag === tag ? "primary.main" : "background.paper",
-              color: activeTag === tag ? "#fff" : "text.secondary",
-              border: "1px solid",
-              borderColor: "divider",
-              fontWeight: 600,
-              "&:hover": { backgroundColor: activeTag === tag ? "primary.main" : "action.hover" },
-            }}
-          />
-        ))}
+      {/* Scrollable filter rail — native chip-bar behaviour on mobile */}
+      <Box
+        className="scroll-x"
+        sx={{
+          gap: 1,
+          mb: 2.5,
+          mx: { xs: -2, sm: 0 },
+          px: { xs: 2, sm: 0 },
+        }}
+      >
+        {["all", ...tags].map((tag) => {
+          const active = activeTag === tag
+          return (
+            <Box
+              key={tag}
+              component="button"
+              onClick={() => setActiveTag(tag)}
+              sx={{
+                textTransform: "capitalize",
+                height: 32,
+                px: 1.75,
+                borderRadius: 999,
+                border: "1px solid",
+                borderColor: active ? "transparent" : "divider",
+                backgroundColor: active ? "text.primary" : "background.paper",
+                color: active ? "background.paper" : "text.secondary",
+                fontSize: 13,
+                fontWeight: 550,
+                letterSpacing: "-0.011em",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                WebkitTapHighlightColor: "transparent",
+                transition: "background-color 140ms, color 140ms, border-color 140ms",
+                "&:active": { opacity: 0.7 },
+              }}
+            >
+              {tag === "all" ? "All" : tag}
+            </Box>
+          )
+        })}
       </Box>
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
         {filtered.length === 0 && (
-          <KEmpty icon="campaign" title="No announcements" body="Try a different tag." compact />
+          <KEmpty icon="campaign" title="Nothing to see here" body="Try a different tag." compact />
         )}
+
         {filtered.map((a, i) => {
           const isPin = a.isPinned
-          const tagIsPenting = a.tag === "penting"
+          const isImportant = a.tag === "important"
           const isRecent = isNew(a.createdAt)
+
           return (
             <motion.div
               key={a.id}
@@ -79,136 +108,126 @@ export function AnnouncementFeed({ announcements, tags }: Props) {
             >
               <Box
                 sx={{
-                  borderRadius: 2.5,
+                  borderRadius: `${radius.cardLg}px`,
                   border: "1px solid",
-                  borderColor: isPin ? color.brand[400] : "divider",
+                  borderColor: "divider",
                   backgroundColor: "background.paper",
-                  boxShadow: elevation.e1,
-                  p: 2.5,
-                  transition: "box-shadow 200ms ease",
-                  "&:hover": { boxShadow: elevation.e2 },
+                  p: { xs: 2, sm: 2.5 },
+                  transition: "border-color 160ms ease",
+                  "@media (hover: hover)": { "&:hover": { borderColor: color.borderStrong } },
                 }}
               >
-                {isPin && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1.5 }}>
-                    <KIcon icon="push_pin" size={14} sx={{ color: color.brand[700] }} />
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: color.brand[700] }}>
-                      Important Announcement
-                    </Typography>
+                {/* Meta row */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                  {isPin && (
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: "text.primary" }}>
+                      <KIcon icon="push_pin" size={14} filled />
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                        Pinned
+                      </Typography>
+                    </Box>
+                  )}
+                  <Box
+                    component="span"
+                    sx={{
+                      textTransform: "capitalize",
+                      fontSize: 11.5,
+                      fontWeight: 550,
+                      px: 1,
+                      py: 0.25,
+                      borderRadius: 999,
+                      backgroundColor: isImportant ? color.danger.soft : "action.hover",
+                      color: isImportant ? color.danger.ink : "text.secondary",
+                    }}
+                  >
+                    {a.tag}
+                  </Box>
+                  {isRecent && (
+                    <Box
+                      component="span"
+                      sx={{
+                        fontSize: 11.5,
+                        fontWeight: 550,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 999,
+                        backgroundColor: color.info.soft,
+                        color: color.info.ink,
+                      }}
+                    >
+                      New
+                    </Box>
+                  )}
+                  <Typography variant="caption" sx={{ color: "text.disabled", ml: "auto" }}>
+                    {new Date(a.createdAt).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+                  </Typography>
+                </Box>
+
+                <Typography variant="h3" sx={{ mb: 0.5 }}>
+                  {a.title}
+                </Typography>
+
+                <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                  {a.content}
+                </Typography>
+
+                {a.attachmentType === "image" && a.attachmentUrl && (
+                  <Box
+                    component="a"
+                    href={a.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ display: "block", mt: 1.75 }}
+                  >
+                    <Box
+                      component="img"
+                      src={a.attachmentUrl}
+                      alt=""
+                      sx={{
+                        width: "100%",
+                        maxWidth: 420,
+                        aspectRatio: "16/9",
+                        objectFit: "cover",
+                        borderRadius: 2.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    />
                   </Box>
                 )}
 
-                <Box sx={{ display: "flex", gap: 2 }}>
+                {a.attachmentType === "pdf" && a.attachmentUrl && (
                   <Box
+                    component="a"
+                    href={a.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      display: "flex",
+                      display: "inline-flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      backgroundColor: tagIsPenting ? color.danger.soft : color.brand[50],
-                      color: tagIsPenting ? color.danger.ink : color.brand[700],
+                      gap: 0.75,
+                      mt: 1.75,
+                      px: 1.5,
+                      py: 0.875,
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      fontSize: 13,
+                      fontWeight: 550,
+                      color: "text.primary",
+                      textDecoration: "none",
+                      "&:active": { backgroundColor: "action.hover" },
+                      "@media (hover: hover)": { "&:hover": { backgroundColor: "action.hover" } },
                     }}
                   >
-                    <KIcon icon="campaign" size={20} />
+                    <KIcon icon="description" size={16} />
+                    Open PDF
                   </Box>
+                )}
 
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                      <Chip
-                        label={a.tag}
-                        size="small"
-                        sx={{
-                          textTransform: "capitalize",
-                          backgroundColor: tagIsPenting ? color.danger.soft : color.brand[50],
-                          color: tagIsPenting ? color.danger.ink : color.brand[700],
-                          fontWeight: 600,
-                        }}
-                      />
-                      {isRecent && (
-                        <Box
-                          component="span"
-                          sx={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: color.info.ink,
-                            backgroundColor: color.info.soft,
-                            borderRadius: 999,
-                            px: 1,
-                            py: 0.25,
-                          }}
-                        >
-                          New
-                        </Box>
-                      )}
-                      {a.attachmentType === "pdf" && (
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, color: "text.secondary" }}>
-                          <KIcon icon="attach_file" size={13} />
-                          <Typography variant="caption">PDF</Typography>
-                        </Box>
-                      )}
-                    </Box>
-
-                    <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mt: 0.5 }}>
-                      {a.title}
-                    </Typography>
-
-                    <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap", mt: 0.5 }}>
-                      {a.content}
-                    </Typography>
-
-                    {a.attachmentType === "image" && a.attachmentUrl && (
-                      <Box
-                        component="a"
-                        href={a.attachmentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{ display: "block", mt: 1.5 }}
-                      >
-                        <Box
-                          component="img"
-                          src={a.attachmentUrl}
-                          alt=""
-                          sx={{ width: "100%", maxWidth: 360, aspectRatio: "16/9", objectFit: "cover", borderRadius: 2, border: "1px solid", borderColor: "divider" }}
-                        />
-                      </Box>
-                    )}
-
-                    {a.attachmentType === "pdf" && a.attachmentUrl && (
-                      <Box
-                        component="a"
-                        href={a.attachmentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 0.75,
-                          mt: 1.5,
-                          px: 1.5,
-                          py: 0.75,
-                          borderRadius: 1.5,
-                          backgroundColor: "action.hover",
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          color: "text.primary",
-                          textDecoration: "none",
-                          "&:hover": { backgroundColor: color.brand[50], color: color.brand[700] },
-                        }}
-                      >
-                        <KIcon icon="description" size={16} />
-                        Open PDF Attachment
-                      </Box>
-                    )}
-
-                    <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 1 }}>
-                      {a.poster.name} ·{" "}
-                      {new Date(a.createdAt).toLocaleDateString("ms-MY", { day: "numeric", month: "long", year: "numeric" })}
-                    </Typography>
-                  </Box>
-                </Box>
+                <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 1.5 }}>
+                  {a.poster.name}
+                </Typography>
               </Box>
             </motion.div>
           )

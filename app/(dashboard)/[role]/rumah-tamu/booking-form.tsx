@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Box from "@mui/material/Box"
 
@@ -16,13 +16,28 @@ import { color } from "@/lib/theme"
 
 interface Props {
   role: string
+  guestHouseId: string
+  guestHouseName: string
+  price?: number | null
 }
 
-export function GHBookingForm({ role }: Props) {
+export function GHBookingForm({ role, guestHouseId, guestHouseName, price }: Props) {
   const router = useRouter()
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  // min date is applied after mount so the SSR HTML and the first client render
+  // agree (avoids a hydration mismatch on the `min` attribute near midnight).
+  const [minDate, setMinDate] = useState("")
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const t = new Date()
+      t.setDate(t.getDate() + 1)
+      setMinDate(t.toISOString().split("T")[0])
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -37,7 +52,7 @@ export function GHBookingForm({ role }: Props) {
       setSuccess(true)
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred")
+      setError(err instanceof Error ? err.message : "Oops, something went sideways — try again.")
     } finally {
       setLoading(false)
     }
@@ -62,8 +77,8 @@ export function GHBookingForm({ role }: Props) {
         >
           <KIcon icon="check_circle" size={28} />
         </Box>
-        <Typography variant="body1" sx={{ fontWeight: 600 }}>Booking submitted!</Typography>
-        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Pending admin approval.</Typography>
+        <Typography variant="body1" sx={{ fontWeight: 600 }}>Yay! Booking sent 🎉</Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Admin&rsquo;s giving it a look — pending approval.</Typography>
         <Button sx={{ mt: 2.5 }} variant="contained" onClick={() => router.push(`/${role}/rumah-tamu`)}>
           Back
         </Button>
@@ -71,13 +86,32 @@ export function GHBookingForm({ role }: Props) {
     )
   }
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const minDate = tomorrow.toISOString().split("T")[0]
-
   return (
     <form onSubmit={handleSubmit}>
+      <input type="hidden" name="guestHouseId" value={guestHouseId} />
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            borderRadius: 2,
+            backgroundColor: "action.hover",
+            px: 1.5,
+            py: 1.25,
+            fontSize: 13,
+          }}
+        >
+          <KIcon icon="hotel" size={17} sx={{ color: "text.secondary" }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography component="span" sx={{ fontWeight: 600 }}>{guestHouseName}</Typography>
+            {price != null && (
+              <Typography component="span" sx={{ color: "text.secondary" }}>
+                {" "}· RM {price.toFixed(2)} / night
+              </Typography>
+            )}
+          </Box>
+        </Box>
         <TextField id="guestName" name="guestName" label="Guest Name" placeholder="Full name of guest" required />
         <TextField id="periodType" name="periodType" label="Booking Type" select required defaultValue="daily">
           <MenuItem value="daily">Daily</MenuItem>

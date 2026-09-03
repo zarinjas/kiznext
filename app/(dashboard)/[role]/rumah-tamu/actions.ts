@@ -8,33 +8,46 @@ export async function createGHBooking(formData: FormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
 
+  const guestHouseId = formData.get("guestHouseId") as string
   const guestName = formData.get("guestName") as string
   const periodType = formData.get("periodType") as string
   const startDate = formData.get("startDate") as string
   const endDate = formData.get("endDate") as string
   const notes = formData.get("notes") as string | null
 
-  if (!guestName || !periodType || !startDate || !endDate) {
+  if (!guestHouseId || !guestName || !periodType || !startDate || !endDate) {
     throw new Error("Please fill all required fields")
   }
+
+  const guestHouse = await prisma.guestHouse.findFirst({
+    where: { id: guestHouseId, deletedAt: null },
+  })
+  if (!guestHouse) throw new Error("Guest house not found")
 
   const start = new Date(startDate)
   const end = new Date(endDate)
 
   if (start >= end) throw new Error("End date must be after start date")
 
+  const nights = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+  if (guestHouse.maxDays && nights > guestHouse.maxDays) {
+    throw new Error(`Maximum stay is ${guestHouse.maxDays} day${guestHouse.maxDays === 1 ? "" : "s"}`)
+  }
+
   const clash = await prisma.guestHouseBooking.findFirst({
     where: {
       deletedAt: null,
+      guestHouseId,
       status: { notIn: ["rejected", "cancelled"] },
       startDate: { lt: end },
       endDate: { gt: start },
     },
   })
-  if (clash) throw new Error("Dates already booked")
+  if (clash) throw new Error("Those dates are already booked")
 
   await prisma.guestHouseBooking.create({
     data: {
+      guestHouseId,
       userId: session.user.id,
       guestName,
       periodType: periodType as "daily" | "weekly" | "monthly",

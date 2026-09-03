@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color } from "@/lib/theme"
+import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
+import { color, radius } from "@/lib/theme"
 
 export default async function ParcelPage() {
   const session = await auth()
@@ -36,13 +37,15 @@ export default async function ParcelPage() {
             gap: 1.5,
             p: 2,
             mb: 2.5,
-            borderRadius: 2,
+            borderRadius: `${radius.cardLg}px`,
+            border: "1px solid",
+            borderColor: "divider",
             backgroundColor: color.warning.soft,
             color: color.warning.ink,
           }}
         >
-          <KIcon icon="inventory_2" size={22} />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <KIcon icon="inventory_2" size={20} />
+          <Typography variant="body2" sx={{ fontWeight: 550 }}>
             You have {awaiting.length} parcel{awaiting.length > 1 ? "s" : ""} waiting. Collect during office hours
             (Mon–Fri, 8am–5pm) at the KIZ office.
           </Typography>
@@ -52,60 +55,30 @@ export default async function ParcelPage() {
       {parcels.length === 0 ? (
         <KEmpty
           icon="inventory_2"
-          title="No parcels yet"
-          body="When a parcel arrives for you, the admin registers it here."
+          title="No parcels waiting"
+          body="When something arrives for you, the admin registers it here and we'll let you know."
         />
       ) : (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+        <ListGroup>
           {parcels.map((p) => (
-            <Box
+            <ListRow
               key={p.id}
-              sx={{
-                borderRadius: 2.5,
-                border: "1px solid",
-                borderColor: "divider",
-                backgroundColor: "background.paper",
-                p: 2,
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 1.5,
-              }}
-            >
-              <Box
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  backgroundColor: p.status === "arrived" ? color.warning.soft : color.success.soft,
-                  color: p.status === "arrived" ? color.warning.ink : color.success.ink,
-                }}
-              >
-                <KIcon icon={p.status === "arrived" ? "package_2" : "check_circle"} size={20} />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {p.status === "arrived" ? "Arrived" : "Collected"}
-                  </Typography>
-                  <StatusChip status={p.status} />
-                </Box>
-                {p.description && (
-                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
-                    {p.description}
-                  </Typography>
-                )}
-                <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
-                  Registered: {p.createdAt.toLocaleDateString("ms-MY")}
-                  {p.collectedAt && ` · Collected: ${p.collectedAt.toLocaleDateString("ms-MY")}`}
-                </Typography>
-              </Box>
-            </Box>
+              icon={p.status === "arrived" ? "package_2" : "check_circle"}
+              title={p.description || (p.status === "arrived" ? "Parcel arrived" : "Parcel collected")}
+              subtitle={
+                <>
+                  Registered {p.createdAt.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+                  {p.collectedAt &&
+                    ` · Collected ${p.collectedAt.toLocaleDateString("en-MY", {
+                      day: "numeric",
+                      month: "short",
+                    })}`}
+                </>
+              }
+              trailing={<StatusChip status={p.status} />}
+            />
           ))}
-        </Box>
+        </ListGroup>
       )}
     </Box>
   )

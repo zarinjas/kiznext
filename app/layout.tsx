@@ -1,10 +1,16 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Inter, Geist_Mono } from "next/font/google"
 import InitColorSchemeScript from "@mui/material/InitColorSchemeScript"
 import { AppProviders } from "@/components/providers/app-providers"
 import "./globals.css"
 
-const geist = Geist({ variable: "--font-sans", subsets: ["latin"], display: "swap" })
+// Single clean sans across the whole product — modern SaaS, no serif.
+const inter = Inter({
+  variable: "--font-sans",
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz"],
+})
 const geistMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"], display: "swap" })
 
 export const metadata: Metadata = {
@@ -14,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ms" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
+    <html lang="ms" className={`${inter.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <link
           rel="stylesheet"

@@ -16,7 +16,7 @@ export async function reportItem(formData: FormData) {
   const locationFound = formData.get("locationFound") as string
   const photo = formData.get("photo") as File | null
 
-  if (!itemName || !description) throw new Error("Sila isi ruangan wajib")
+  if (!itemName || !description) throw new Error("Please fill in the required fields")
 
   let photoUrl: string | null = null
 

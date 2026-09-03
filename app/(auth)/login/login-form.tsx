@@ -9,11 +9,17 @@ import TextField from "@mui/material/TextField"
 import Typography from "@mui/material/Typography"
 import Alert from "@mui/material/Alert"
 import CircularProgress from "@mui/material/CircularProgress"
-import { color, glass, elevation, radius } from "@/lib/theme"
+import { color, gradient, glass } from "@/lib/theme"
 
 interface Props {
   logoUrl: string | null
 }
+
+const highlights = [
+  { icon: "meeting_room", title: "Bookings", body: "Facilities and guest house, approved in a tap." },
+  { icon: "campaign", title: "Announcements", body: "College updates that reach every resident." },
+  { icon: "support_agent", title: "Support", body: "Helpdesk, lost & found and community in one place." },
+]
 
 export function LoginForm({ logoUrl }: Props) {
   const router = useRouter()
@@ -29,14 +35,10 @@ export function LoginForm({ logoUrl }: Props) {
     const matricId = form.get("matricId") as string
     const password = form.get("password") as string
 
-    const result = await signIn("credentials", {
-      matricId,
-      password,
-      redirect: false,
-    })
+    const result = await signIn("credentials", { matricId, password, redirect: false })
 
     if (result?.error) {
-      setError("Invalid Matric No. or password.")
+      setError("Hmm, that Matric No. or password doesn't match. Give it another go.")
       setLoading(false)
       return
     }
@@ -46,103 +48,140 @@ export function LoginForm({ logoUrl }: Props) {
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        p: { xs: 2, sm: 4 },
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Ambient gradient blobs */}
+    <Box sx={{ minHeight: "100dvh", display: "flex", backgroundColor: "background.default" }}>
+      {/* Form panel */}
       <Box
         sx={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          backgroundImage:
-            "radial-gradient(700px 400px at 12% 8%, rgba(145,201,83,0.18), transparent 60%), radial-gradient(800px 500px at 92% 88%, rgba(0,75,35,0.14), transparent 60%)",
-          pointerEvents: "none",
-        }}
-      />
-
-      <Box
-        component="form"
-        onSubmit={handleSubmit}
-        sx={{
-          position: "relative",
-          zIndex: 1,
-          width: "100%",
-          maxWidth: 400,
-          borderRadius: `${radius.sheet}px`,
-          background: glass.background,
-          backdropFilter: glass.backdropFilter,
-          border: glass.border,
-          boxShadow: elevation.e3,
-          p: { xs: 3.5, sm: 4.5 },
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          p: { xs: 3, sm: 6 },
         }}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, textAlign: "center" }}>
-          {logoUrl ? (
-            <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 48, width: "auto", objectFit: "contain" }} />
-          ) : (
-            <Typography
-              variant="h1"
-              sx={{ fontFamily: "var(--font-sans), sans-serif", color: color.brand[900] }}
+        <Box component="form" onSubmit={handleSubmit} sx={{ width: "100%", maxWidth: 360 }}>
+          {/* Brand */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 5 }}>
+            {logoUrl ? (
+              <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 32, width: "auto", objectFit: "contain" }} />
+            ) : (
+              <>
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: color.brand[900],
+                    color: "#fff",
+                    fontSize: 15,
+                    fontWeight: 650,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  K
+                </Box>
+                <Typography sx={{ fontWeight: 600, fontSize: 15, letterSpacing: "-0.015em" }}>
+                  KIZ
+                </Typography>
+              </>
+            )}
+          </Box>
+
+          <Typography variant="h1" sx={{ mb: 1 }}>Sign in</Typography>
+          <Typography variant="body1" sx={{ color: "text.secondary", mb: 4 }}>
+            Use your UKM Matric No. to continue.
+          </Typography>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <TextField id="matricId" name="matricId" label="Matric No." type="text" placeholder="A123456" autoComplete="username" required fullWidth />
+            <TextField id="password" name="password" label="Password" type="password" placeholder="••••••••" autoComplete="current-password" required fullWidth />
+            {error && <Alert severity="error" variant="standard">{error}</Alert>}
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              disabled={loading}
+              fullWidth
+              sx={{ mt: 1 }}
+              startIcon={loading ? <CircularProgress size={15} color="inherit" /> : undefined}
             >
-              KIZ
-            </Typography>
-          )}
-          <Typography variant="overline" sx={{ color: color.ink[500] }}>
-            Kolej Ibu Zain · UKM
-          </Typography>
-          <Typography variant="body2" sx={{ color: color.ink[500], maxWidth: 300 }}>
-            Sign in with your UKM Matric No. to access the college digital platform.
+              {loading ? "Signing in…" : "Sign in"}
+            </Button>
+          </Box>
+
+          <Typography variant="caption" sx={{ display: "block", mt: 4, color: "text.disabled" }}>
+            Need help? Contact the KIZ management office.
           </Typography>
         </Box>
+      </Box>
 
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 3.5 }}>
-          <TextField
-            id="matricId"
-            name="matricId"
-            label="Matric No."
-            type="text"
-            placeholder="A123456"
-            autoComplete="username"
-            required
-          />
-          <TextField
-            id="password"
-            name="password"
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            autoComplete="current-password"
-            required
-          />
-          {error && (
-            <Alert severity="error" variant="standard">
-              {error}
-            </Alert>
-          )}
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            disabled={loading}
-            sx={{ mt: 0.5 }}
-            startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </Button>
+      {/* Gradient showcase panel — desktop only */}
+      <Box
+        sx={{
+          display: { xs: "none", md: "flex" },
+          flexDirection: "column",
+          justifyContent: "center",
+          width: "46%",
+          maxWidth: 620,
+          m: 1.5,
+          ml: 0,
+          p: 7,
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 5,
+          border: "1px solid",
+          borderColor: "divider",
+          backgroundImage: gradient.panel,
+          "[data-mui-color-scheme='dark'] &": { backgroundImage: "none", backgroundColor: "background.paper" },
+        }}
+      >
+        <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />
+
+        <Box sx={{ position: "relative" }}>
+          <Typography sx={{ fontSize: 34, fontWeight: 640, lineHeight: 1.15, letterSpacing: "-0.032em" }}>
+            Everything for college life,
+            <br />
+            in one place.
+          </Typography>
+          <Typography variant="body1" sx={{ color: "text.secondary", mt: 2, maxWidth: 400 }}>
+            The digital home of Kolej Ibu Zain — bookings, announcements, support and
+            community, built for residents and staff.
+          </Typography>
+
+          <Box sx={{ mt: 5, display: "flex", flexDirection: "column", gap: 1.25 }}>
+            {highlights.map((h) => (
+              <Box
+                key={h.title}
+                sx={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 1.75,
+                  p: 2,
+                  borderRadius: 3,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: glass.background,
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                <Box
+                  component="span"
+                  className="material-symbols-rounded"
+                  sx={{ fontSize: 20, color: "text.secondary", lineHeight: 1, mt: 0.25 }}
+                >
+                  {h.icon}
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{h.title}</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>{h.body}</Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
         </Box>
-
-        <Typography variant="caption" sx={{ display: "block", textAlign: "center", mt: 3, color: color.ink[300] }}>
-          Need help? Contact the KIZ management office.
-        </Typography>
       </Box>
     </Box>
   )

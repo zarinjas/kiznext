@@ -11,7 +11,7 @@ import { BookingForm } from "./booking-form"
 import { FilterBar } from "@/components/kiz/patterns/filter-bar"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color, elevation } from "@/lib/theme"
+import { color } from "@/lib/theme"
 
 interface Facility {
   id: string
@@ -57,7 +57,7 @@ export function FacilitiesList({ facilities, role }: Props) {
       <FilterBar search={search} onSearch={setSearch} searchPlaceholder="Search facilities or blocks…" />
 
       {filtered.length === 0 ? (
-        <KEmpty icon="meeting_room" title="No facilities found" body="Try a different search term." />
+        <KEmpty icon="meeting_room" title="No matches found" body="Try a different search term." />
       ) : (
         <Grid container spacing={{ xs: 1.5, sm: 2 }}>
           {filtered.map((f, i) => (
@@ -73,10 +73,13 @@ export function FacilitiesList({ facilities, role }: Props) {
                     cursor: "pointer",
                     border: "1px solid",
                     borderColor: "divider",
-                    boxShadow: elevation.e1,
+                    boxShadow: "none",
                     overflow: "hidden",
-                    transition: "box-shadow 200ms ease, transform 200ms ease",
-                    "&:hover": { boxShadow: elevation.e2, transform: "translateY(-2px)" },
+                    height: "100%",
+                    transition: "border-color 180ms ease",
+                    WebkitTapHighlightColor: "transparent",
+                    "&:active": { backgroundColor: "action.hover" },
+                    "@media (hover: hover)": { "&:hover": { borderColor: color.borderStrong } },
                   }}
                 >
                   {f.featuredImage ? (
@@ -89,11 +92,11 @@ export function FacilitiesList({ facilities, role }: Props) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: color.brand[50],
-                        color: color.brand[700],
+                        backgroundColor: "action.hover",
+                        color: "text.disabled",
                       }}
                     >
-                      <KIcon icon="meeting_room" size={36} />
+                      <KIcon icon="meeting_room" size={32} />
                     </Box>
                   )}
                   <CardContent sx={{ p: "16px !important" }}>

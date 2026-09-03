@@ -14,7 +14,7 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
-import { color, elevation } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 interface FacilityItem {
   id: string
@@ -110,11 +110,11 @@ export function FacilityList({ facilities, blocks, role }: Props) {
             <Grid key={facility.id} size={{ xs: 12, sm: 6, lg: 4 }}>
               <Box
                 sx={{
-                  borderRadius: 2.5,
+                  borderRadius: `${radius.cardLg}px`,
                   border: "1px solid",
                   borderColor: "divider",
                   backgroundColor: "background.paper",
-                  boxShadow: elevation.e1,
+                  boxShadow: "none",
                   overflow: "hidden",
                   display: "flex",
                   flexDirection: "column",
@@ -130,12 +130,12 @@ export function FacilityList({ facilities, blocks, role }: Props) {
                 )}
                 <Box sx={{ p: 2, flex: 1, display: "flex", flexDirection: "column" }}>
                   <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <Typography variant="h5" sx={{ flex: 1, minWidth: 0, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {facility.name}
                     </Typography>
                     <Box
                       component="span"
-                      sx={{ fontSize: 11, fontWeight: 600, color: color.brand[700], backgroundColor: color.brand[50], borderRadius: 999, px: 1, py: 0.25, flexShrink: 0 }}
+                      sx={{ fontSize: 11, fontWeight: 600, color: color.brand[700], backgroundColor: color.brand[50], borderRadius: 999, px: 1, py: 0.25, flexShrink: 0, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                     >
                       {facility.blockName}
                     </Box>
@@ -145,19 +145,23 @@ export function FacilityList({ facilities, blocks, role }: Props) {
                   </Typography>
 
                   <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.75, my: 1.5, fontSize: 12.5, color: "text.secondary" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <KIcon icon="payments" size={14} /> {formatPrice(facility.price)}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                      <KIcon icon="payments" size={14} sx={{ flexShrink: 0 }} />
+                      <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatPrice(facility.price)}</Box>
                     </Box>
                     {facility.capacity && (
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <KIcon icon="group" size={14} /> {facility.capacity} pax
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                        <KIcon icon="group" size={14} sx={{ flexShrink: 0 }} />
+                        <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{facility.capacity} pax</Box>
                       </Box>
                     )}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <KIcon icon="schedule" size={14} /> {formatDuration(facility.timeSlotDuration)}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                      <KIcon icon="schedule" size={14} sx={{ flexShrink: 0 }} />
+                      <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatDuration(facility.timeSlotDuration)}</Box>
                     </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <KIcon icon="event_repeat" size={14} /> {facility.maxPerDay ?? 3}/day
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                      <KIcon icon="event_repeat" size={14} sx={{ flexShrink: 0 }} />
+                      <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{facility.maxPerDay ?? 3}/day</Box>
                     </Box>
                   </Box>
 

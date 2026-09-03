@@ -135,7 +135,7 @@ export function ChatRoom({ initialMessages, role, userId }: Props) {
                   </IconButton>
                 </Tooltip>
               )}
-              <Box sx={{ maxWidth: { xs: "82%", sm: "70%" } }}>
+              <Box sx={{ maxWidth: isAdmin && !mine ? { xs: "72%", sm: "70%" } : { xs: "82%", sm: "70%" }, minWidth: 0 }}>
                 {!mine && (
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 0.5, mb: 0.25 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: "text.primary" }}>
@@ -174,7 +174,7 @@ export function ChatRoom({ initialMessages, role, userId }: Props) {
                   {msg.message}
                 </Box>
                 <Typography variant="caption" sx={{ display: "block", px: 0.5, mt: 0.25, color: "text.disabled", textAlign: mine ? "right" : "left" }}>
-                  {new Date(msg.createdAt).toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
+                  {new Date(msg.createdAt).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
                 </Typography>
               </Box>
             </Box>

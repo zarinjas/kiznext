@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Box from "@mui/material/Box"
 
@@ -37,6 +37,18 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
   const [attachmentType, setAttachmentType] = useState(edit?.attachmentType || "")
   const [uploading, setUploading] = useState(false)
 
+  // min date is applied after mount so the SSR HTML and the first client render
+  // agree (avoids a hydration mismatch on the `min` attribute near midnight).
+  const [minDate, setMinDate] = useState("")
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const t = new Date()
+      t.setDate(t.getDate() + 1)
+      setMinDate(t.toISOString().split("T")[0])
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [])
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -52,7 +64,7 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
       const isImage = file.type.startsWith("image/")
       setAttachmentType(isImage ? "image" : "pdf")
     } catch {
-      alert("Failed to upload file")
+      alert("That file didn't upload — try again.")
     } finally {
       setUploading(false)
     }
@@ -82,10 +94,6 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
       onDone?.()
     }
   }
-
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const minDate = tomorrow.toISOString().split("T")[0]
 
   return (
     <form onSubmit={handleSubmit}>

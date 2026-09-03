@@ -3,199 +3,148 @@
 import Link from "next/link"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
-import Grid from "@mui/material/Grid"
 import Button from "@mui/material/Button"
-import { motion } from "framer-motion"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { StatCard } from "@/components/kiz/patterns/stat-card"
-import { KCard } from "@/components/kiz/primitives/k-card"
-import { color } from "@/lib/theme"
+import { Bento, BentoItem, MetricTile, ActionTile, HeroTile } from "@/components/kiz/patterns/bento"
 
 interface Props {
-  title: string
-  description: string
+  /** Retained for the server page's call signature; the bento derives its own copy. */
+  title?: string
+  description?: string
   userName: string
   role: string
   stats: {
     pendingFacility: number
     pendingGuestHouse: number
     openTickets: number
-    activeParcels: number
     activeLostFound: number
   }
 }
 
-export function AdminHome({ title, description, userName, role, stats }: Props) {
+export function AdminHome({ userName, role, stats }: Props) {
   const canManage = role === "admin_kiz" || role === "superadmin"
   const isPengetua = role === "pengetua"
 
-  const cards = [
-    {
-      label: "Pending Bookings",
-      value: stats.pendingFacility,
-      href: "urus-tempahan-fasiliti",
-      icon: "task_alt",
-      tone: "warning" as const,
-    },
-    {
-      label: "Pending Guest House",
-      value: stats.pendingGuestHouse,
-      href: "urus-rumah-tamu",
-      icon: "hotel",
-      tone: "info" as const,
-    },
-    {
-      label: "Open Tickets",
-      value: stats.openTickets,
-      href: "urus-helpdesk",
-      icon: "inbox",
-      tone: "brand" as const,
-    },
-    {
-      label: "Unclaimed Parcels",
-      value: stats.activeParcels,
-      href: "urus-parcel",
-      icon: "inventory_2",
-      tone: "success" as const,
-    },
-    {
-      label: "Active Lost & Found",
-      value: stats.activeLostFound,
-      href: "hilang",
-      icon: "search",
-      tone: "danger" as const,
-    },
+  const totalPending = stats.pendingFacility + stats.pendingGuestHouse
+  const firstName = userName.trim().split(" ")[0] || "there"
+
+  const metrics = [
+    { label: "Pending bookings", value: stats.pendingFacility, href: "urus-tempahan-fasiliti", icon: "task_alt", emphasis: true },
+    { label: "Guest house", value: stats.pendingGuestHouse, href: "urus-rumah-tamu", icon: "hotel", emphasis: true },
+    { label: "Open tickets", value: stats.openTickets, href: "urus-helpdesk", icon: "inbox" },
+    { label: "Lost & found", value: stats.activeLostFound, href: "hilang", icon: "search" },
   ]
 
-  const visibleCards = canManage ? cards : cards.filter((c) => c.href === "hilang")
-  const totalPending = stats.pendingFacility + stats.pendingGuestHouse
-  const initial = (userName.trim().charAt(0) || "K").toUpperCase()
+  const visibleMetrics = canManage ? metrics : metrics.filter((m) => m.href === "hilang")
+
+  const actions = [
+    canManage && { label: "Publish announcement", href: "urus-pengumuman", icon: "campaign" },
+    canManage && { label: "Helpdesk inbox", href: "urus-helpdesk", icon: "inbox" },
+    canManage && { label: "Facilities", href: "urus-fasiliti", icon: "apartment" },
+    canManage && { label: "Settings", href: "urus-tetapan", icon: "settings" },
+    { label: "Announcements", href: "pengumuman", icon: "campaign" },
+    { label: "Community chat", href: "chat", icon: "forum" },
+  ].filter(Boolean) as { label: string; href: string; icon: string }[]
+
+  const allClear = canManage && totalPending === 0
 
   return (
-    <Box sx={{ maxWidth: 1080, mx: "auto" }}>
-      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <Box sx={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 2, mb: 3, flexWrap: "wrap" }}>
-          <Box>
-            <Typography variant="overline" sx={{ color: "text.secondary" }}>
-              {isPengetua ? "Principal view · read only" : "College operations"}
-            </Typography>
-            <Typography variant="h1" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
-              {title}
-            </Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-              {description}
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1, pr: 2, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}>
-            <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.brand[900], color: color.brand[300], fontFamily: "var(--font-sans), sans-serif", fontWeight: 600 }}>
-              {initial}
-            </Box>
-            <Box>
-              <Typography variant="caption" sx={{ color: "text.secondary", display: "block", lineHeight: 1.2 }}>Welcome,</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{userName}</Typography>
-            </Box>
-          </Box>
-        </Box>
-      </motion.div>
-
-      {canManage && totalPending > 0 && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            p: 2,
-            mb: 2.5,
-            borderRadius: 2,
-            backgroundColor: color.warning.soft,
-            color: color.warning.ink,
-          }}
-        >
-          <KIcon icon="schedule" size={22} />
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              You have {totalPending} booking{totalPending === 1 ? "" : "s"} pending your approval.
-            </Typography>
-          </Box>
-          <Button
-            component={Link}
-            href={`/${role}/urus-tempahan-fasiliti`}
-            size="small"
-            variant="contained"
-            startIcon={<KIcon icon="arrow_forward" size={16} />}
-          >
-            Review now
-          </Button>
-        </Box>
-      )}
-
-      <Grid container spacing={1.5}>
-        {visibleCards.map((card) => (
-          <Grid key={card.href} size={{ xs: 12, sm: 6, lg: 2.4 }}>
-            <Link href={`/${role}/${card.href}`} style={{ textDecoration: "none", color: "inherit" }}>
-              <StatCard label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
-            </Link>
-          </Grid>
-        ))}
-      </Grid>
-
-      <Box sx={{ mt: 3 }}>
-        <KCard>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-            <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>
-              Quick Actions
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {canManage && (
-              <>
+    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+      <Bento>
+        {/* Hero — the attention surface */}
+        <BentoItem span={canManage ? 8 : 12}>
+          {allClear ? (
+            <HeroTile
+              eyebrow="All clear"
+              title={`Good to go, ${firstName}`}
+              body="No bookings are waiting on you right now."
+              action={
                 <Button
                   component={Link}
-                  href={`/${role}/urus-pengumuman`}
+                  href={`/${role}/urus-tempahan-fasiliti`}
+                  variant="outlined"
+                  endIcon={<KIcon icon="arrow_forward" size={17} />}
+                >
+                  View all bookings
+                </Button>
+              }
+            />
+          ) : canManage ? (
+            <HeroTile
+              tone="alert"
+              eyebrow="Needs your attention"
+              title={
+                <>
+                  You have {totalPending} booking{totalPending === 1 ? "" : "s"} pending your approval
+                </>
+              }
+              body={`Hi ${firstName} — review them to keep residents moving.`}
+              action={
+                <Button
+                  component={Link}
+                  href={`/${role}/urus-tempahan-fasiliti`}
                   variant="contained"
-                  startIcon={<KIcon icon="campaign" size={17} />}
+                  endIcon={<KIcon icon="arrow_forward" size={17} />}
                 >
-                  Publish Announcement
+                  Review now
                 </Button>
-                <Button
-                  component={Link}
-                  href={`/${role}/urus-parcel`}
-                  variant="outlined"
-                  startIcon={<KIcon icon="inventory_2" size={17} />}
-                >
-                  Register Parcel
-                </Button>
-                <Button
-                  component={Link}
-                  href={`/${role}/urus-helpdesk`}
-                  variant="outlined"
-                  startIcon={<KIcon icon="inbox" size={17} />}
-                >
-                  Helpdesk Inbox
-                </Button>
-              </>
-            )}
-            <Button
-              component={Link}
-              href={`/${role}/chat`}
-              variant="outlined"
-              startIcon={<KIcon icon="forum" size={17} />}
+              }
+            />
+          ) : (
+            <HeroTile
+              eyebrow={isPengetua ? "Principal · read only" : undefined}
+              title={`Welcome, ${firstName}`}
+              body="A read-only overview of college operations."
+            />
+          )}
+        </BentoItem>
+
+        {/* Metrics — 2×2 beside the hero on desktop, 2-up on mobile */}
+        {canManage ? (
+          <BentoItem span={4} spanXs={2}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+                gap: { xs: 1.25, sm: 1.5, md: 2 },
+                height: "100%",
+              }}
             >
-              Community Chat
-            </Button>
-            {!canManage && (
-              <Button
-                component={Link}
-                href={`/${role}/pengumuman`}
-                variant="outlined"
-                startIcon={<KIcon icon="campaign" size={17} />}
-              >
-                View Announcements
-              </Button>
-            )}
+              {visibleMetrics.map((m) => (
+                <MetricTile key={m.href} {...m} href={`/${role}/${m.href}`} />
+              ))}
+            </Box>
+          </BentoItem>
+        ) : (
+          visibleMetrics.map((m, i) => (
+            <BentoItem key={m.href} span={3} delay={0.04 * i}>
+              <MetricTile {...m} href={`/${role}/${m.href}`} />
+            </BentoItem>
+          ))
+        )}
+
+        {/* Quick actions */}
+        <BentoItem span={12} sx={{ mt: { xs: 1, md: 1.5 } }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary", mb: 1.5 }}>
+            Quick actions
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "repeat(2, minmax(0,1fr))",
+                sm: "repeat(3, minmax(0,1fr))",
+                md: "repeat(6, minmax(0,1fr))",
+              },
+              gap: { xs: 1.25, sm: 1.5, md: 2 },
+            }}
+          >
+            {actions.map((a) => (
+              <ActionTile key={a.href} {...a} href={`/${role}/${a.href}`} />
+            ))}
           </Box>
-        </KCard>
-      </Box>
+        </BentoItem>
+      </Bento>
     </Box>
   )
 }

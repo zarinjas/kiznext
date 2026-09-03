@@ -10,7 +10,7 @@ import Chip from "@mui/material/Chip"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 export default async function DirektoriPage() {
   const session = await auth()
@@ -35,7 +35,7 @@ export default async function DirektoriPage() {
       />
 
       {blocks.length === 0 ? (
-        <KEmpty icon="map" title="No blocks yet" body="Directory will appear here once blocks are added." />
+        <KEmpty icon="map" title="Directory's empty for now" body="Once blocks are added, they'll show up right here." />
       ) : (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
           {blocks.map((block) => (
@@ -44,31 +44,24 @@ export default async function DirektoriPage() {
               sx={{
                 border: "1px solid",
                 borderColor: "divider",
-                borderRadius: 2.5,
+                borderRadius: `${radius.cardLg}px !important`,
                 boxShadow: "none",
                 "&:before": { display: "none" },
                 "&.Mui-expanded": { margin: 0 },
               }}
             >
-              <AccordionSummary expandIcon={<KIcon icon="expand_more" size={20} />} sx={{ px: 2.5, py: 0.5 }}>
+              <AccordionSummary
+                expandIcon={<KIcon icon="expand_more" size={20} />}
+                sx={{ px: 2, py: 0.5, minHeight: 64 }}
+              >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: color.brand[50],
-                      color: color.brand[700],
-                      flexShrink: 0,
-                    }}
-                  >
-                    <KIcon icon="location_on" size={20} />
-                  </Box>
+                  <KIcon
+                    icon="location_on"
+                    size={20}
+                    sx={{ color: "var(--mui-palette-text-disabled)", flexShrink: 0 }}
+                  />
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    <Typography sx={{ fontWeight: 550, letterSpacing: "-0.011em" }}>
                       {block.name}
                     </Typography>
                     <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
@@ -77,7 +70,7 @@ export default async function DirektoriPage() {
                   </Box>
                 </Box>
               </AccordionSummary>
-              <AccordionDetails sx={{ px: 2.5, pb: 2.5 }}>
+              <AccordionDetails sx={{ px: 2, pb: 2.5 }}>
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
                   {block.description}
                 </Typography>

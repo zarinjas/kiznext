@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
@@ -39,9 +39,17 @@ export function BookingForm({ facility, role }: Props) {
   const [loading, setLoading] = useState(false)
   const [bookingRef, setBookingRef] = useState("")
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const minDate = tomorrow.toISOString().split("T")[0]
+  // min date is applied after mount so the SSR HTML and the first client render
+  // agree (avoids a hydration mismatch on the `min` attribute near midnight).
+  const [minDate, setMinDate] = useState("")
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const t = new Date()
+      t.setDate(t.getDate() + 1)
+      setMinDate(t.toISOString().split("T")[0])
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -57,7 +65,7 @@ export function BookingForm({ facility, role }: Props) {
       setStep("done")
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred")
+      setError(err instanceof Error ? err.message : "Oops, something went sideways — try again.")
     } finally {
       setLoading(false)
     }
@@ -82,12 +90,12 @@ export function BookingForm({ facility, role }: Props) {
         >
           <KIcon icon="check_circle" size={32} />
         </Box>
-        <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>Booking Submitted!</Typography>
+        <Typography variant="h3">Yay! Booking sent 🎉</Typography>
         <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
           Reference No.: <Box component="span" sx={{ fontFamily: "var(--font-mono), monospace", fontWeight: 700 }}>{bookingRef}</Box>
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
-          Your booking is pending admin approval.
+          Sitting with the admin for approval now — hang tight!
         </Typography>
         <Button sx={{ mt: 3 }} variant="contained" onClick={() => router.push(`/${role}/tempahan-fasiliti`)}>
           Back to facilities
@@ -162,7 +170,7 @@ export function BookingForm({ facility, role }: Props) {
       )}
 
       <Box sx={{ mb: 2.5 }}>
-        <Typography variant="h2" sx={{ fontFamily: "var(--font-sans), sans-serif" }}>{facility.name}</Typography>
+        <Typography variant="h2">{facility.name}</Typography>
         <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>{facility.description}</Typography>
 
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mt: 1.5 }}>

@@ -1,88 +1,177 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import Link from "next/link"
+import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { KIcon } from "@/components/kiz/primitives/icon"
+import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { SignOutButton } from "@/components/shared/sign-out-button"
+import { getBilikWindowState } from "@/lib/bilik"
+import { color, font, radius } from "@/lib/theme"
 
-const menuItems = [
-  { label: "Guest House", description: "Book accommodation for guests", href: "rumah-tamu", icon: "hotel" },
-  { label: "Helpdesk", description: "Contact KIZ management", href: "helpdesk", icon: "support_agent" },
-  { label: "My Parcels", description: "Check your parcel status", href: "parcel", icon: "inventory_2" },
-  { label: "Lost & Found", description: "Report or check lost items", href: "hilang", icon: "search" },
-  { label: "Block Directory", description: "Guide to block & facility locations", href: "direktori", icon: "map" },
-  { label: "My Profile", description: "Update personal info", href: "profile", icon: "person" },
-  { label: "My Bookings", description: "View all your bookings", href: "tempahan", icon: "calendar_month" },
-]
+function buildGroups(role: string): { label: string; items: { label: string; href: string; icon: string }[] }[] {
+  return [
+    {
+      label: "Bookings",
+      items: [
+        ...(role === "ahli" ? [{ label: "Choose room", href: "bilik", icon: "bedroom_parent" }] : []),
+        { label: "My bookings", href: "tempahan", icon: "calendar_month" },
+        { label: "Book a facility", href: "tempahan-fasiliti", icon: "meeting_room" },
+        { label: "Guest house", href: "rumah-tamu", icon: "hotel" },
+      ],
+    },
+    {
+      label: "Support",
+      items: [
+        { label: "Helpdesk", href: "helpdesk", icon: "support_agent" },
+        { label: "Lost & found", href: "hilang", icon: "search" },
+        { label: "Offices", href: "pejabat", icon: "domain" },
+        { label: "Block directory", href: "direktori", icon: "map" },
+      ],
+    },
+    {
+      label: "Account",
+      items: [
+        { label: "My profile", href: "profile", icon: "person" },
+        { label: "eCard", href: "kad-maya", icon: "qr_code_2" },
+      ],
+    },
+  ]
+}
 
 export default async function LagiPage({ params }: { params: Promise<{ role: string }> }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   const { role } = await params
 
+  const [user, bilikState] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true, matricId: true, block: true, roomNumber: true, avatarUrl: true },
+    }),
+    getBilikWindowState(),
+  ])
+  const bilikOpen = bilikState === "open" || bilikState === "closing_soon"
+  const groups = buildGroups(session.user.role)
+
+  const initial = (user?.name?.trim().charAt(0) || "K").toUpperCase()
+
   return (
     <Box sx={{ maxWidth: 640, mx: "auto" }}>
-      <PageHeader overline="Menu" title="More" subtitle="All other KIZ Super App features." />
+      <PageHeader overline="Menu" title="More" />
 
+      {/* Identity card */}
       <Box
         sx={{
           display: "flex",
-          flexDirection: "column",
-          borderRadius: 2.5,
+          alignItems: "center",
+          gap: 2,
+          p: 2,
+          mb: 3,
+          borderRadius: `${radius.cardLg}px`,
           border: "1px solid",
           borderColor: "divider",
-          overflow: "hidden",
           backgroundColor: "background.paper",
         }}
       >
-        {menuItems.map((item, i) => (
-          <Link key={item.href} href={`/${role}/${item.href}`} style={{ textDecoration: "none", color: "inherit" }}>
+        {user?.avatarUrl ? (
+          <Box
+            component="img"
+            src={user.avatarUrl}
+            alt=""
+            sx={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              backgroundColor: "action.hover",
+              fontSize: 18,
+              fontWeight: 600,
+            }}
+          >
+            {initial}
+          </Box>
+        )}
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontWeight: 600, letterSpacing: "-0.015em" }}>
+            {user?.name}
+          </Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: font.mono }}>
+            {user?.matricId}
+            {[user?.block, user?.roomNumber].filter(Boolean).length > 0 &&
+              ` · ${[user?.block, user?.roomNumber].filter(Boolean).join(" • ")}`}
+          </Typography>
+        </Box>
+        <KIcon icon="chevron_right" size={18} sx={{ color: "var(--mui-palette-text-disabled)" }} />
+      </Box>
+
+      {/* Grouped menu */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {groups.map((g) => (
+          <ListGroup key={g.label} title={g.label}>
+            {g.items.map((item) => (
+              <ListRow
+                key={item.href}
+                href={`/${role}/${item.href}`}
+                icon={item.icon}
+                title={item.label}
+                trailing={
+                  item.href === "bilik" && bilikOpen ? (
+                    <Box
+                      sx={{
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        color: color.warning.ink,
+                        backgroundColor: color.warning.soft,
+                        px: 0.75,
+                        py: 0.25,
+                        borderRadius: 999,
+                      }}
+                    >
+                      Open
+                    </Box>
+                  ) : undefined
+                }
+              />
+            ))}
+          </ListGroup>
+        ))}
+
+        <ListGroup>
+          <SignOutButton>
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
                 gap: 1.5,
                 px: 2,
-                py: 1.5,
-                borderBottom: i !== menuItems.length - 1 ? "1px solid" : "none",
-                borderColor: "divider",
-                "&:hover": { backgroundColor: "action.hover" },
+                py: 1.75,
+                minHeight: 56,
+                width: "100%",
+                color: "error.main",
+                fontWeight: 550,
+                fontSize: 14,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+                WebkitTapHighlightColor: "transparent",
+                "&:active": { backgroundColor: "action.hover" },
               }}
             >
-              <Box
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "action.hover",
-                  color: "primary.main",
-                  flexShrink: 0,
-                }}
-              >
-                <KIcon icon={item.icon} size={20} />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>{item.label}</Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>{item.description}</Typography>
-              </Box>
-              <KIcon icon="chevron_right" size={18} sx={{ color: "text.disabled" }} />
+              <KIcon icon="logout" size={20} />
+              Log out
             </Box>
-          </Link>
-        ))}
-      </Box>
-
-      <Box sx={{ mt: 3 }}>
-        <SignOutButton>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider", color: "error.main", backgroundColor: "background.paper", fontWeight: 600, fontSize: 14 }}>
-            <KIcon icon="logout" size={18} />
-            Log Out
-          </Box>
-        </SignOutButton>
+          </SignOutButton>
+        </ListGroup>
       </Box>
     </Box>
   )

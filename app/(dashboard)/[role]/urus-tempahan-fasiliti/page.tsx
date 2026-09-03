@@ -7,10 +7,12 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
+import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { ApproveRejectButtons } from "./approve-reject-buttons"
 import { approveFacility, rejectFacility } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { color } from "@/lib/theme"
+import { font, radius } from "@/lib/theme"
 
 export default async function UrusTempahanFasilitiPage() {
   const session = await auth()
@@ -34,99 +36,111 @@ export default async function UrusTempahanFasilitiPage() {
     <Box sx={{ maxWidth: 1000, mx: "auto" }}>
       <PageHeader
         overline="Admin"
-        title="Approval Center"
-        subtitle="Approve or reject facility bookings. Review pending first."
+        title="Approval center"
+        subtitle={
+          pending.length > 0
+            ? `${pending.length} booking${pending.length === 1 ? "" : "s"} awaiting your approval.`
+            : "Approve or reject facility bookings."
+        }
       />
 
+      {/* Pending — full detail cards, the primary work surface */}
       {pending.length > 0 && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            p: 2,
-            mb: 2.5,
-            borderRadius: 2,
-            backgroundColor: color.warning.soft,
-            color: color.warning.ink,
-          }}
-        >
-          <KIcon icon="schedule" size={22} />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {pending.length} booking{pending.length === 1 ? "" : "s"} awaiting your approval.
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary", mb: 1.5 }}>
+            Awaiting approval · {pending.length}
           </Typography>
-        </Box>
-      )}
 
-      {pending.length > 0 && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
-            Awaiting Approval ({pending.length})
-          </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             {pending.map((b) => (
               <Box
                 key={b.id}
                 sx={{
-                  borderRadius: 2.5,
+                  borderRadius: `${radius.cardLg}px`,
                   border: "1px solid",
                   borderColor: "divider",
                   backgroundColor: "background.paper",
-                  p: 2,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 2,
-                  alignItems: "flex-start",
+                  p: { xs: 2, sm: 2.5 },
                 }}
               >
-                <Box
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: color.warning.soft,
-                    color: color.warning.ink,
-                    flexShrink: 0,
-                  }}
-                >
-                  <KIcon icon="task_alt" size={20} />
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 220 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {b.facility.name}
-                    <Box component="span" sx={{ ml: 1, fontSize: 12, fontWeight: 500, color: "text.secondary", fontFamily: "var(--font-mono), monospace" }}>
+                {/* Title row */}
+                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, mb: 1.5 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600, letterSpacing: "-0.015em" }}>
+                      {b.facility.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      {b.user.name} · {b.user.matricId}
+                    </Typography>
+                  </Box>
+                  {b.bookingRef && (
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.disabled", fontFamily: font.mono, flexShrink: 0 }}
+                    >
                       {b.bookingRef}
-                    </Box>
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {b.user.name} ({b.user.matricId})
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.25 }}>
-                    {b.timeSlotStart.toLocaleDateString("ms-MY", { day: "numeric", month: "short", year: "numeric" })} ·{" "}
-                    {b.timeSlotStart.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })} –{" "}
-                    {b.timeSlotEnd.toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}
-                    {b.purpose && ` · ${b.purpose}`}
-                  </Typography>
-                  {b.notes && (
-                    <Typography variant="caption" sx={{ color: "text.secondary", fontStyle: "italic", display: "block", mt: 0.5 }}>
-                      Notes: {b.notes}
                     </Typography>
                   )}
                 </Box>
-                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-                  {b.pdfUrl && (
+
+                {/* Detail grid */}
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" },
+                    gap: 1.25,
+                    p: 1.75,
+                    mb: 2,
+                    borderRadius: 2.5,
+                    backgroundColor: "action.hover",
+                  }}
+                >
+                  <Detail label="Date">
+                    {b.timeSlotStart.toLocaleDateString("en-MY", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </Detail>
+                  <Detail label="Time">
+                    {b.timeSlotStart.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })} –{" "}
+                    {b.timeSlotEnd.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+                  </Detail>
+                  {b.purpose && <Detail label="Purpose">{b.purpose}</Detail>}
+                  {b.notes && <Detail label="Notes">{b.notes}</Detail>}
+                </Box>
+
+                {/* Actions */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 1.5,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {b.pdfUrl ? (
                     <Box
                       component="a"
                       href={b.pdfUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      sx={{ display: "flex", alignItems: "center", gap: 0.5, fontSize: 12.5, fontWeight: 600, color: "text.secondary", textDecoration: "none", "&:hover": { color: color.brand[700] } }}
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        fontSize: 13,
+                        fontWeight: 550,
+                        color: "text.secondary",
+                        textDecoration: "none",
+                        "&:hover": { color: "text.primary" },
+                      }}
                     >
-                      <KIcon icon="description" size={16} /> PDF
+                      <KIcon icon="description" size={16} /> Slip
                     </Box>
+                  ) : (
+                    <Box />
                   )}
                   <ApproveRejectButtons bookingId={b.id} approve={approveFacility} reject={rejectFacility} />
                 </Box>
@@ -137,47 +151,56 @@ export default async function UrusTempahanFasilitiPage() {
       )}
 
       {pending.length === 0 && active.length === 0 && (
-        <Box sx={{ textAlign: "center", py: 6 }}>
-          <KIcon icon="task_alt" size={40} sx={{ color: color.success.main }} />
-          <Typography variant="h4" sx={{ fontWeight: 600, mt: 1.5 }}>Inbox zero</Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>No active bookings.</Typography>
+        <KEmpty icon="task_alt" title="Inbox zero 🎉" body="Nothing needs your attention right now." />
+      )}
+
+      {/* Approved */}
+      {active.length > 0 && (
+        <Box sx={{ mb: 4 }}>
+          <ListGroup title={`Approved · ${active.length}`}>
+            {active.map((b) => (
+              <ListRow
+                key={b.id}
+                icon="event_available"
+                title={b.facility.name}
+                subtitle={`${b.user.name} · ${b.timeSlotStart.toLocaleDateString("en-MY", {
+                  day: "numeric",
+                  month: "short",
+                })}`}
+                trailing={<StatusChip status={b.status} />}
+              />
+            ))}
+          </ListGroup>
         </Box>
       )}
 
+      {/* History */}
       {done.length > 0 && (
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h3" sx={{ fontFamily: "var(--font-sans), sans-serif", mb: 1.5 }}>
-            History ({done.length})
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {done.map((b) => (
-              <Box
-                key={b.id}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  p: 1.5,
-                  borderRadius: 2,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  backgroundColor: "background.paper",
-                }}
-              >
-                <KIcon icon="history" size={18} sx={{ color: "text.disabled" }} />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {b.facility.name}
-                    <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}> — {b.user.name}</Box>
-                  </Typography>
-                </Box>
-                <Typography variant="caption" sx={{ color: "text.disabled", fontFamily: "var(--font-mono), monospace" }}>{b.bookingRef}</Typography>
-                <StatusChip status={b.status} />
-              </Box>
-            ))}
-          </Box>
-        </Box>
+        <ListGroup title={`History · ${done.length}`}>
+          {done.map((b) => (
+            <ListRow
+              key={b.id}
+              icon="history"
+              title={b.facility.name}
+              subtitle={b.user.name}
+              trailing={<StatusChip status={b.status} />}
+            />
+          ))}
+        </ListGroup>
       )}
+    </Box>
+  )
+}
+
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="caption" sx={{ color: "text.disabled", display: "block" }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+        {children}
+      </Typography>
     </Box>
   )
 }

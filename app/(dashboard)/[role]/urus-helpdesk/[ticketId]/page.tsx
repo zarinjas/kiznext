@@ -47,7 +47,7 @@ export default async function AdminTicketPage({
       </Box>
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.75, mb: 2, borderRadius: 2, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper" }}>
-        <Box sx={{ width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "primary.main", color: "#fff", fontFamily: "var(--font-sans), sans-serif", fontWeight: 600 }}>
+        <Box sx={{ width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "primary.main", color: "#fff", fontWeight: 600 }}>
           {ticket.user.name.trim().charAt(0).toUpperCase()}
         </Box>
         <Box>

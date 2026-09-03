@@ -20,5 +20,5 @@ export function isOfficeHours(now: Date = new Date()): boolean {
 }
 
 export function getOfficeHoursMessage(): string {
-  return "Terima kasih kerana menghubungi pihak pengurusan KIZ. Waktu pejabat kami adalah Isnin–Jumaat, 8:00 pagi – 5:00 petang. Di luar waktu ini, mesej anda akan dijawab sebaik sahaja waktu pejabat bermula."
+  return "Thank you for contacting KIZ management. Our office hours are Monday–Friday, 8:00 AM – 5:00 PM. Outside these hours, your message will be answered as soon as the office opens."
 }

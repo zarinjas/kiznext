@@ -4,7 +4,12 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { motion } from "framer-motion"
 
-/** PageHeader — breadcrumb overline, Fraunces title, optional subtitle + actions. */
+/**
+ * PageHeader — deliberately compact so the fold stays dense.
+ *
+ * Mobile renders a tight large-title block (iOS style); desktop adds the
+ * optional eyebrow and lets actions sit inline on the right.
+ */
 export function PageHeader({
   overline,
   title,
@@ -22,37 +27,51 @@ export function PageHeader({
     <Box
       sx={{
         display: "flex",
-        alignItems: { xs: "stretch", sm: "flex-end" },
+        alignItems: { xs: "flex-start", sm: "center" },
         justifyContent: "space-between",
         flexDirection: { xs: "column", sm: "row" },
-        gap: 2,
-        mb: 3,
+        gap: { xs: 1.5, sm: 2 },
+        mb: { xs: 2, sm: 2.5 },
       }}
     >
-      <Box>
+      <Box sx={{ minWidth: 0 }}>
         {overline && (
-          <Typography variant="overline" sx={{ color: "text.secondary", letterSpacing: "0.08em" }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.disabled", display: { xs: "none", sm: "block" }, mb: 0.25 }}
+          >
             {overline}
           </Typography>
         )}
         <Typography
-          variant="h1"
           sx={{
-            fontFamily: "var(--font-sans), sans-serif",
-            fontWeight: 560,
-            letterSpacing: "-0.01em",
+            fontSize: { xs: 24, sm: 26 },
+            fontWeight: 640,
+            lineHeight: 1.15,
+            letterSpacing: "-0.032em",
           }}
         >
           {title}
         </Typography>
         {subtitle && (
-          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, maxWidth: 520 }}>
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, maxWidth: 560 }}>
             {subtitle}
           </Typography>
         )}
       </Box>
+
       {actions && (
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: "wrap",
+            alignItems: "center",
+            width: { xs: "100%", sm: "auto" },
+            flexShrink: 0,
+            "& > *": { flex: { xs: "1 1 auto", sm: "0 0 auto" }, minWidth: { xs: 120, sm: "auto" } },
+          }}
+        >
           {actions}
         </Box>
       )}
@@ -61,7 +80,7 @@ export function PageHeader({
 
   if (!animate) return content
   return (
-    <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
       {content}
     </motion.div>
   )

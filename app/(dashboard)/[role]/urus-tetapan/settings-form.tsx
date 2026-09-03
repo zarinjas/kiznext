@@ -30,7 +30,7 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     const formData = new FormData(e.currentTarget)
     const file = formData.get("logo") as File
     if (!file || file.size === 0) {
-      setError("Please select a file")
+      setError("Pick a file first — we can't upload thin air.")
       return
     }
 
@@ -40,10 +40,10 @@ export function SettingsForm({ currentLogoUrl }: Props) {
 
     if (result.success) {
       setPreview(result.url ?? null)
-      setSuccess("Logo updated!")
+      setSuccess("New look, who dis? Logo updated! ✨")
       router.refresh()
     } else {
-      setError(result.error ?? "Upload failed")
+      setError(result.error ?? "Upload didn't go through — give it another shot.")
     }
   }
 
@@ -57,10 +57,10 @@ export function SettingsForm({ currentLogoUrl }: Props) {
 
     if (result.success) {
       setPreview(null)
-      setSuccess("Logo removed")
+      setSuccess("Logo's gone — back to the default look.")
       router.refresh()
     } else {
-      setError(result.error ?? "Remove failed")
+      setError(result.error ?? "Couldn't remove it — try again.")
     }
   }
 

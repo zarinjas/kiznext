@@ -105,7 +105,8 @@ export function SmartTable<T extends GridRowModel>({
             letterSpacing: "0.06em",
             textTransform: "uppercase",
           },
-          "& .MuiDataGrid-cell": { borderBottom: "1px solid", borderColor: "divider", fontSize: "0.8125rem" },
+          "& .MuiDataGrid-columnHeader": { paddingInline: "14px" },
+          "& .MuiDataGrid-cell": { borderBottom: "1px solid", borderColor: "divider", fontSize: "0.8125rem", paddingInline: "14px", display: "flex", alignItems: "center" },
           "& .MuiDataGrid-row:hover": { backgroundColor: "action.hover" },
           "& .MuiDataGrid-row.Mui-selected, & .MuiDataGrid-row.Mui-selected:hover": {
             backgroundColor: color.brand[50],

@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation"
 import Box from "@mui/material/Box"
 import { navForRole } from "./nav-config"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { color } from "@/lib/theme"
+import { glass, color } from "@/lib/theme"
 import type { Role } from "@/lib/rbac"
 
-/** BottomNav — mobile 5-slot nav (home, bookings, chat, more/eCard). */
-export function BottomNav({ role }: { role: Role }) {
+/**
+ * BottomNav — native-app tab bar. Flush frosted bar, 5 equal slots,
+ * iOS-style icon + label, safe-area aware. No raised FAB.
+ */
+export function BottomNav({ role, bilikOpen = false }: { role: Role; bilikOpen?: boolean }) {
   const pathname = usePathname()
   const groups = navForRole(role)
 
@@ -23,12 +26,19 @@ export function BottomNav({ role }: { role: Role }) {
 
   const home = groups[0]?.items[0]
   const facilities = find("Facilities")
+  const kad = find("eCard")
   const chat = find("Community Chat")
-  const kad = find("Kad Maya")
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/")
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/")
 
-  const slots = [home, facilities, chat].filter(Boolean) as { label: string; href: string; icon: string }[]
+  const tabs = [
+    home && { label: "Home", href: home.href, icon: "home" },
+    facilities && { label: "Book", href: facilities.href, icon: facilities.icon },
+    kad && { label: "eCard", href: kad.href, icon: kad.icon },
+    chat && { label: "Chat", href: chat.href, icon: chat.icon },
+    { label: "More", href: `/${role}/lagi`, icon: "grid_view" },
+  ].filter(Boolean) as { label: string; href: string; icon: string }[]
 
   return (
     <Box
@@ -39,68 +49,60 @@ export function BottomNav({ role }: { role: Role }) {
         insetInline: 0,
         zIndex: 20,
         display: { xs: "flex", md: "none" },
-        height: 64,
-        alignItems: "center",
-        justifyContent: "space-around",
-        px: 1.5,
+        alignItems: "stretch",
+        minHeight: 56,
+        pb: "env(safe-area-inset-bottom)",
         borderTop: "1px solid",
         borderColor: "divider",
-        backgroundColor: "rgba(255,255,255,0.86)",
-        backdropFilter: "blur(14px)",
-        paddingBottom: "env(safe-area-inset-bottom)",
+        backgroundColor: glass.background,
+        backdropFilter: "blur(20px) saturate(1.6)",
+        WebkitBackdropFilter: "blur(20px) saturate(1.6)",
       }}
     >
-      {slots.map((s) => {
-        const active = isActive(s.href)
+      {tabs.map((t) => {
+        const active = isActive(t.href)
+        const isMore = t.href.endsWith("/lagi")
         return (
-          <Link key={s.href} href={s.href} style={{ textDecoration: "none" }}>
+          <Link key={t.href} href={t.href} style={{ textDecoration: "none", flex: 1 }}>
             <Box
               sx={{
+                minHeight: 56,
+                py: 0.5,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                justifyContent: "center",
                 gap: 0.25,
-                minWidth: 56,
-                color: active ? color.brand[700] : "text.secondary",
+                color: active ? "text.primary" : "text.disabled",
+                transition: "color 150ms",
+                "&:active": { opacity: 0.6 },
               }}
             >
-              <KIcon icon={s.icon} size={22} filled={active} />
-              <Box sx={{ fontSize: 10.5, fontWeight: active ? 700 : 500 }}>{s.label}</Box>
+              <Box sx={{ position: "relative", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <KIcon icon={t.icon} size={22} filled={active} weight={active ? 500 : 400} />
+                {isMore && bilikOpen && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: -1,
+                      right: -1,
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: color.warning.main,
+                      border: "1.5px solid",
+                      borderColor: "background.default",
+                    }}
+                  />
+                )}
+              </Box>
+              <Box sx={{ fontSize: 10.5, fontWeight: active ? 600 : 450, letterSpacing: "-0.01em" }}>
+                {t.label}
+              </Box>
             </Box>
           </Link>
         )
       })}
-
-      {/* Center eCard action */}
-      <Link href={kad?.href ?? `/${role}/kad-maya`} style={{ textDecoration: "none" }}>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25, color: isActive(kad?.href ?? "") ? color.brand[700] : "text.secondary" }}>
-          <Box
-            sx={{
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: color.brand[900],
-              color: color.brand[300],
-              mt: -2.5,
-              border: "3px solid",
-              borderColor: "background.default",
-            }}
-          >
-            <KIcon icon="qr_code_2" size={22} />
-          </Box>
-          <Box sx={{ fontSize: 10.5, fontWeight: isActive(kad?.href ?? "") ? 700 : 500 }}>eCard</Box>
-        </Box>
-      </Link>
-
-      <Link href={`/${role}/lagi`} style={{ textDecoration: "none" }}>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25, color: isActive(`/${role}/lagi`) ? color.brand[700] : "text.secondary" }}>
-          <KIcon icon="grid_view" size={22} filled={isActive(`/${role}/lagi`)} />
-          <Box sx={{ fontSize: 10.5, fontWeight: isActive(`/${role}/lagi`) ? 700 : 500 }}>More</Box>
-        </Box>
-      </Link>
     </Box>
   )
 }

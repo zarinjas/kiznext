@@ -21,6 +21,7 @@ interface ProfileUser {
   phone: string | null
   role: string
   avatarUrl: string | null
+  gender: "male" | "female" | null
 }
 
 export function ProfileForm({ user }: { user: ProfileUser }) {
@@ -72,10 +73,10 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: color.brand[50],
-                  color: color.brand[700],
-                  fontFamily: "var(--font-sans), sans-serif",
+                  backgroundColor: "action.hover",
+                  color: "text.primary",
                   fontSize: 30,
+                  fontWeight: 600,
                 }}
               >
                 {user.name.trim().charAt(0).toUpperCase()}
@@ -120,7 +121,7 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
                   const data = await res.json()
                   setAvatarUrl(data.url)
                 } catch {
-                  alert("Upload failed")
+                  alert("Upload didn't go through — try again.")
                 } finally {
                   setUploading(false)
                 }
@@ -138,6 +139,13 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
       <FormSection title="Personal Information" icon="badge">
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField id="matricId" label="Matric No." value={user.matricId} disabled />
+          <TextField
+            id="gender"
+            label="Gender"
+            value={user.gender ? (user.gender === "male" ? "Male" : "Female") : "—"}
+            disabled
+            helperText="From your intake record — contact the KIZ office if this is wrong."
+          />
           <TextField id="name" name="name" label="Name" defaultValue={user.name} required />
           <TextField id="email" name="email" label="Email" type="email" defaultValue={user.email ?? ""} />
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
@@ -153,7 +161,7 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
           {saving ? "Saving…" : "Save Changes"}
         </KButton>
         {done && (
-          <Alert severity="success" sx={{ flex: 1 }}>Profile updated successfully.</Alert>
+          <Alert severity="success" sx={{ flex: 1 }}>Yay! Your profile is looking good.</Alert>
         )}
       </Box>
     </form>

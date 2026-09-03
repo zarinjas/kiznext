@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import Box from "@mui/material/Box"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
@@ -33,11 +33,23 @@ function isDateInRange(date: Date, start: Date, end: Date): boolean {
 }
 
 export function AvailabilityCalendar({ bookings }: Props) {
-  const today = useMemo(() => {
-    const d = new Date(); d.setHours(0, 0, 0, 0); return d
+  // "Today" starts null so the server and first client render agree (no
+  // time-derived cell styling), then fills after mount — avoids a hydration
+  // mismatch on the highlighted "today" cell if midnight is crossed mid-load.
+  const [today, setToday] = useState<Date | null>(null)
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      setToday(d)
+    }, 0)
+    return () => window.clearTimeout(id)
   }, [])
 
-  const [viewDate, setViewDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
+  const [viewDate, setViewDate] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1)
+  })
 
   const year = viewDate.getFullYear()
   const month = viewDate.getMonth()
@@ -62,6 +74,7 @@ export function AvailabilityCalendar({ bookings }: Props) {
   }
 
   function getDayStatus(d: number): "past" | "today" | "booked" | "free" {
+    if (!today) return "free"
     const date = new Date(year, month, d); date.setHours(0, 0, 0, 0)
     if (date < today) return "past"
     if (date.getTime() === today.getTime()) return "today"
