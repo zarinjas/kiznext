@@ -16,21 +16,13 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== 1. journalctl (last 120 lines, error/action markers) ====="
-            journalctl -u mykiznext -n 120 --no-pager 2>/dev/null | grep -iE "error|action|origin|host|csrf|invalid|abort|settings|sharp|upload" | tail -80
+            echo "===== 1. FULL stack trace of 'Invalid URL' error (last 200 lines) ====="
+            journalctl -u mykiznext -n 200 --no-pager 2>/dev/null | grep -A40 "TypeError: Invalid URL" | tail -120
             echo
-            echo "===== 2. AUTH_URL in .env ====="
-            grep -E "AUTH_URL" /home/mykiz.my/kiznext/.env 2>/dev/null | sed 's/=.*/=<set>/'
+            echo "===== 2. AUTH_URL + all env keys (names only) ====="
+            grep -oE "^[A-Z_]+" /home/mykiz.my/kiznext/.env 2>/dev/null | sort
+            echo "--- AUTH_URL raw (masked value) ---"
+            grep -E "AUTH_URL" /home/mykiz.my/kiznext/.env 2>/dev/null | sed -E 's#(https?://)[^/]*#\1<host>#'
             echo
-            echo "===== 3. deployed next.config (allowedOrigins present?) ====="
-            grep -A4 "serverActions" /home/mykiz.my/kiznext/next.config.ts 2>/dev/null
-            echo
-            echo "===== 4. uploads dir perms ====="
-            ls -ld /home/mykiz.my/kiznext/public/uploads 2>/dev/null
-            echo
-            echo "===== 5. sharp native module ====="
-            ls -l /home/mykiz.my/kiznext/node_modules/sharp/build/Release/*.node 2>/dev/null || echo "no sharp native binary"
-            cd /home/mykiz.my/kiznext && node -e "const s=require('sharp'); console.log('sharp version:', s.versions.sharp, '| vips:', s.versions.vips)" 2>&1 | head -5
-            echo
-            echo "===== 6. node + OS ====="
-            node -v; ldd --version 2>/dev/null | head -1; uname -m
+            echo "===== 3. recent journalctl full tail (no grep) ====="
+            journalctl -u mykiznext -n 60 --no-pager 2>/dev/null
