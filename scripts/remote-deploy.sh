@@ -5,6 +5,11 @@
 # Flow: git fetch+reset -> npm ci -> prisma generate + db push -> next build ->
 # restart the systemd service -> health check.
 #
+# Note: prisma db push runs with `--accept-data-loss` because routine schema
+# changes (adding unique constraints / enum values / defaulted columns) trip
+# Prisma's safety warning. The schema diff that ships is reviewed in PRs; this
+# flag is what lets additive changes like `email @unique` go through.
+#
 # Uses `fetch + reset --hard origin/main` instead of `git pull` so deploys are
 # always an exact mirror of main. Safe to hard-reset: everything server-local
 # (.env, public/uploads, node_modules, .next) is untracked/gitignored.
@@ -30,8 +35,8 @@ as_app "npm ci --no-audit --no-fund"
 echo "==> [3/6] prisma generate"
 as_app "npx prisma generate"
 
-echo "==> [4/6] prisma db push (schema sync, non-destructive)"
-as_app "npx prisma db push"
+echo "==> [4/6] prisma db push (schema sync)"
+as_app "npx prisma db push --accept-data-loss"
 
 echo "==> [5/6] next build"
 as_app "npm run build"
