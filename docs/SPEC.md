@@ -27,7 +27,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Community Chat | One shared room for all residents. Admins can soft-delete messages. |
 | Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
 | Lost & Found | Community-reported lost/found items with a photo. |
-| Room Selection | Accepted students (imported from eKolej via CSV) pick a block → floor → room → bed slot during an admin-defined window, cinema-seat style. Admin imports the list, sets the window, models the building, monitors occupancy, and backfills unselected students after the deadline. See `ROOM-SELECTION.md`. |
+| Accommodation Applications | Accepted students (imported from eKolej via CSV) request a single room, a same-gender double-room roommate by matric ID, or flexible placement during an admin-defined window. Students never choose or see physical rooms; admins allocate final rooms after review. See `ROOM-SELECTION.md`. |
 | Directory | Block and facility listing with navigation notes. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
 
@@ -55,7 +55,7 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `ahli`.
 | Manage facilities, parcels | ✓ | ✓ | — | — |
 | App settings (logo) | ✓ | ✓ | — | — |
 | View-only reporting | ✓ | ✓ | ✓ | — |
-| Pick a residence room (`bilik`) | — | — | — | ✓ |
+| Submit an accommodation application (`bilik`) | — | — | — | ✓ |
 | Configure guest houses | ✓ | ✓ | — | — |
 
 `pengetua` (principal) is read-only by design — no approval rights.
@@ -110,8 +110,10 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `SelectionWindow` | selection_windows | `name`, `opensAt`, `closesAt`, `closingSoonHours`, `isActive`. One active at a time. |
 | `Intake` | intakes | one CSV import batch. `name`, `status` (draft/imported/active/archived), `importedById`, `rowCount`. One `active` intake = the current accepted list. |
 | `EligibleStudent` | eligible_students | a row from the eKolej accepted list. `matricId`, `name`, `gender`, `religion`, `race`, `nationality`, B40/OKU/Uniform flags, `merit`, `userId` (linked on first login), `selectedAt`, `assignedByAdmin`. `@@unique([intakeId, matricId])`. |
+| `RoomApplication` | room_applications | one soft-deletable preference per applicant: `type` (single/double/flexible), status, optional same-gender roommate, submission and response times. This does not allocate a physical bed. |
 
-New enums: `Gender` (male/female), `RoomType` (single/double), `RoomStatus`
+New enums: `Gender` (male/female), `RoomType` (single/double), `RoomApplicationType`
+(single/double/flexible), `RoomApplicationStatus`, `RoomStatus`
 (available/maintenance/closed), `BedPosition` (single/left/right), `IntakeStatus`
 (draft/imported/active/archived).
 

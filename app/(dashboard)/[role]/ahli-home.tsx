@@ -47,7 +47,7 @@ const quickActions = [
   { label: "Helpdesk", href: "helpdesk", icon: "support_agent", tint: color.warning },
   { label: "Lost & found", href: "hilang", icon: "search", tint: color.danger },
   { label: "Offices", href: "pejabat", icon: "domain", tint: color.info },
-  { label: "Directory", href: "direktori", icon: "map", tint: color.success },
+  { label: "AR Directory", href: "direktori", icon: "view_in_ar", tint: { main: color.brand[600], soft: color.brand[50], ink: color.brand[800] } },
   { label: "My bookings", href: "tempahan", icon: "calendar_month", tint: color.neutral },
 ]
 
@@ -101,7 +101,7 @@ export function AhliHome({ user, announcements, bookings, role, roomReminder, gr
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography sx={{ fontWeight: 640, letterSpacing: "-0.02em", fontSize: { xs: 15, sm: 17 } }}>
-                    Time to pick your room
+                    Complete your accommodation application
                   </Typography>
                   <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
                     Room selection is open{roomReminder.closesAt ? ` — closes ${formatMalaysia(new Date(roomReminder.closesAt))}` : ""}. Choose your bed before it closes.

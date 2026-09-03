@@ -66,19 +66,19 @@ export function NavDrawer({
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
             {logoUrl ? (
-              <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 28, width: "auto", objectFit: "contain" }} />
+              <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 34, width: "auto", objectFit: "contain", borderRadius: 0.4 }} />
             ) : (
               <Box
                 sx={{
-                  width: 30,
-                  height: 30,
+                  width: 36,
+                  height: 36,
                   borderRadius: 2,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: color.brand[900],
                   color: "#fff",
-                  fontSize: 14,
+                  fontSize: 17,
                   fontWeight: 650,
                   letterSpacing: "-0.02em",
                 }}
@@ -86,14 +86,6 @@ export function NavDrawer({
                 K
               </Box>
             )}
-            <Box sx={{ minWidth: 0 }}>
-              <Box sx={{ fontWeight: 600, fontSize: 14, color: "text.primary", lineHeight: 1.25, letterSpacing: "-0.015em" }}>
-                KIZ
-              </Box>
-              <Box sx={{ fontSize: 11.5, color: "text.secondary", lineHeight: 1.25 }}>
-                Kolej Ibu Zain
-              </Box>
-            </Box>
           </Box>
           <Box
             component="button"

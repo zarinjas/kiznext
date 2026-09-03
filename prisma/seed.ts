@@ -13,7 +13,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { matricId: "ADMIN001" },
-    update: {},
+    update: { passwordHash, deletedAt: null },
     create: {
       matricId: "ADMIN001",
       name: "Super Admin",
@@ -25,7 +25,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { matricId: "ADMIN002" },
-    update: {},
+    update: { passwordHash, deletedAt: null },
     create: {
       matricId: "ADMIN002",
       name: "Admin KIZ",
@@ -37,7 +37,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { matricId: "A123456" },
-    update: {},
+    update: { passwordHash, deletedAt: null },
     create: {
       matricId: "A123456",
       name: "Example Student",
@@ -334,7 +334,8 @@ async function main() {
 
   // Active intake with a realistic batch of accepted students. Every student gets
   // a login account (password kiz123) so any of them can be used to test the
-  // room picker. A123456 is the demo login and stays unassigned so you can pick.
+  // accommodation application. A123456 is the demo login and stays unassigned
+  // so the student application flow can be tested.
   const eligibleData = [
     { matricId: "A123456", name: "Example Student", gender: "female" as const, religion: "Islam", race: "Malay" },
     { matricId: "A200001", name: "Nurul Aisyah Rahman", gender: "female" as const, religion: "Islam", race: "Malay" },
@@ -473,7 +474,9 @@ async function main() {
       await tx.bed.update({ where: { id: bed.id }, data: { occupantId: studentId } })
       await tx.eligibleStudent.update({
         where: { id: studentId },
-        data: { selectedAt: now, assignedByAdmin: false },
+        // These are final-allocation fixtures for the admin inventory view, not
+        // student applications. Keep them unpublished by default.
+        data: { selectedAt: now, assignedByAdmin: true },
       })
       await tx.user.updateMany({
         where: { matricId: row.matricId },
@@ -481,9 +484,15 @@ async function main() {
       })
     })
   }
-  console.log(`Dummy occupants placed (${occupancyPlan.length} beds) — roommates visible in the picker`)
+  console.log(`Dummy final allocations placed (${occupancyPlan.length} beds)`)
 
-  // Open selection window: opened yesterday, closes in 7 days.
+  await prisma.appSetting.upsert({
+    where: { key: "bilik_allocations_published" },
+    update: { value: "false" },
+    create: { key: "bilik_allocations_published", value: "false" },
+  })
+
+  // Open accommodation application window: opened yesterday, closes in 7 days.
   const existingWindow = await prisma.selectionWindow.findFirst({ where: { isActive: true } })
   if (!existingWindow) {
     const now = new Date()

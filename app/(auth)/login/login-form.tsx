@@ -1,7 +1,6 @@
 "use client"
 
 import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
@@ -22,29 +21,38 @@ const highlights = [
 ]
 
 export function LoginForm({ logoUrl }: Props) {
-  const router = useRouter()
   const [error, setError] = useState<string>("")
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleLogin(matricId: string, password: string) {
     setLoading(true)
     setError("")
 
-    const form = new FormData(e.currentTarget)
-    const matricId = form.get("matricId") as string
-    const password = form.get("password") as string
+    try {
+      const result = await signIn("credentials", {
+        matricId: matricId.trim().toUpperCase(),
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
+      })
 
-    const result = await signIn("credentials", { matricId, password, redirect: false })
+      if (result?.error || !result?.url) {
+        setError("Hmm, that Matric No. or password doesn't match. Give it another go.")
+        setLoading(false)
+        return
+      }
 
-    if (result?.error) {
-      setError("Hmm, that Matric No. or password doesn't match. Give it another go.")
+      window.location.assign(result.url)
+    } catch {
+      setError("We could not connect to the login service. Please try again.")
       setLoading(false)
-      return
     }
+  }
 
-    router.push("/dashboard")
-    router.refresh()
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = new FormData(e.currentTarget)
+    await handleLogin(form.get("matricId") as string, form.get("password") as string)
   }
 
   return (
@@ -110,6 +118,23 @@ export function LoginForm({ logoUrl }: Props) {
             >
               {loading ? "Signing in…" : "Sign in"}
             </Button>
+          </Box>
+
+          <Box sx={{ mt: 3, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Quick demo login (password: kiz123)
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1.5 }}>
+              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("A123456", "kiz123")}>
+                Student (ahli)
+              </Button>
+              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("ADMIN002", "kiz123")}>
+                Admin KIZ
+              </Button>
+              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("ADMIN001", "kiz123")}>
+                Super Admin
+              </Button>
+            </Box>
           </Box>
 
           <Typography variant="caption" sx={{ display: "block", mt: 4, color: "text.disabled" }}>

@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
-import { getOccupancySummary, getActiveWindow, OCCUPANT_PRIVACY_KEY } from "@/lib/bilik"
+import { getOccupancySummary, getActiveWindow, ALLOCATIONS_PUBLISHED_KEY } from "@/lib/bilik"
 import { revalidatePath } from "next/cache"
 import { parseCsvToObjects } from "@/lib/csv"
 import { mapEkolejRows, nowMalaysia, windowState, type MappedRow } from "@/lib/room-selection"
@@ -223,16 +223,22 @@ export async function saveWindow(input: {
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
 
-// ── Occupant privacy ──────────────────────────────────────────────────────
-
-export async function setOccupantPrivacy(mode: "full" | "limited") {
+export async function setAllocationsPublished(published: boolean) {
   const session = await requireAdmin()
+  if (published) {
+    const intake = await prisma.intake.findFirst({ where: { status: "active", deletedAt: null } })
+    if (intake) {
+      const awaiting = await prisma.eligibleStudent.count({ where: { intakeId: intake.id, deletedAt: null, bed: null } })
+      if (awaiting > 0) throw new Error(`${awaiting} student${awaiting === 1 ? " is" : "s are"} still awaiting allocation. Complete the list before publishing.`)
+    }
+  }
   await prisma.appSetting.upsert({
-    where: { key: OCCUPANT_PRIVACY_KEY },
-    update: { value: mode },
-    create: { key: OCCUPANT_PRIVACY_KEY, value: mode },
+    where: { key: ALLOCATIONS_PUBLISHED_KEY },
+    update: { value: String(published) },
+    create: { key: ALLOCATIONS_PUBLISHED_KEY, value: String(published) },
   })
   revalidatePath(`/${session.user.role}/urus-bilik`)
+  revalidatePath("/ahli/bilik")
 }
 
 // ── Building management ────────────────────────────────────────────────────
@@ -404,6 +410,19 @@ export async function setRoomStatus(roomId: string, status: "available" | "maint
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
 
+/** Update several rooms together from the inventory workspace. */
+export async function setRoomsStatus(roomIds: string[], status: "available" | "maintenance" | "closed") {
+  const session = await requireAdmin()
+  const ids = [...new Set(roomIds.filter(Boolean))]
+  if (ids.length === 0) throw new Error("Select at least one room")
+  const result = await prisma.residenceRoom.updateMany({
+    where: { id: { in: ids }, deletedAt: null },
+    data: { status },
+  })
+  revalidatePath(`/${session.user.role}/urus-bilik`)
+  return result.count
+}
+
 // ── Occupancy monitor ──────────────────────────────────────────────────────
 
 export async function getOccupancy(): Promise<OccupancySummary> {
@@ -437,9 +456,20 @@ export async function adminAssign(
     const student = await prisma.eligibleStudent.findUnique({ where: { id: studentId } })
     if (!student) return { ok: false, error: "Student not found" }
 
+    const confirmedPair = await prisma.roomApplication.findFirst({
+      where: {
+        status: "roommate_confirmed",
+        deletedAt: null,
+        OR: [{ applicantId: student.id }, { roommateId: student.id }],
+      },
+    })
+    const roommateId = confirmedPair
+      ? confirmedPair.applicantId === student.id ? confirmedPair.roommateId : confirmedPair.applicantId
+      : null
+
     const bed = await prisma.bed.findFirst({
       where: { id: bedId, deletedAt: null },
-      include: { room: { include: { block: true } } },
+      include: { room: { include: { block: true, beds: { where: { deletedAt: null } } } } },
     })
     if (!bed) return { ok: false, error: "Bed not found" }
     if (bed.room.status !== "available") {
@@ -448,8 +478,22 @@ export async function adminAssign(
     if (bed.room.block.gender !== student.gender) {
       return { ok: false, error: "Block gender doesn't match the student" }
     }
+    const roommateBed = roommateId
+      ? bed.room.beds.find((candidate) => candidate.id !== bed.id && candidate.occupantId === null)
+      : null
+    if (roommateId && (bed.room.type !== "double" || !roommateBed)) {
+      return { ok: false, error: "A confirmed pair must be assigned to a double room with two free beds" }
+    }
 
     await prisma.$transaction(async (tx) => {
+      // For a confirmed pair, both target beds must still be free before either
+      // current allocation is released, so a failed move cannot split the pair.
+      if (roommateId && roommateBed) {
+        const targetBeds = await tx.bed.count({
+          where: { id: { in: [bed.id, roommateBed.id] }, occupantId: null, deletedAt: null },
+        })
+        if (targetBeds !== 2) throw new Error("One of the two beds was just taken")
+      }
       // Free the student's current bed and claim the new one atomically.
       await tx.bed.updateMany({ where: { occupantId: student.id }, data: { occupantId: null } })
       const claimed = await tx.bed.updateMany({
@@ -457,10 +501,29 @@ export async function adminAssign(
         data: { occupantId: student.id },
       })
       if (claimed.count === 0) throw new Error("That bed is already taken")
+      if (roommateId && roommateBed) {
+        await tx.bed.updateMany({ where: { occupantId: roommateId }, data: { occupantId: null } })
+        const roommateClaimed = await tx.bed.updateMany({
+          where: { id: roommateBed.id, occupantId: null, deletedAt: null },
+          data: { occupantId: roommateId },
+        })
+        if (roommateClaimed.count === 0) throw new Error("The second bed was just taken")
+      }
       await tx.eligibleStudent.update({
         where: { id: student.id },
         data: { selectedAt: nowMalaysia(), assignedByAdmin: true },
       })
+      await tx.roomApplication.updateMany({
+        where: { OR: [{ applicantId: student.id }, { roommateId: student.id }], deletedAt: null },
+        data: { status: "allocated" },
+      })
+      if (roommateId) {
+        await tx.eligibleStudent.update({ where: { id: roommateId }, data: { selectedAt: nowMalaysia(), assignedByAdmin: true } })
+        const roommate = await tx.eligibleStudent.findUnique({ where: { id: roommateId }, select: { userId: true } })
+        if (roommate?.userId) {
+          await tx.user.update({ where: { id: roommate.userId }, data: { block: bed.room.block.name, roomNumber: bed.room.number } })
+        }
+      }
       if (student.userId) {
         await tx.user.update({
           where: { id: student.userId },

@@ -6,7 +6,13 @@ const PUBLIC_PATHS = ["/login"]
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET })
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    cookieName: req.nextUrl.protocol === "https:"
+      ? "__Secure-authjs.session-token"
+      : "authjs.session-token",
+  })
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 

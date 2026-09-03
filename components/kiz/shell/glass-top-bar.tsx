@@ -100,14 +100,10 @@ export function GlassTopBar({
 
       {/* Breadcrumb */}
       <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 0.5, minWidth: 0, flex: 1 }}>
-        <Box component="span" sx={{ color: "text.disabled", fontSize: 13.5, letterSpacing: "-0.011em" }}>KIZ</Box>
         {title && (
-          <>
-            <Box component="span" sx={{ color: "text.disabled", fontSize: 13.5, mx: 0.25 }}>/</Box>
-            <Box component="span" sx={{ color: "text.primary", fontSize: 13.5, fontWeight: 550, letterSpacing: "-0.011em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {title}
-            </Box>
-          </>
+          <Box component="span" sx={{ color: "text.primary", fontSize: 13.5, fontWeight: 550, letterSpacing: "-0.011em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {title}
+          </Box>
         )}
       </Box>
 

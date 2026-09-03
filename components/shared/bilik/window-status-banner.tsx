@@ -58,13 +58,12 @@ export function WindowStatusBanner({
   if (state === "not_open") {
     return (
       <HeroTile
-        eyebrow={windowName ?? "Room selection"}
-        title="Selection opens soon"
+        eyebrow={windowName ?? "Accommodation application"}
+        title="Applications open soon"
         body={
           <>
-            You&apos;re on the accepted list. Room selection opens in{" "}
-            <b>{openCountdown}</b>. You can browse the blocks below in preview mode
-            until then.
+            You&apos;re on the accepted list. Applications open in <b>{openCountdown}</b>.
+            You will choose a room preference, not a specific room.
           </>
         }
       />
@@ -76,8 +75,8 @@ export function WindowStatusBanner({
       <HeroTile
         tone="alert"
         eyebrow={`Closing in ${closeCountdown}`}
-        title="Last chance to lock your room"
-        body="The selection window is closing soon. Confirm your bed now — after the deadline your choice is locked and unselected students are assigned by the office."
+        title="Last chance to submit your preference"
+        body="The application window is closing soon. Submit your preference or confirm your roommate request before the deadline."
       />
     )
   }
@@ -85,9 +84,9 @@ export function WindowStatusBanner({
   if (state === "closed") {
     return (
       <HeroTile
-        eyebrow={windowName ?? "Room selection"}
-        title="Selection is closed"
-        body="The window has closed. Your room is shown below. If you didn't select in time, the KIZ office will assign you a room."
+        eyebrow={windowName ?? "Accommodation application"}
+        title="Applications are closed"
+        body="The KIZ office is arranging accommodation. Your assigned block and room will appear here after allocations are published."
       />
     )
   }

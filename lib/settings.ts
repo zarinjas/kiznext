@@ -10,6 +10,14 @@ const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
 const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
 
+const CARD_BG_TYPES = ["image/png", "image/jpeg", "image/webp"]
+const CARD_BG_MAX_SIZE = 4 * 1024 * 1024
+const STUDENT_CARD_BG_KEY = "student_card_bg"
+const STUDENT_CARD_COLOR_KEY = "student_card_color"
+const STUDENT_CARD_COLOR_END_KEY = "student_card_color_end"
+const DEFAULT_STUDENT_CARD_COLOR = "#0891B2"
+const HEX_RE = /^#[0-9a-fA-F]{6}$/
+
 export async function getAppSetting(key: string): Promise<string | null> {
   const setting = await prisma.appSetting.findUnique({ where: { key } })
   return setting?.value ?? null
@@ -77,6 +85,141 @@ export async function removeAppLogo(): Promise<{ success: boolean; error?: strin
   }
 
   await prisma.appSetting.deleteMany({ where: { key: LOGO_KEY } })
+
+  revalidatePath("/", "layout")
+  return { success: true }
+}
+
+/** Student Digital Card design — background image + name-bar colour/gradient, admin-configurable. */
+export interface StudentCardDesign {
+  backgroundUrl: string | null
+  color: string
+  colorEnd: string | null
+}
+
+export async function getStudentCardDesign(): Promise<StudentCardDesign> {
+  const [bg, colorStart, colorEnd] = await Promise.all([
+    getAppSetting(STUDENT_CARD_BG_KEY),
+    getAppSetting(STUDENT_CARD_COLOR_KEY),
+    getAppSetting(STUDENT_CARD_COLOR_END_KEY),
+  ])
+  return {
+    backgroundUrl: bg,
+    color: colorStart ?? DEFAULT_STUDENT_CARD_COLOR,
+    colorEnd: colorEnd || null,
+  }
+}
+
+export async function uploadStudentCardBackground(
+  formData: FormData
+): Promise<{ success: boolean; error?: string; url?: string }> {
+  const session = await auth()
+  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  const file = formData.get("background") as File | null
+  if (!file || file.size === 0) {
+    return { success: false, error: "No file selected" }
+  }
+
+  if (!CARD_BG_TYPES.includes(file.type)) {
+    return { success: false, error: "Only PNG, JPEG, and WebP files are allowed" }
+  }
+
+  if (file.size > CARD_BG_MAX_SIZE) {
+    return { success: false, error: "File must be under 4MB" }
+  }
+
+  const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+  if (existing?.value) {
+    const oldPath = path.join(process.cwd(), "public", existing.value)
+    try { await unlink(oldPath) } catch {}
+  }
+
+  const ext = file.type.split("/")[1]
+  const filename = `student-card-bg-${Date.now()}.${ext}`
+  const uploadDir = path.join(process.cwd(), "public", "uploads")
+  await mkdir(uploadDir, { recursive: true })
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  await writeFile(path.join(uploadDir, filename), buffer)
+
+  const url = `/uploads/${filename}`
+
+  await prisma.appSetting.upsert({
+    where: { key: STUDENT_CARD_BG_KEY },
+    update: { value: url },
+    create: { key: STUDENT_CARD_BG_KEY, value: url },
+  })
+
+  revalidatePath("/", "layout")
+  return { success: true, url }
+}
+
+export async function removeStudentCardBackground(): Promise<{ success: boolean; error?: string }> {
+  const session = await auth()
+  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+  if (existing?.value) {
+    const filePath = path.join(process.cwd(), "public", existing.value)
+    try { await unlink(filePath) } catch {}
+  }
+
+  await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_BG_KEY } })
+
+  revalidatePath("/", "layout")
+  return { success: true }
+}
+
+export async function setStudentCardColor(
+  colorHex: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth()
+  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  if (!HEX_RE.test(colorHex)) {
+    return { success: false, error: "Invalid colour value" }
+  }
+
+  await prisma.appSetting.upsert({
+    where: { key: STUDENT_CARD_COLOR_KEY },
+    update: { value: colorHex },
+    create: { key: STUDENT_CARD_COLOR_KEY, value: colorHex },
+  })
+
+  revalidatePath("/", "layout")
+  return { success: true }
+}
+
+export async function setStudentCardColorEnd(
+  colorHex: string | null
+): Promise<{ success: boolean; error?: string }> {
+  const session = await auth()
+  if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  if (colorHex === null) {
+    await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_COLOR_END_KEY } })
+    revalidatePath("/", "layout")
+    return { success: true }
+  }
+
+  if (!HEX_RE.test(colorHex)) {
+    return { success: false, error: "Invalid colour value" }
+  }
+
+  await prisma.appSetting.upsert({
+    where: { key: STUDENT_CARD_COLOR_END_KEY },
+    update: { value: colorHex },
+    create: { key: STUDENT_CARD_COLOR_END_KEY, value: colorHex },
+  })
 
   revalidatePath("/", "layout")
   return { success: true }

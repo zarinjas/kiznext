@@ -36,9 +36,8 @@ export interface BilikReminder {
 }
 
 /**
- * Whether the dashboard should nag the current student to pick a room.
- * `show` is true only while the window is actionable AND the student is on the
- * eligible list AND they haven't secured a bed yet.
+ * Whether the dashboard should remind the current student to submit an
+ * accommodation preference. Final bed allocation is an admin-only action.
  */
 export async function getBilikReminder(userId: string, matricId: string): Promise<BilikReminder | null> {
   const win = await getActiveWindow()
@@ -64,15 +63,19 @@ export async function getBilikReminder(userId: string, matricId: string): Promis
 
   const student = await prisma.eligibleStudent.findFirst({
     where: { intakeId: intake.id, matricId: matricId.toUpperCase(), deletedAt: null },
-    select: { id: true, bed: { select: { id: true } } },
+    select: {
+      id: true,
+      roomApplication: { where: { deletedAt: null }, select: { id: true } },
+      roommateApplications: { where: { deletedAt: null, status: "roommate_confirmed" }, select: { id: true } },
+    },
   })
   if (!student) return base
 
   return {
     ...base,
     eligible: true,
-    hasPick: Boolean(student.bed),
-    show: !student.bed,
+    hasPick: Boolean(student.roomApplication || student.roommateApplications.length),
+    show: !student.roomApplication && student.roommateApplications.length === 0,
   }
 }
 
@@ -84,10 +87,17 @@ export async function getBilikReminder(userId: string, matricId: string): Promis
  */
 export type OccupantPrivacy = "full" | "limited"
 export const OCCUPANT_PRIVACY_KEY = "bilik_occupant_privacy"
+export const ALLOCATIONS_PUBLISHED_KEY = "bilik_allocations_published"
 
 export async function getOccupantPrivacy(): Promise<OccupantPrivacy> {
   const row = await prisma.appSetting.findUnique({ where: { key: OCCUPANT_PRIVACY_KEY } })
   return row?.value === "limited" ? "limited" : "full"
+}
+
+/** Final allocations remain private until the KIZ office explicitly publishes them. */
+export async function areAllocationsPublished(): Promise<boolean> {
+  const row = await prisma.appSetting.findUnique({ where: { key: ALLOCATIONS_PUBLISHED_KEY } })
+  return row?.value === "true"
 }
 
 /** The active intake, or null. */
@@ -148,6 +158,43 @@ export async function resolveEligibleStudent(userId: string, matricId: string) {
     student = { ...student, userId }
   }
   return student
+}
+
+export type RoomApplicationState = {
+  eligible: boolean
+  windowState: WindowState
+  window: { name: string; opensAt: string; closesAt: string; closingSoonHours: number } | null
+  application: null | {
+    type: "single" | "double" | "flexible"
+    status: "single_pending" | "roommate_pending" | "roommate_confirmed" | "flexible_submitted" | "roommate_rejected" | "allocated" | "withdrawn"
+    submittedAt: string
+    roommate: { race: string | null; religion: string | null } | null
+  }
+  incomingRequest: null | { applicantRace: string | null; applicantReligion: string | null }
+  allocation: string | null
+  reason?: string
+}
+
+/** Student-safe application payload. Physical room inventory is intentionally excluded. */
+export async function getApplicationState(userId: string, matricId: string): Promise<RoomApplicationState> {
+  const win = await getActiveWindow()
+  const window = win ? { name: win.name, opensAt: win.opensAt.toISOString(), closesAt: win.closesAt.toISOString(), closingSoonHours: win.closingSoonHours } : null
+  const ws = win ? windowState({ opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours }, nowMalaysia()) : "not_open"
+  const student = await resolveEligibleStudent(userId, matricId)
+  if (!student) return { eligible: false, windowState: ws, window, application: null, incomingRequest: null, allocation: null, reason: "Your matric number is not on the current accommodation offer list. Contact the KIZ office if this is incorrect." }
+
+  const [application, incoming, confirmedPair, allocationsPublished] = await Promise.all([
+    prisma.roomApplication.findFirst({ where: { applicantId: student.id, deletedAt: null }, include: { roommate: true } }),
+    prisma.roomApplication.findFirst({ where: { roommateId: student.id, status: "roommate_pending", deletedAt: null }, include: { applicant: true } }),
+    prisma.roomApplication.findFirst({ where: { roommateId: student.id, status: "roommate_confirmed", deletedAt: null }, include: { applicant: true } }),
+    areAllocationsPublished(),
+  ])
+  return {
+    eligible: true, windowState: ws, window,
+    application: application ? { type: application.type, status: application.status, submittedAt: application.submittedAt.toISOString(), roommate: application.roommate ? { race: application.roommate.race, religion: application.roommate.religion } : null } : confirmedPair ? { type: "double", status: "roommate_confirmed", submittedAt: confirmedPair.submittedAt.toISOString(), roommate: { race: confirmedPair.applicant.race, religion: confirmedPair.applicant.religion } } : null,
+    incomingRequest: incoming ? { applicantRace: incoming.applicant.race, applicantReligion: incoming.applicant.religion } : null,
+    allocation: allocationsPublished && student.bed ? student.bed.room.number : null,
+  }
 }
 
 /**

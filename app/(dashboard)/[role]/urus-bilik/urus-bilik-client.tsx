@@ -9,6 +9,7 @@ import TextField from "@mui/material/TextField"
 import MenuItem from "@mui/material/MenuItem"
 import Snackbar from "@mui/material/Snackbar"
 import Alert from "@mui/material/Alert"
+import Checkbox from "@mui/material/Checkbox"
 import Dialog from "@mui/material/Dialog"
 import DialogTitle from "@mui/material/DialogTitle"
 import DialogContent from "@mui/material/DialogContent"
@@ -33,12 +34,12 @@ import {
   saveWindow,
   upsertBlock,
   createRoom,
-  deleteBlock,
   deleteRoom,
   generateFloor,
   setRoomStatus,
+  setRoomsStatus,
   adminAssign,
-  setOccupantPrivacy,
+  setAllocationsPublished,
   type ImportPreview,
 } from "./actions"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
@@ -61,6 +62,7 @@ interface BlockData {
     status: RoomStatus
     totalBeds: number
     occupiedBeds: number
+    beds: { id: string; position: string; occupant: { id: string; name: string; matricId: string } | null }[]
   }[]
 }
 interface StudentData {
@@ -68,6 +70,13 @@ interface StudentData {
   matricId: string
   name: string
   gender: Gender
+  race: string | null
+  religion: string | null
+  nationality: string
+  faculty: string | null
+  yearOfStudy: string | null
+  currentCollege: string | null
+  merit: number | null
   isB40: boolean
   isOku: boolean
   isUniform: boolean
@@ -75,6 +84,9 @@ interface StudentData {
   position: string | null
   selectedAt: string | null
   assignedByAdmin: boolean
+  applicationType: "single" | "double" | "flexible" | null
+  applicationStatus: string | null
+  roommate: string | null
 }
 interface IntakeData {
   id: string
@@ -98,7 +110,7 @@ export function UrusBilikClient({
   students,
   occupancy,
   freeBeds,
-  occupantPrivacy,
+  allocationsPublished,
 }: {
   readOnly: boolean
   window: WindowData | null
@@ -107,10 +119,10 @@ export function UrusBilikClient({
   students: StudentData[]
   occupancy: OccupancySummary
   freeBeds: { id: string; label: string; gender: Gender }[]
-  occupantPrivacy: "full" | "limited"
+  allocationsPublished: boolean
 }) {
   // Principal sees only the monitor.
-  const [tab, setTab] = useState(readOnly ? 3 : 0)
+  const [tab, setTab] = useState(readOnly ? 2 : 0)
   const [toast, setToast] = useState<{ msg: string; sev: "success" | "error" } | null>(null)
   const notify = (msg: string, sev: "success" | "error" = "success") => setToast({ msg, sev })
 
@@ -118,9 +130,13 @@ export function UrusBilikClient({
     <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <PageHeader
         overline="Residence · Admin"
-        title="Room Selection"
-        subtitle="Import the accepted list, set the window, model the building, and monitor occupancy."
+        title="Accommodation allocation"
+        subtitle="Follow the steps below. Students only see their room after you publish the completed allocation."
       />
+
+      {!readOnly && <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+        <b>Simple workflow:</b> set up the intake and dates, review applications, allocate rooms after the deadline, then publish the results.
+      </Alert>}
 
       <Tabs
         value={tab}
@@ -135,22 +151,16 @@ export function UrusBilikClient({
           "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 600 },
         }}
       >
-        {!readOnly && <Tab label="Intake" value={0} />}
-        {!readOnly && <Tab label="Window" value={1} />}
-        {!readOnly && <Tab label="Building" value={2} />}
-        <Tab label="Occupancy" value={3} />
-        {!readOnly && <Tab label="Students" value={4} />}
+        {!readOnly && <Tab label="1. Applications & allocation" value={0} />}
+        {!readOnly && <Tab label="2. Cycle setup" value={1} />}
+        <Tab label={readOnly ? "Occupancy overview" : "3. Room inventory"} value={2} />
       </Tabs>
 
       {tab === 0 && !readOnly && (
-        <IntakeTab intakes={intakes} notify={notify} />
-      )}
-      {tab === 1 && !readOnly && <WindowTab window={win} occupantPrivacy={occupantPrivacy} notify={notify} />}
-      {tab === 2 && !readOnly && <BuildingTab blocks={blocks} notify={notify} />}
-      {tab === 3 && <OccupancyTab blocks={blocks} occupancy={occupancy} />}
-      {tab === 4 && !readOnly && (
         <StudentsTab students={students} freeBeds={freeBeds} window={win} notify={notify} />
       )}
+      {tab === 1 && !readOnly && <Box><IntakeTab intakes={intakes} notify={notify} /><WindowTab window={win} allocationsPublished={allocationsPublished} notify={notify} /></Box>}
+      {tab === 2 && <Box>{!readOnly && <BuildingTab blocks={blocks} students={students} window={win} notify={notify} />}<OccupancyTab blocks={blocks} occupancy={occupancy} /></Box>}
 
       <Snackbar
         open={Boolean(toast)}
@@ -307,7 +317,7 @@ function IntakeTab({
           />
 
           <Box sx={{ maxHeight: 320, overflow: "auto", border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={{ minWidth: 640 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>#</TableCell>
@@ -361,7 +371,7 @@ function IntakeTab({
         </FormSection>
       )}
 
-      <FormSection title="Intakes" subtitle="Activate one intake to open room selection for its students." icon="groups">
+      <FormSection title="Student offer list" subtitle="Step 1: upload the accepted students, check the preview, then activate one list for this application cycle." icon="groups">
         {intakes.length === 0 ? (
           <KEmpty compact icon="groups" title="No intakes yet" body="Upload a CSV above to get your first intake rolling." />
         ) : (
@@ -422,18 +432,30 @@ function ActivateButton({ intakeId, notify }: { intakeId: string; notify: (m: st
 
 function WindowTab({
   window: win,
-  occupantPrivacy,
+  allocationsPublished,
   notify,
 }: {
   window: WindowData | null
-  occupantPrivacy: "full" | "limited"
+  allocationsPublished: boolean
   notify: (m: string, s?: "success" | "error") => void
 }) {
-  const toLocal = (iso: string | undefined) => (iso ? iso.slice(0, 16) : "")
+  const toLocal = (iso: string | undefined) => {
+    if (!iso) return ""
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kuala_Lumpur",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(iso))
+    const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+    return `${value.year}-${value.month}-${value.day}T${value.hour === "24" ? "00" : value.hour}:${value.minute}`
+  }
   const [name, setName] = useState(win?.name ?? "")
   const [opensAt, setOpensAt] = useState(toLocal(win?.opensAt))
   const [closesAt, setClosesAt] = useState(toLocal(win?.closesAt))
-  const [closingSoon, setClosingSoon] = useState(win?.closingSoonHours ?? 24)
   const [pending, start] = useTransition()
 
   const save = () => {
@@ -443,9 +465,9 @@ function WindowTab({
           name,
           opensAt: new Date(opensAt).toISOString(),
           closesAt: new Date(closesAt).toISOString(),
-          closingSoonHours: Number(closingSoon),
+          closingSoonHours: 24,
         })
-        notify("Window saved — students can now pick their beds.")
+        notify("Application period saved. Students can now submit their preferences.")
       } catch (e) {
         notify(e instanceof Error ? e.message : "Failed to save window", "error")
       }
@@ -454,125 +476,72 @@ function WindowTab({
 
   return (
     <Box>
-      <FormSection title="Selection window" subtitle="One active window at a time. Times are Asia/Kuala_Lumpur." icon="event">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
-          <TextField label="Window name" size="small" value={name} onChange={(e) => setName(e.target.value)} sx={{ gridColumn: { sm: "1 / -1" } }} />
-          <TextField label="Opens at" type="datetime-local" size="small" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label="Closes at" type="datetime-local" size="small" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label="'Closing soon' threshold (hours)" type="number" size="small" value={closingSoon} onChange={(e) => setClosingSoon(Number(e.target.value))} />
+      <FormSection title="Application period" subtitle="Step 2: choose when students can send their accommodation preference. All times use Malaysia time." icon="event">
+        <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2 }}>
+          Students can apply only between the opening and closing dates. After the closing date, you can start assigning rooms. The system will remind students when the deadline is near.
+        </Alert>
+        <Box sx={{ display: "grid", gap: 2.5 }}>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>Step 1: Name this application round</Typography>
+            <TextField fullWidth label="Application round name" value={name} onChange={(e) => setName(e.target.value)} helperText="Example: KIZ accommodation 2026/2027" />
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>Step 2: Set the application dates</Typography>
+            <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 1.25 }}>Choose the date and time when the form opens and closes. Students cannot submit outside this period.</Typography>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
+              <TextField fullWidth label="Opening date and time" type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} helperText="Students can start applying from this time." slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField fullWidth label="Closing date and time" type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} helperText="Students can no longer change their choice after this time." slotProps={{ inputLabel: { shrink: true } }} />
+            </Box>
+          </Box>
         </Box>
-        <Box sx={{ mt: 2 }}>
-          <KButton onClick={save} loading={pending} icon="save" disabled={!opensAt || !closesAt}>
-            Save window
+        <Box sx={{ mt: 2.5, display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <KButton onClick={save} loading={pending} icon="save" disabled={!name.trim() || !opensAt || !closesAt}>
+            Save application period
           </KButton>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>The previous period will be replaced.</Typography>
         </Box>
       </FormSection>
 
-      <PrivacySection current={occupantPrivacy} notify={notify} />
+      <AllocationPublishSection published={allocationsPublished} notify={notify} />
     </Box>
   )
 }
 
-/** Toggle for how much occupant detail students see on a taken bed. */
-function PrivacySection({
-  current,
-  notify,
-}: {
-  current: "full" | "limited"
-  notify: (m: string, s?: "success" | "error") => void
-}) {
-  const [mode, setMode] = useState(current)
+function AllocationPublishSection({ published, notify }: { published: boolean; notify: (m: string, s?: "success" | "error") => void }) {
   const [pending, start] = useTransition()
-
-  const apply = (next: "full" | "limited") => {
-    setMode(next)
-    start(async () => {
-      try {
-        await setOccupantPrivacy(next)
-        notify(next === "full" ? "Showing full occupant details" : "Limited occupant details")
-      } catch (e) {
-        notify(e instanceof Error ? e.message : "Failed to update", "error")
-      }
-    })
-  }
-
-  const options = [
-    {
-      key: "full" as const,
-      title: "Full details",
-      body: "Short name, matric number, religion, race, and nationality.",
-      icon: "badge",
-    },
-    {
-      key: "limited" as const,
-      title: "Limited details",
-      body: "Short name and nationality only. Hides matric, religion, and race from peers.",
-      icon: "shield_person",
-    },
-  ]
-
-  return (
-    <FormSection
-      title="Occupant privacy"
-      subtitle="Controls what students see about existing occupants on a taken bed. Students always see their own full details."
-      icon="visibility"
-    >
-      <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
-        {options.map((o) => {
-          const active = mode === o.key
-          return (
-            <Box
-              key={o.key}
-              component="button"
-              type="button"
-              disabled={pending}
-              onClick={() => apply(o.key)}
-              sx={{
-                textAlign: "left",
-                cursor: "pointer",
-                p: 2,
-                borderRadius: 3,
-                border: "1.5px solid",
-                borderColor: active ? color.accent[400] : "divider",
-                backgroundColor: active ? color.accent[50] : "background.paper",
-                boxShadow: active ? `0 0 0 3px ${color.accent[100]}` : "none",
-                transition: "border-color 160ms, box-shadow 160ms, background-color 160ms",
-                "&:hover": { borderColor: active ? color.accent[400] : color.borderStrong },
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                <KIcon
-                  icon={o.icon}
-                  size={18}
-                  filled={active}
-                  sx={{ color: active ? color.accent[700] : "var(--mui-palette-text-secondary)" }}
-                />
-                <Typography sx={{ fontWeight: 600 }}>{o.title}</Typography>
-                {active && (
-                  <KIcon icon="check_circle" size={16} filled sx={{ color: color.accent[600], marginLeft: "auto" }} />
-                )}
-              </Box>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                {o.body}
-              </Typography>
-            </Box>
-          )
-        })}
-      </Box>
-    </FormSection>
-  )
+  return <FormSection title="Show room results to students" subtitle="Use this only after every student has been assigned a room." icon="visibility">
+    <Alert severity={published ? "success" : "info"} sx={{ mb: 2, borderRadius: 2 }}>
+      {published ? <><b>Room results are now visible.</b> Students can see their assigned room number on the Accommodation page.</> : <><b>Room results are still hidden.</b> Students cannot see any room assignment yet, even if you have already entered it. This gives you time to finish checking the list.</>}
+    </Alert>
+    <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>When all assignments are complete, click the button below once. The system will not allow you to publish while any student is still waiting for a room.</Typography>
+    <KButton loading={pending} color={published ? "warning" : "primary"} variant={published ? "outlined" : "contained"} onClick={() => start(async () => { try { await setAllocationsPublished(!published); notify(!published ? "Room results are now visible to students." : "Room results are hidden again.") } catch (e) { notify(e instanceof Error ? e.message : "Could not update room-result visibility", "error") } })}>{published ? "Hide room results" : "Publish room results"}</KButton>
+  </FormSection>
 }
 
 // ── Tab 3: Building ──────────────────────────────────────────────────────────
 
 function BuildingTab({
   blocks,
+  students,
+  window: win,
   notify,
 }: {
   blocks: BlockData[]
+  students: StudentData[]
+  window: WindowData | null
   notify: (m: string, s?: "success" | "error") => void
 }) {
   const [pending, start] = useTransition()
+  const [activeBlockId, setActiveBlockId] = useState(blocks[0]?.id ?? "")
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([])
+  const [bulkStatus, setBulkStatus] = useState<RoomStatus>("maintenance")
+  const [showAdd, setShowAdd] = useState(false)
+  const [manageRoom, setManageRoom] = useState<BlockData["rooms"][number] | null>(null)
+  const [mountedAt, setMountedAt] = useState<number | null>(null)
+  useEffect(() => {
+    const id = window.setTimeout(() => setMountedAt(Date.now()), 0)
+    return () => window.clearTimeout(id)
+  }, [])
   // add-block form
   const [newName, setNewName] = useState("")
   const [newGender, setNewGender] = useState<Gender>("male")
@@ -624,18 +593,6 @@ function BuildingTab({
     })
   }
 
-  const onDeleteBlock = (b: BlockData) => {
-    if (!confirm(`Delete block ${b.name}? Its empty rooms are removed too.`)) return
-    start(async () => {
-      try {
-        await deleteBlock(b.id)
-        notify(`${b.name} is gone.`)
-      } catch (e) {
-        notify(e instanceof Error ? e.message : "Failed to delete block", "error")
-      }
-    })
-  }
-
   const onDeleteRoom = (b: BlockData, r: BlockData["rooms"][number]) => {
     if (!confirm(`Delete room ${r.number} in ${b.name}?`)) return
     start(async () => {
@@ -648,11 +605,47 @@ function BuildingTab({
     })
   }
 
+  const activeBlock = blocks.find((block) => block.id === activeBlockId) ?? blocks[0]
+  const activeRooms = activeBlock?.rooms ?? []
+  const canAssign = Boolean(win && mountedAt !== null && new Date(win.closesAt).getTime() <= mountedAt)
+  const toggleRoom = (id: string) => setSelectedRoomIds((current) => current.includes(id) ? current.filter((roomId) => roomId !== id) : [...current, id])
+  const applyBulkStatus = () => {
+    if (!selectedRoomIds.length) return
+    if (!confirm(`Change ${selectedRoomIds.length} selected room${selectedRoomIds.length === 1 ? "" : "s"} to ${bulkStatus}?`)) return
+    start(async () => {
+      try {
+        const count = await setRoomsStatus(selectedRoomIds, bulkStatus)
+        setSelectedRoomIds([])
+        notify(`${count} room${count === 1 ? "" : "s"} updated.`)
+      } catch (e) {
+        notify(e instanceof Error ? e.message : "Could not update rooms", "error")
+      }
+    })
+  }
+
   return (
     <Box>
-      {/* Add block */}
-      <FormSection title="Add a block" subtitle="Create a new residence block, then add floors and rooms to it." icon="add_home">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(4, 1fr)" } }}>
+      <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}><b>How to use room inventory:</b> select a block, tick one or more rooms, then change their status together. Use <b>Add rooms</b> only when new rooms need to be added.</Alert>
+      <Bento sx={{ mb: 2 }}>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Blocks" value={blocks.length} icon="apartment" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Rooms" value={blocks.reduce((total, block) => total + block.rooms.length, 0)} icon="meeting_room" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Maintenance" value={blocks.reduce((total, block) => total + block.rooms.filter((room) => room.status === "maintenance").length, 0)} icon="construction" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Closed" value={blocks.reduce((total, block) => total + block.rooms.filter((room) => room.status === "closed").length, 0)} icon="lock" /></BentoItem>
+      </Bento>
+      {blocks.length > 0 && <FormSection title="Choose a block" subtitle="Rooms are shown one block at a time to keep this page easy to read." icon="apartment" action={<KButton size="small" variant="outlined" icon="add_home" onClick={() => setShowAdd(true)}>Add new block</KButton>}>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{blocks.map((block) => <KButton key={block.id} size="small" variant={activeBlock?.id === block.id ? "contained" : "outlined"} onClick={() => { setActiveBlockId(block.id); setSelectedRoomIds([]) }}>{block.name} · {block.gender === "male" ? "Male" : "Female"}</KButton>)}</Box>
+      </FormSection>}
+      {activeBlock && <FormSection title={`${activeBlock.name} rooms`} subtitle={`${activeRooms.length} rooms. Tick rooms first if you want to change more than one status.`} icon="meeting_room" action={<Box sx={{ display: "flex", gap: 1 }}><KButton size="small" variant="outlined" icon="edit" onClick={() => setEditing(activeBlock)}>Edit block</KButton><KButton size="small" variant="outlined" icon="add" onClick={() => setShowAdd((value) => !value)}>{showAdd ? "Hide add rooms" : "Add rooms"}</KButton></Box>}>
+        {selectedRoomIds.length > 0 && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.25, mb: 2, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: color.warning.main, backgroundColor: color.warning.soft }}>
+          <Typography variant="body2" sx={{ flex: "1 1 200px", minWidth: 0 }}><b>{selectedRoomIds.length} room{selectedRoomIds.length === 1 ? "" : "s"} selected.</b> Change all selected rooms to:</Typography>
+          <TextField select size="small" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as RoomStatus)} sx={{ minWidth: 150, flex: "0 0 auto", "& .MuiInputBase-input": { py: 0.55, fontSize: 13 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField>
+          <KButton size="small" loading={pending} onClick={applyBulkStatus}>Apply</KButton>
+        </Box>}
+        {activeRooms.length === 0 ? <KEmpty compact icon="meeting_room" title="No rooms in this block" body="Use Add rooms to create the first room or generate a whole floor." /> : <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(3,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" } }}>{activeRooms.map((room) => <RoomInventoryCard key={room.id} room={room} selected={selectedRoomIds.includes(room.id)} onToggle={() => toggleRoom(room.id)} onStatus={(status) => start(async () => { await setRoomStatus(room.id, status); notify(`${room.number} is now ${status}.`) })} onDelete={() => onDeleteRoom(activeBlock, room)} onManage={() => setManageRoom(room)} />)}</Box>}
+      </FormSection>}
+      {showAdd && <Box>
+      <FormSection title="Add a block" subtitle="Only use this when a new residence block is opened." icon="add_home">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
           <TextField size="small" label="Block name" placeholder="e.g. K20A" value={newName} onChange={(e) => setNewName(e.target.value)} />
           <TextField select size="small" label="Gender" value={newGender} onChange={(e) => setNewGender(e.target.value as Gender)}>
             <MenuItem value="male">Male</MenuItem>
@@ -668,9 +661,8 @@ function BuildingTab({
         </Box>
       </FormSection>
 
-      {/* Add room */}
-      <FormSection title="Add a room" subtitle="Add one room on any floor; its beds are created automatically." icon="add_business">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(4, 1fr)" } }}>
+      <FormSection title="Add one room" subtitle="Beds are created automatically. Choose the block, floor, room number, and room type." icon="add_business">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
           <TextField select size="small" label="Block" value={roomBlock} onChange={(e) => setRoomBlock(e.target.value)}>
             {blocks.length === 0 ? <MenuItem value="" disabled>No blocks yet</MenuItem> : blocks.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
           </TextField>
@@ -688,9 +680,8 @@ function BuildingTab({
         </Box>
       </FormSection>
 
-      {/* Generate a floor */}
-      <FormSection title="Generate a floor" subtitle="Bulk-create sequential rooms; beds are created automatically." icon="grid_on">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(5, 1fr)" } }}>
+      <FormSection title="Add many rooms at once" subtitle="Use this for a new floor. The system creates the rooms and beds automatically." icon="grid_on">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(5, 1fr)" } }}>
           <TextField select size="small" label="Block" value={genBlock} onChange={(e) => setGenBlock(e.target.value)}>
             {blocks.length === 0 ? <MenuItem value="" disabled>No blocks yet</MenuItem> : blocks.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
           </TextField>
@@ -721,83 +712,10 @@ function BuildingTab({
         </Box>
       </FormSection>
 
-      {blocks.length === 0 ? (
-        <KEmpty icon="apartment" title="Nothing built yet" body="Add a block above, then add rooms or generate a floor." />
-      ) : (
-        blocks.map((b) => (
-          <FormSection
-            key={b.id}
-            title={`${b.name} · ${b.gender === "male" ? "Male" : "Female"}`}
-            subtitle={`${b.rooms.length} rooms`}
-            icon="apartment"
-            action={
-              <Box sx={{ display: "flex", gap: 0.5 }}>
-                <IconButtonSmall title="Edit block" icon="edit" onClick={() => setEditing(b)} />
-                <IconButtonSmall title="Delete block" icon="delete" danger onClick={() => onDeleteBlock(b)} />
-              </Box>
-            }
-          >
-            {b.rooms.length === 0 ? (
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                No rooms yet — add one above or generate a floor.
-              </Typography>
-            ) : (
-              <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2,1fr)", sm: "repeat(4,1fr)" } }}>
-                {b.rooms.map((r) => (
-                  <Box key={r.id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2, position: "relative" }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pr: 3, gap: 0.5, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{r.number}</Typography>
-                      <Typography variant="caption" sx={{ color: "text.disabled", flexShrink: 0 }}>{r.occupiedBeds}/{r.totalBeds}</Typography>
-                    </Box>
-                    <Box
-                      component="button"
-                      onClick={() => onDeleteRoom(b, r)}
-                      title="Delete room"
-                      aria-label={`Delete room ${r.number}`}
-                      sx={{
-                        position: "absolute",
-                        top: 6,
-                        right: 6,
-                        width: 22,
-                        height: 22,
-                        borderRadius: 1,
-                        border: "none",
-                        background: "transparent",
-                        color: "text.disabled",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        "&:hover": { backgroundColor: "action.hover", color: "error.main" },
-                      }}
-                    >
-                      <KIcon icon="close" size={13} />
-                    </Box>
-                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 0.75 }}>
-                      Floor {r.floor} · {r.type}
-                    </Typography>
-                    <TextField
-                      select
-                      size="small"
-                      fullWidth
-                      value={r.status}
-                      onChange={(e) => start(async () => {
-                        await setRoomStatus(r.id, e.target.value as RoomStatus)
-                        notify(`${r.number} → ${e.target.value}`)
-                      })}
-                      sx={{ "& .MuiInputBase-input": { fontSize: 12, py: 0.5 } }}
-                    >
-                      <MenuItem value="available">Available</MenuItem>
-                      <MenuItem value="maintenance">Maintenance</MenuItem>
-                      <MenuItem value="closed">Closed</MenuItem>
-                    </TextField>
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </FormSection>
-        ))
-      )}
+      </Box>}
+      {blocks.length === 0 && !showAdd && <KEmpty icon="apartment" title="No rooms yet" body="Create your first residence block to start adding rooms." actionLabel="Add first block" onAction={() => setShowAdd(true)} />}
+
+      <RoomOccupantsDialog room={manageRoom} students={students} canAssign={canAssign} notify={notify} onClose={() => setManageRoom(null)} />
 
       {editing && (
         <BlockEditDialog
@@ -819,6 +737,39 @@ function BuildingTab({
       )}
     </Box>
   )
+}
+
+function RoomInventoryCard({ room, selected, onToggle, onStatus, onDelete, onManage }: { room: BlockData["rooms"][number]; selected: boolean; onToggle: () => void; onStatus: (status: RoomStatus) => void; onDelete: () => void; onManage: () => void }) {
+  const tone = room.status === "available" ? "success" : room.status === "maintenance" ? "warning" : "danger"
+  return <Box sx={{ p: 1.5, border: "1px solid", borderColor: selected ? "primary.main" : "divider", borderRadius: 2, backgroundColor: selected ? "action.selected" : "background.paper" }}>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}><Checkbox size="small" checked={selected} onChange={onToggle} /><Box sx={{ minWidth: 0, flex: 1 }}><Typography sx={{ fontWeight: 700 }} noWrap>{room.number}</Typography><Typography variant="caption" sx={{ color: "text.secondary" }}>Floor {room.floor} · {room.type} · {room.occupiedBeds}/{room.totalBeds} filled</Typography></Box><IconButtonSmall title={`Delete ${room.number}`} icon="delete" danger onClick={onDelete} /></Box>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}><StatusChip tone={tone} /><TextField select size="small" value={room.status} onChange={(event) => onStatus(event.target.value as RoomStatus)} sx={{ flex: 1, "& .MuiInputBase-input": { py: 0.45, fontSize: 12 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField></Box>
+    <Box sx={{ mt: 1.25, pt: 1, borderTop: "1px solid", borderColor: "divider" }}>{room.beds.map((bed) => <Typography key={bed.id} variant="caption" sx={{ display: "block", color: bed.occupant ? "text.primary" : "text.disabled", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bed.position}: {bed.occupant ? bed.occupant.name : "Empty"}</Typography>)}<KButton size="small" variant="text" sx={{ mt: 0.5, px: 0 }} onClick={onManage}>Manage occupants</KButton></Box>
+  </Box>
+}
+
+function RoomOccupantsDialog({ room, students, canAssign, notify, onClose }: {
+  room: BlockData["rooms"][number] | null
+  students: StudentData[]
+  canAssign: boolean
+  notify: (m: string, s?: "success" | "error") => void
+  onClose: () => void
+}) {
+  const [studentId, setStudentId] = useState("")
+  const [bedId, setBedId] = useState("")
+  const [pending, start] = useTransition()
+  if (!room) return null
+  const emptyBeds = room.beds.filter((bed) => !bed.occupant)
+  const candidates = students
+  return <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: `${radius.cardLg}px`, m: 2 } } }}>
+    <DialogTitle sx={{ fontWeight: 650 }}>Manage occupants: {room.number}</DialogTitle>
+    <DialogContent>
+      <Alert severity={canAssign ? "info" : "warning"} sx={{ mb: 2, borderRadius: 2 }}>{canAssign ? "You can assign an unallocated student to an empty bed here. Moving a student releases their previous room automatically." : "Room assignments unlock after the application period closes. You can view occupants now."}</Alert>
+      <Box sx={{ display: "grid", gap: 1, mb: 2 }}>{room.beds.map((bed) => <Box key={bed.id} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}><Typography sx={{ fontWeight: 650, textTransform: "capitalize" }}>{bed.position} bed</Typography>{bed.occupant ? <Typography variant="body2">{bed.occupant.name} <Typography component="span" variant="caption" sx={{ color: "text.secondary" }}>({bed.occupant.matricId})</Typography></Typography> : <Typography variant="body2" sx={{ color: "text.disabled" }}>Empty</Typography>}</Box>)}</Box>
+      {canAssign && emptyBeds.length > 0 && <Box sx={{ display: "grid", gap: 1.5 }}><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Add or move a student</Typography><TextField select fullWidth label="Student" value={studentId} onChange={(event) => setStudentId(event.target.value)} helperText="Choosing someone with a current room will move them here and release their old room."><MenuItem value="">Choose a student</MenuItem>{candidates.map((student) => <MenuItem key={student.id} value={student.id}>{student.name} · {student.matricId}{student.room ? ` · currently ${student.room}` : " · no room yet"}</MenuItem>)}</TextField><TextField select fullWidth label="Empty bed" value={bedId} onChange={(event) => setBedId(event.target.value)}><MenuItem value="">Choose an empty bed</MenuItem>{emptyBeds.map((bed) => <MenuItem key={bed.id} value={bed.id}>{bed.position} bed</MenuItem>)}</TextField><KButton loading={pending} disabled={!studentId || !bedId} onClick={() => start(async () => { const result = await adminAssign(studentId, bedId); notify(result.ok ? "Student assigned to this room." : result.error ?? "Could not assign student.", result.ok ? "success" : "error"); if (result.ok) onClose() })}>Save room assignment</KButton></Box>}
+    </DialogContent>
+    <DialogActions><KButton variant="text" onClick={onClose}>Close</KButton></DialogActions>
+  </Dialog>
 }
 
 /** Small square icon button used inside block cards. */
@@ -860,7 +811,7 @@ function IconButtonSmall({
   )
 }
 
-/** Dialog for renaming a block / adjusting its gender, floors, and order. */
+/** Dialog for changing a block's basic details. */
 function BlockEditDialog({
   block,
   pending,
@@ -875,10 +826,9 @@ function BlockEditDialog({
   const [name, setName] = useState(block.name)
   const [gender, setGender] = useState<Gender>(block.gender)
   const [floors, setFloors] = useState(block.floors)
-  const [sortOrder, setSortOrder] = useState(block.sortOrder)
 
   return (
-    <Dialog open onClose={onCancel} slotProps={{ paper: { sx: { borderRadius: radius.sheet, width: "100%", maxWidth: 440 } } }}>
+    <Dialog open onClose={onCancel} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: `${radius.cardLg}px`, m: 2 } } }}>
       <DialogTitle sx={{ fontWeight: 640, letterSpacing: "-0.02em" }}>Edit block</DialogTitle>
       <DialogContent>
         <Box sx={{ display: "grid", gap: 2, pt: 0.5 }}>
@@ -887,10 +837,7 @@ function BlockEditDialog({
             <MenuItem value="male">Male</MenuItem>
             <MenuItem value="female">Female</MenuItem>
           </TextField>
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: "1fr 1fr" }}>
-            <TextField type="number" size="small" label="Floors" value={floors} onChange={(e) => setFloors(Number(e.target.value))} />
-            <TextField type="number" size="small" label="Sort order" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} />
-          </Box>
+          <TextField type="number" size="small" label="Number of floors" helperText="This is for reference when adding rooms." value={floors} onChange={(e) => setFloors(Number(e.target.value))} />
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
@@ -898,7 +845,7 @@ function BlockEditDialog({
         <KButton
           loading={pending}
           disabled={!name.trim()}
-          onClick={() => onSave({ name, gender, floors, sortOrder })}
+          onClick={() => onSave({ name, gender, floors })}
         >
           Save
         </KButton>
@@ -918,7 +865,7 @@ function OccupancyTab({ blocks, occupancy }: { blocks: BlockData[]; occupancy: O
         <BentoItem span={2} spanXs={1}><MetricTile label="Free" value={occupancy.free} icon="chair" /></BentoItem>
         <BentoItem span={2} spanXs={1}><MetricTile label="Maintenance" value={occupancy.maintenance} icon="build" /></BentoItem>
         <BentoItem span={2} spanXs={1}><MetricTile label="Total beds" value={occupancy.totalBeds} icon="king_bed" /></BentoItem>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Not selected" value={occupancy.notSelected} icon="person_off" emphasis /></BentoItem>
+        <BentoItem span={2} spanXs={1}><MetricTile label="Awaiting allocation" value={occupancy.notSelected} icon="person_off" emphasis /></BentoItem>
       </Bento>
 
       {blocks.map((b) => (
@@ -970,8 +917,9 @@ function StudentsTab({
   window: WindowData | null
   notify: (m: string, s?: "success" | "error") => void
 }) {
-  const [filter, setFilter] = useState<"all" | "selected" | "not_selected">("all")
+  const [filter, setFilter] = useState<"all" | "applied" | "no_application" | "single" | "double" | "flexible" | "allocated">("all")
   const [search, setSearch] = useState("")
+  const [detail, setDetail] = useState<StudentData | null>(null)
   // "now" snapshot set after mount so SSR and the first client render agree —
   // otherwise the deadline-dependent UI (assign controls, info alert) can
   // mismatch between server and client.
@@ -984,17 +932,30 @@ function StudentsTab({
   const deadlinePassed = win ? mountedAt !== null && new Date(win.closesAt).getTime() <= mountedAt : false
 
   const filtered = students.filter((s) => {
-    if (filter === "selected" && !s.room) return false
-    if (filter === "not_selected" && s.room) return false
+    if (filter === "applied" && !s.applicationStatus) return false
+    if (filter === "no_application" && s.applicationStatus) return false
+    if (filter === "single" && s.applicationType !== "single") return false
+    if (filter === "double" && s.applicationType !== "double") return false
+    if (filter === "flexible" && s.applicationType !== "flexible") return false
+    if (filter === "allocated" && !s.room) return false
     if (search && !`${s.matricId} ${s.name}`.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
   return (
     <Box>
+      <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+        <b>How to use this page:</b> review each request, open <b>View details</b> for the full student profile, allocate rooms after the application period closes, then publish the results.
+      </Alert>
+      <Bento sx={{ mb: 2 }}>
+        <BentoItem span={2} spanXs={1}><MetricTile label="Total students" value={students.length} icon="groups" /></BentoItem>
+        <BentoItem span={2} spanXs={1}><MetricTile label="Applications" value={students.filter((s) => s.applicationStatus).length} icon="assignment_turned_in" /></BentoItem>
+        <BentoItem span={2} spanXs={1}><MetricTile label="KIV" value={students.filter((s) => !s.applicationStatus).length} icon="help" emphasis /></BentoItem>
+        <BentoItem span={2} spanXs={1}><MetricTile label="Allocated" value={students.filter((s) => s.room).length} icon="meeting_room" /></BentoItem>
+      </Bento>
       <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap", alignItems: "center" }}>
         <TextField size="small" placeholder="Search matric or name" value={search} onChange={(e) => setSearch(e.target.value)} sx={{ flex: 1, minWidth: 200 }} />
-        {(["all", "selected", "not_selected"] as const).map((f) => (
+        {(["all", "applied", "no_application", "single", "double", "flexible", "allocated"] as const).map((f) => (
           <Box
             key={f}
             component="button"
@@ -1007,14 +968,14 @@ function StudentsTab({
               fontWeight: 600, fontSize: 12.5, cursor: "pointer",
             }}
           >
-            {f === "all" ? "All" : f === "selected" ? "Selected" : "Not selected"}
+            {f === "all" ? "All" : f === "applied" ? "Applied" : f === "no_application" ? "KIV" : f === "single" ? "Single" : f === "double" ? "Double" : f === "flexible" ? "Flexible" : "Allocated"}
           </Box>
         ))}
       </Box>
 
       {!deadlinePassed && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-          Manual assignment unlocks after the selection deadline. Until then, students self-select.
+          Applications are collected until the deadline. Final allocation unlocks after it closes. Students without an application remain KIV for admin review.
         </Alert>
       )}
 
@@ -1022,14 +983,16 @@ function StudentsTab({
         <KEmpty icon="group" title="No one here" body="No students match this filter, or no intake is active." />
       ) : (
         <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "auto" }}>
-          <Table size="small">
+          <Table size="small" sx={{ minWidth: 860 }}>
             <TableHead>
               <TableRow>
                 <TableCell>Matric</TableCell>
                 <TableCell>Name</TableCell>
-                <TableCell>Flags</TableCell>
+                <TableCell>Profile</TableCell>
+                <TableCell>Application</TableCell>
+                <TableCell>Roommate</TableCell>
                 <TableCell>Room</TableCell>
-                <TableCell></TableCell>
+                <TableCell>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1038,12 +1001,18 @@ function StudentsTab({
                   <TableCell>{s.matricId}</TableCell>
                   <TableCell>{s.name}</TableCell>
                   <TableCell>
-                    <Box sx={{ display: "flex", gap: 0.5 }}>
+                    <Typography variant="caption" sx={{ display: "block" }}>{s.gender} · {s.race ?? "—"}</Typography>
+                    <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{s.religion ?? "—"} · {s.nationality}</Typography>
+                    <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
                       {s.isB40 && <MiniTag label="B40" />}
                       {s.isOku && <MiniTag label="OKU" />}
                       {s.isUniform && <MiniTag label="Uniform" />}
                     </Box>
                   </TableCell>
+                  <TableCell>
+                    {s.applicationStatus ? <Box><MiniTag label={`${s.applicationType} · ${s.applicationStatus.replaceAll("_", " ")}`} /><Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "text.secondary" }}>{s.faculty ?? "—"} · Merit {s.merit ?? "—"}</Typography></Box> : <Typography variant="body2" sx={{ color: "text.disabled" }}>KIV · no preference</Typography>}
+                  </TableCell>
+                  <TableCell><Typography variant="caption">{s.roommate ?? "—"}</Typography></TableCell>
                   <TableCell>
                     {s.room ? (
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -1055,13 +1024,7 @@ function StudentsTab({
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {!s.room && deadlinePassed && (
-                      <AssignControl
-                        studentId={s.id}
-                        beds={freeBeds.filter((b) => b.gender === s.gender)}
-                        notify={notify}
-                      />
-                    )}
+                    <KButton size="small" variant="text" onClick={() => setDetail(s)}>View details</KButton>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1069,8 +1032,48 @@ function StudentsTab({
           </Table>
         </Box>
       )}
+      <StudentDetailDialog student={detail} freeBeds={freeBeds} deadlinePassed={deadlinePassed} notify={notify} onClose={() => setDetail(null)} />
     </Box>
   )
+}
+
+function StudentDetailDialog({ student, freeBeds, deadlinePassed, notify, onClose }: {
+  student: StudentData | null
+  freeBeds: { id: string; label: string; gender: Gender }[]
+  deadlinePassed: boolean
+  notify: (m: string, s?: "success" | "error") => void
+  onClose: () => void
+}) {
+  if (!student) return null
+  return <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: `${radius.cardLg}px`, m: { xs: 1.5, sm: 2 } } } }}>
+    <DialogTitle sx={{ fontWeight: 650 }}>Student details</DialogTitle>
+    <DialogContent>
+      <Typography variant="h6" sx={{ mb: 0.25 }}>{student.name}</Typography>
+      <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>{student.matricId} · {student.gender}</Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" }, gap: 1.5, mb: 2 }}>
+        <Detail label="Race" value={student.race} />
+        <Detail label="Religion" value={student.religion} />
+        <Detail label="Nationality" value={student.nationality} />
+        <Detail label="Faculty" value={student.faculty} />
+        <Detail label="Year" value={student.yearOfStudy} />
+        <Detail label="Current college" value={student.currentCollege} />
+        <Detail label="Merit" value={student.merit === null ? null : String(student.merit)} />
+        <Detail label="Roommate" value={student.roommate} />
+        <Detail label="Request" value={student.applicationStatus ? `${student.applicationType} · ${student.applicationStatus.replaceAll("_", " ")}` : "KIV"} />
+      </Box>
+      <Box sx={{ display: "flex", gap: 0.5, mb: 2 }}>{student.isB40 && <MiniTag label="B40" />}{student.isOku && <MiniTag label="OKU" />}{student.isUniform && <MiniTag label="Uniform" />}</Box>
+      <Alert severity={student.room ? "success" : "info"} sx={{ borderRadius: 2 }}>{student.room ? `Allocated: ${student.room}` : "No room allocated yet."}</Alert>
+      <Box sx={{ mt: 2, p: 1.5, border: "1px solid", borderColor: deadlinePassed ? "primary.light" : "divider", borderRadius: 2 }}>
+        <Typography sx={{ fontWeight: 650, mb: 0.35 }}>{student.room ? "Change room assignment" : "Assign a room"}</Typography>
+        {deadlinePassed ? <><Typography variant="caption" sx={{ display: "block", mb: 1, color: "text.secondary" }}>{student.room ? "Choose a new vacant bed. The current room will be released after the change is saved." : "Choose a vacant bed for this student. A confirmed roommate pair must be placed together in one double room."}</Typography><AssignControl studentId={student.id} beds={freeBeds.filter((b) => b.gender === student.gender)} notify={(message, severity) => { notify(message, severity); if (severity !== "error") onClose() }} /></> : <Alert severity="info" sx={{ borderRadius: 2 }}>Room assignment is available after the application period closes. You can review this student now.</Alert>}
+       </Box>
+    </DialogContent>
+    <DialogActions><KButton variant="text" onClick={onClose}>Close</KButton></DialogActions>
+  </Dialog>
+}
+
+function Detail({ label, value }: { label: string; value: string | null }) {
+  return <Box sx={{ minWidth: 0 }}><Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{label}</Typography><Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>{value || "—"}</Typography></Box>
 }
 
 function MiniTag({ label }: { label: string }) {

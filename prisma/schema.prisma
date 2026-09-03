@@ -321,6 +321,22 @@ enum IntakeStatus {
   archived
 }
 
+enum RoomApplicationType {
+  single
+  double
+  flexible
+}
+
+enum RoomApplicationStatus {
+  single_pending
+  roommate_pending
+  roommate_confirmed
+  flexible_submitted
+  roommate_rejected
+  allocated
+  withdrawn
+}
+
 model ResidenceBlock {
   id          String   @id @default(uuid())
   name        String   @unique
@@ -431,9 +447,32 @@ model EligibleStudent {
   intake Intake @relation(fields: [intakeId], references: [id])
   user   User?  @relation(fields: [userId], references: [id])
   bed    Bed?
+  roomApplication      RoomApplication?  @relation("RoomApplicationApplicant")
+  roommateApplications RoomApplication[] @relation("RoomApplicationRoommate")
 
   @@unique([intakeId, matricId])
   @@map("eligible_students")
+}
+
+// A student's accommodation request. This records preference only; `Bed` remains
+// the source of truth for the final room allocated by the KIZ office.
+model RoomApplication {
+  id          String                @id @default(uuid())
+  applicantId String                @unique @map("applicant_id")
+  roommateId  String?               @map("roommate_id")
+  type        RoomApplicationType
+  status      RoomApplicationStatus
+  submittedAt DateTime              @default(now()) @map("submitted_at")
+  respondedAt DateTime?             @map("responded_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  deletedAt   DateTime?             @map("deleted_at")
+
+  applicant EligibleStudent  @relation("RoomApplicationApplicant", fields: [applicantId], references: [id])
+  roommate  EligibleStudent? @relation("RoomApplicationRoommate", fields: [roommateId], references: [id])
+
+  @@index([roommateId, status])
+  @@map("room_applications")
 }
 
 model AppSetting {

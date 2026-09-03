@@ -2,6 +2,8 @@ import QRCode from "qrcode"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { color, elevation, font } from "@/lib/theme"
+import { getAppLogoUrl } from "@/lib/settings"
+import { StudentCardFace } from "@/components/shared/student-card-face"
 
 interface Props {
   name: string
@@ -9,10 +11,48 @@ interface Props {
   block: string | null
   roomNumber: string | null
   avatarUrl: string | null
+  /** Only the "ahli" (student) role gets the official student card design. */
+  role?: string
+  cardBackgroundUrl?: string | null
+  cardColor?: string
+  cardColorEnd?: string | null
+  /** QR data URL rendered inside the student card (below room number). */
+  qrDataUrl?: string | null
 }
 
-export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl }: Props) {
-  const qrDataUrl = await QRCode.toDataURL(matricId, { width: 220, margin: 1 })
+export async function KadMayaCard({
+  name,
+  matricId,
+  block,
+  roomNumber,
+  avatarUrl,
+  role,
+  cardBackgroundUrl,
+  cardColor,
+  cardColorEnd,
+  qrDataUrl,
+}: Props) {
+  if (role === "ahli") {
+    const logoUrl = await getAppLogoUrl()
+    const start = cardColor ?? "#0891B2"
+    const nameBarBackground = cardColorEnd
+      ? `linear-gradient(135deg, ${start} 0%, ${cardColorEnd} 100%)`
+      : start
+    return (
+      <StudentCardFace
+        name={name}
+        roomNumber={roomNumber}
+        block={block}
+        avatarUrl={avatarUrl}
+        backgroundUrl={cardBackgroundUrl ?? null}
+        nameBarBackground={nameBarBackground}
+        logoUrl={logoUrl}
+        qrDataUrl={qrDataUrl ?? null}
+      />
+    )
+  }
+
+  const legacyQrDataUrl = await QRCode.toDataURL(matricId, { width: 220, margin: 1 })
 
   const initial = name.trim().charAt(0).toUpperCase() || "K"
 
@@ -123,7 +163,7 @@ export async function KadMayaCard({ name, matricId, block, roomNumber, avatarUrl
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrDataUrl} alt="QR Code" style={{ width: 150, height: 150, display: "block", mixBlendMode: "multiply" }} />
+          <img src={legacyQrDataUrl} alt="QR Code" style={{ width: 150, height: 150, display: "block", mixBlendMode: "multiply" }} />
         </Box>
 
         <Typography sx={{ textAlign: "center", fontSize: 11.5, color: "rgba(255,255,255,0.45)", mt: 2 }}>

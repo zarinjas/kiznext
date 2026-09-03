@@ -73,13 +73,13 @@ export function NavRail({
             component="img"
             src={logoUrl}
             alt="KIZ"
-            sx={{ height: 28, width: collapsed ? 28 : "auto", objectFit: "contain" }}
+            sx={{ height: collapsed ? 28 : 50, width: collapsed ? 28 : "auto", objectFit: "contain", borderRadius: 0.4 }}
           />
         ) : (
           <Box
             sx={{
-              width: 30,
-              height: 30,
+              width: collapsed ? 30 : 36,
+              height: collapsed ? 30 : 36,
               borderRadius: 2,
               display: "flex",
               alignItems: "center",
@@ -87,22 +87,12 @@ export function NavRail({
               flexShrink: 0,
               backgroundColor: color.brand[900],
               color: "#fff",
-              fontSize: 14,
+              fontSize: collapsed ? 14 : 17,
               fontWeight: 650,
               letterSpacing: "-0.02em",
             }}
           >
             K
-          </Box>
-        )}
-        {!collapsed && (
-          <Box sx={{ minWidth: 0 }}>
-            <Box sx={{ fontWeight: 600, fontSize: 14, color: "text.primary", lineHeight: 1.25, letterSpacing: "-0.015em" }}>
-              KIZ
-            </Box>
-            <Box sx={{ fontSize: 11.5, color: "text.secondary", lineHeight: 1.25 }}>
-              Kolej Ibu Zain
-            </Box>
           </Box>
         )}
       </Box>

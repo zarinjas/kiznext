@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
-import { getOccupantPrivacy, getOccupancySummary } from "@/lib/bilik"
+import { areAllocationsPublished, getOccupancySummary } from "@/lib/bilik"
 import { UrusBilikClient } from "./urus-bilik-client"
 import { getOccupancy } from "./actions"
 
@@ -17,7 +17,7 @@ export default async function UrusBilikPage() {
   // the shared read-only helper directly instead of the admin-gated action.
   const occupancy = readOnly ? await getOccupancySummary() : await getOccupancy()
 
-  const [window, intakes, blocks, occupantPrivacy] = await Promise.all([
+  const [window, intakes, blocks, allocationsPublished] = await Promise.all([
     prisma.selectionWindow.findFirst({
       where: { isActive: true, deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -34,11 +34,11 @@ export default async function UrusBilikPage() {
         rooms: {
           where: { deletedAt: null },
           orderBy: [{ floor: "asc" }, { number: "asc" }],
-          include: { beds: { where: { deletedAt: null } } },
+          include: { beds: { where: { deletedAt: null }, include: { occupant: true } } },
         },
       },
     }),
-    getOccupantPrivacy(),
+    areAllocationsPublished(),
   ])
 
   const activeIntake = intakes.find((i) => i.status === "active")
@@ -46,7 +46,11 @@ export default async function UrusBilikPage() {
     ? await prisma.eligibleStudent.findMany({
         where: { intakeId: activeIntake.id, deletedAt: null },
         orderBy: { name: "asc" },
-        include: { bed: { include: { room: { include: { block: true } } } } },
+        include: {
+          bed: { include: { room: { include: { block: true } } } },
+          roomApplication: { include: { roommate: true } },
+          roommateApplications: { where: { deletedAt: null, status: "roommate_confirmed" }, include: { applicant: true } },
+        },
       })
     : []
 
@@ -65,6 +69,11 @@ export default async function UrusBilikPage() {
       status: r.status,
       totalBeds: r.beds.length,
       occupiedBeds: r.beds.filter((x) => x.occupantId).length,
+      beds: r.beds.map((bed) => ({
+        id: bed.id,
+        position: bed.position,
+        occupant: bed.occupant ? { id: bed.occupant.id, name: bed.occupant.name, matricId: bed.occupant.matricId } : null,
+      })),
     })),
   }))
 
@@ -73,6 +82,13 @@ export default async function UrusBilikPage() {
     matricId: s.matricId,
     name: s.name,
     gender: s.gender,
+    race: s.race,
+    religion: s.religion,
+    nationality: s.nationality,
+    faculty: s.faculty,
+    yearOfStudy: s.yearOfStudy,
+    currentCollege: s.currentCollege,
+    merit: s.merit,
     isB40: s.isB40,
     isOku: s.isOku,
     isUniform: s.isUniform,
@@ -80,6 +96,9 @@ export default async function UrusBilikPage() {
     position: s.bed?.position ?? null,
     selectedAt: s.selectedAt ? s.selectedAt.toISOString() : null,
     assignedByAdmin: s.assignedByAdmin,
+    applicationType: s.roomApplication?.type ?? (s.roommateApplications[0] ? "double" : null),
+    applicationStatus: s.roomApplication?.status ?? (s.roommateApplications[0] ? "roommate_confirmed" : null),
+    roommate: s.roomApplication?.roommate ? `${s.roomApplication.roommate.name} · ${s.roomApplication.roommate.matricId}` : s.roommateApplications[0] ? `${s.roommateApplications[0].applicant.name} · ${s.roommateApplications[0].applicant.matricId}` : null,
   }))
 
   const freeBeds = activeIntake
@@ -124,7 +143,7 @@ export default async function UrusBilikPage() {
       students={studentsData}
       occupancy={occupancy}
       freeBeds={freeBedsData}
-      occupantPrivacy={occupantPrivacy}
+      allocationsPublished={allocationsPublished}
     />
   )
 }

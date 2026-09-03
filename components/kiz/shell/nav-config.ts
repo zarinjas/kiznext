@@ -47,7 +47,7 @@ export function navForRole(role: Role): NavGroup[] {
     {
       label: "Bookings",
       items: [
-        { label: "Choose Room", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
+        { label: "Accommodation", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
         { label: "Facilities", href: `/${role}/tempahan-fasiliti`, icon: "meeting_room" },
         { label: "Guest House", href: `/${role}/rumah-tamu`, icon: "hotel" },
         { label: "My Bookings", href: `/${role}/tempahan`, icon: "calendar_month" },
@@ -59,7 +59,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent" },
         { label: "Lost & Found", href: `/${role}/hilang`, icon: "search" },
         { label: "Offices", href: `/${role}/pejabat`, icon: "domain" },
-        { label: "Directory", href: `/${role}/direktori`, icon: "map" },
+        { label: "AR Directory", href: `/${role}/direktori`, icon: "view_in_ar" },
       ],
     },
     {
@@ -79,7 +79,7 @@ export function navForRole(role: Role): NavGroup[] {
         items: [
           { label: "Facility Requests", href: `/${role}/urus-tempahan-fasiliti`, icon: "task_alt", admin: true },
           { label: "Guest House", href: `/${role}/urus-rumah-tamu`, icon: "hotel_class", admin: true },
-          { label: "Room Selection", href: `/${role}/urus-bilik`, icon: "bedroom_parent", admin: true },
+          { label: "Accommodation", href: `/${role}/urus-bilik`, icon: "bedroom_parent", admin: true },
           { label: "Helpdesk Inbox", href: `/${role}/urus-helpdesk`, icon: "inbox", admin: true },
         ],
       },

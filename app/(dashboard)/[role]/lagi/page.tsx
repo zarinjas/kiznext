@@ -27,7 +27,7 @@ function buildGroups(role: string): { label: string; items: { label: string; hre
         { label: "Helpdesk", href: "helpdesk", icon: "support_agent" },
         { label: "Lost & found", href: "hilang", icon: "search" },
         { label: "Offices", href: "pejabat", icon: "domain" },
-        { label: "Block directory", href: "direktori", icon: "map" },
+        { label: "AR Directory", href: "direktori", icon: "view_in_ar" },
       ],
     },
     {

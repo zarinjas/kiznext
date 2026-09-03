@@ -1,127 +1,130 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
-import Accordion from "@mui/material/Accordion"
-import AccordionSummary from "@mui/material/AccordionSummary"
-import AccordionDetails from "@mui/material/AccordionDetails"
 import Typography from "@mui/material/Typography"
-import Chip from "@mui/material/Chip"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { KEmpty } from "@/components/kiz/primitives/empty-state"
-import { color, radius } from "@/lib/theme"
+import { color, radius, gradient } from "@/lib/theme"
 
-export default async function DirektoriPage() {
+const teasers = ["Blocks & floors", "Facilities", "Offices & directions"]
+
+export default async function ARDirectoryPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  const blocks = await prisma.block.findMany({
-    include: {
-      facilities: {
-        where: { deletedAt: null },
-        orderBy: { name: "asc" },
-      },
-    },
-    orderBy: { name: "asc" },
-  })
-
   return (
-    <Box sx={{ maxWidth: 760, mx: "auto" }}>
+    <Box sx={{ maxWidth: 720, mx: "auto" }}>
       <PageHeader
-        overline="Support"
-        title="Block & Facility Directory"
-        subtitle="Guide to block locations and facilities at KIZ."
+        overline="Explore"
+        title="AR Directory"
+        subtitle="Point your camera at any block, facility or office at KIZ to see what's inside — layered right onto the real world."
+        actions={
+          <Box
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.75,
+              px: 1.25,
+              py: 0.5,
+              borderRadius: 999,
+              backgroundColor: color.brand[50],
+              color: color.brand[800],
+              border: "1px solid",
+              borderColor: color.brand[200],
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "-0.006em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <KIcon icon="view_in_ar" size={15} />
+            Coming soon
+          </Box>
+        }
       />
 
-      {blocks.length === 0 ? (
-        <KEmpty icon="map" title="Directory's empty for now" body="Once blocks are added, they'll show up right here." />
-      ) : (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-          {blocks.map((block) => (
-            <Accordion
-              key={block.id}
-              sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: `${radius.cardLg}px !important`,
-                boxShadow: "none",
-                "&:before": { display: "none" },
-                "&.Mui-expanded": { margin: 0 },
-              }}
-            >
-              <AccordionSummary
-                expandIcon={<KIcon icon="expand_more" size={20} />}
-                sx={{ px: 2, py: 0.5, minHeight: 64 }}
+      {/* Hero teaser */}
+      <Box
+        sx={{
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: `${radius.cardLg}px`,
+          border: "1px solid",
+          borderColor: "divider",
+          backgroundImage: gradient.hero,
+          p: { xs: 3.5, sm: 5 },
+          textAlign: "center",
+          "[data-mui-color-scheme='dark'] &": {
+            backgroundImage: "none",
+            backgroundColor: "background.paper",
+          },
+        }}
+      >
+        <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />
+
+        <Box sx={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <Box
+            sx={{
+              width: 72,
+              height: 72,
+              borderRadius: `${radius.card}px`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: color.brand[50],
+              color: color.brand[800],
+              border: "1px solid",
+              borderColor: color.brand[200],
+              mb: 2.25,
+            }}
+          >
+            <KIcon icon="view_in_ar" size={36} />
+          </Box>
+
+          <Typography
+            sx={{
+              fontSize: { xs: 22, sm: 26 },
+              fontWeight: 640,
+              lineHeight: 1.2,
+              letterSpacing: "-0.032em",
+              mb: 1,
+            }}
+          >
+            We&apos;re building something new
+          </Typography>
+
+          <Typography variant="body1" sx={{ color: "text.secondary", maxWidth: 440, mx: "auto" }}>
+            The block directory is getting an augmented-reality upgrade. Soon you&apos;ll
+            explore KIZ like never before — point, look and discover what each space
+            has to offer.
+          </Typography>
+
+          <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 1, mt: 2.5 }}>
+            {teasers.map((t) => (
+              <Box
+                key={t}
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  px: 1.25,
+                  py: 0.5,
+                  borderRadius: 999,
+                  backgroundColor: "background.paper",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  fontSize: 12,
+                  fontWeight: 550,
+                  color: "text.secondary",
+                }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-                  <KIcon
-                    icon="location_on"
-                    size={20}
-                    sx={{ color: "var(--mui-palette-text-disabled)", flexShrink: 0 }}
-                  />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 550, letterSpacing: "-0.011em" }}>
-                      {block.name}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                      {block.facilities.length} facilit{block.facilities.length === 1 ? "y" : "ies"}
-                    </Typography>
-                  </Box>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails sx={{ px: 2, pb: 2.5 }}>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {block.description}
-                </Typography>
-                {block.navigationNotes && (
-                  <Box
-                    sx={{
-                      mt: 1.5,
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 1,
-                      p: 1.5,
-                      borderRadius: 1.5,
-                      backgroundColor: color.info.soft,
-                      color: color.info.ink,
-                    }}
-                  >
-                    <KIcon icon="explore" size={16} />
-                    <Typography variant="body2" sx={{ fontStyle: "italic" }}>
-                      {block.navigationNotes}
-                    </Typography>
-                  </Box>
-                )}
-                {block.facilities.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="overline" sx={{ color: "text.disabled" }}>
-                      Facilities
-                    </Typography>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 0.75 }}>
-                      {block.facilities.map((facility) => (
-                        <Chip
-                          key={facility.id}
-                          label={
-                            <span>
-                              {facility.name}
-                              {facility.capacity ? (
-                                <span style={{ color: "text.disabled" }}> · {facility.capacity}px</span>
-                              ) : null}
-                            </span>
-                          }
-                          size="small"
-                          sx={{ backgroundColor: "action.hover", color: "text.primary", fontWeight: 600 }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </AccordionDetails>
-            </Accordion>
-          ))}
+                <KIcon icon="check" size={13} sx={{ color: color.success.main }} />
+                {t}
+              </Box>
+            ))}
+          </Box>
         </Box>
-      )}
+      </Box>
     </Box>
   )
 }

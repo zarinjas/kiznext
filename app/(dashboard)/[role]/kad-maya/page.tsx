@@ -1,3 +1,4 @@
+import QRCode from "qrcode"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
@@ -8,6 +9,7 @@ import { KadMayaCard } from "@/components/shared/kad-maya-card"
 import { AvatarPicker } from "@/components/shared/avatar-picker"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { color } from "@/lib/theme"
+import { getStudentCardDesign } from "@/lib/settings"
 
 export default async function KadMayaPage() {
   const session = await auth()
@@ -21,10 +23,15 @@ export default async function KadMayaPage() {
       block: true,
       roomNumber: true,
       avatarUrl: true,
+      role: true,
     },
   })
 
   if (!user) redirect("/login")
+
+  const isStudent = user.role === "ahli"
+  const cardDesign = isStudent ? await getStudentCardDesign() : null
+  const qrDataUrl = isStudent ? await QRCode.toDataURL(user.matricId, { width: 220, margin: 1 }) : null
 
   return (
     <Box sx={{ maxWidth: 440, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -37,6 +44,11 @@ export default async function KadMayaPage() {
           block={user.block}
           roomNumber={user.roomNumber}
           avatarUrl={user.avatarUrl}
+          role={user.role}
+          cardBackgroundUrl={cardDesign?.backgroundUrl}
+          cardColor={cardDesign?.color}
+          cardColorEnd={cardDesign?.colorEnd}
+          qrDataUrl={qrDataUrl}
         />
       </Box>
 

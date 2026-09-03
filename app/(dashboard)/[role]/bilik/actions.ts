@@ -3,114 +3,115 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
-import { nowMalaysia, windowState, canSelect } from "@/lib/room-selection"
-import { buildPickerState, getActiveWindow, resolveEligibleStudent } from "@/lib/bilik"
-import type { PickerState } from "@/components/shared/bilik/types"
+import { canSelect, nowMalaysia, windowState } from "@/lib/room-selection"
+import { getActiveIntake, getActiveWindow, resolveEligibleStudent } from "@/lib/bilik"
+import { revalidatePath } from "next/cache"
 
-/** Re-fetch the picker payload (used by the 5s poll and after mutations). */
-export async function refreshPickerState(): Promise<PickerState> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["ahli"])
-  return buildPickerState(session.user.id, session.user.matricId)
-}
+type ApplicationType = "single" | "double" | "flexible"
 
-async function assertOpenWindow() {
-  const win = await getActiveWindow()
-  if (!win) throw new Error("Selection window is not configured")
-  const ws = windowState(
-    { opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours },
-    nowMalaysia(),
-  )
-  if (!canSelect(ws)) throw new Error("Selection window is closed")
-  return ws
-}
-
-/**
- * Select a bed. Server-side re-checks: window open, eligible, gender match, and
- * the bed is free — using a conditional update so two racing students can't both
- * win the last bed. Any previously held bed is released in the same transaction.
- */
-export async function selectBed(bedId: string): Promise<{ ok: boolean; error?: string }> {
-  const session = await auth()
-  if (!session?.user?.id) return { ok: false, error: "Unauthorized" }
-  if (session.user.role !== "ahli") return { ok: false, error: "Only students can pick a room" }
-
+export async function checkRoommate(matricId: string): Promise<{ ok: boolean; race?: string | null; religion?: string | null; error?: string }> {
   try {
-    await assertOpenWindow()
-
-    const student = await resolveEligibleStudent(session.user.id, session.user.matricId)
-    if (!student) return { ok: false, error: "You're not on the accepted list" }
-
-    const bed = await prisma.bed.findFirst({
-      where: { id: bedId, deletedAt: null },
-      include: { room: { include: { block: true } } },
-    })
-    if (!bed) return { ok: false, error: "That bed no longer exists" }
-    if (bed.room.status !== "available") return { ok: false, error: "That room isn't available" }
-    if (bed.room.block.gender !== student.gender) {
-      return { ok: false, error: "That block isn't for your gender" }
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // Release any bed the student currently holds.
-      await tx.bed.updateMany({
-        where: { occupantId: student.id },
-        data: { occupantId: null },
-      })
-
-      // Claim the target bed only if still free (race-safe).
-      const claimed = await tx.bed.updateMany({
-        where: { id: bedId, occupantId: null, deletedAt: null },
-        data: { occupantId: student.id },
-      })
-      if (claimed.count === 0) {
-        throw new Error("That bed was just taken — pick another")
-      }
-
-      await tx.eligibleStudent.update({
-        where: { id: student.id },
-        data: { selectedAt: nowMalaysia(), assignedByAdmin: false },
-      })
-
-      // Keep the User's denormalised block/room in sync for the eCard etc.
-      await tx.user.update({
-        where: { id: session.user.id },
-        data: { block: bed.room.block.name, roomNumber: bed.room.number },
-      })
-    })
-
-    return { ok: true }
+    const { student } = await studentContext()
+    const normalized = matricId.trim().toUpperCase()
+    if (!normalized || normalized === student.matricId) return { ok: false, error: "We could not verify that roommate. Check the matric ID and try again." }
+    const intake = await getActiveIntake()
+    const roommate = intake ? await prisma.eligibleStudent.findFirst({ where: { intakeId: intake.id, matricId: normalized, deletedAt: null } }) : null
+    if (!roommate || roommate.gender !== student.gender) return { ok: false, error: "We could not verify that roommate. Check the matric ID and try again." }
+    const existing = await prisma.roomApplication.findFirst({ where: { roommateId: roommate.id, deletedAt: null, status: { in: ["roommate_pending", "roommate_confirmed"] } } })
+    if (existing) return { ok: false, error: "We could not verify that roommate. Check the matric ID and try again." }
+    return { ok: true, race: roommate.race, religion: roommate.religion }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Failed to select bed" }
+    return { ok: false, error: e instanceof Error ? e.message : "Could not verify roommate" }
   }
 }
 
-/** Release the student's current bed while the window is open. */
-export async function releaseBed(): Promise<{ ok: boolean; error?: string }> {
+async function studentContext() {
   const session = await auth()
-  if (!session?.user?.id) return { ok: false, error: "Unauthorized" }
-  if (session.user.role !== "ahli") return { ok: false, error: "Only students can release a room" }
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  requireRole(session.user.role as Role, ["ahli"])
+  const [student, win] = await Promise.all([
+    resolveEligibleStudent(session.user.id, session.user.matricId),
+    getActiveWindow(),
+  ])
+  if (!student) throw new Error("You are not on the current accepted-student list")
+  if (!win) throw new Error("The accommodation application window is not configured")
+  const state = windowState({ opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours }, nowMalaysia())
+  if (!canSelect(state)) throw new Error("The accommodation application window is closed")
+  return { session, student, win }
+}
 
+export async function submitRoomApplication(input: {
+  type: ApplicationType
+  roommateMatricId?: string
+}): Promise<{ ok: boolean; error?: string }> {
   try {
-    await assertOpenWindow()
-    const student = await resolveEligibleStudent(session.user.id, session.user.matricId)
-    if (!student) return { ok: false, error: "You're not on the accepted list" }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.bed.updateMany({ where: { occupantId: student.id }, data: { occupantId: null } })
-      await tx.eligibleStudent.update({
-        where: { id: student.id },
-        data: { selectedAt: null },
-      })
-      await tx.user.update({
-        where: { id: session.user.id },
-        data: { block: null, roomNumber: null },
-      })
+    const { student } = await studentContext()
+    const type = input.type
+    const confirmed = await prisma.roomApplication.findFirst({
+      where: { OR: [{ applicantId: student.id }, { roommateId: student.id }], status: "roommate_confirmed", deletedAt: null },
     })
-
+    if (confirmed) return { ok: false, error: "A confirmed roommate request is final and cannot be changed." }
+    const incoming = await prisma.roomApplication.findFirst({
+      where: { roommateId: student.id, status: { in: ["roommate_pending", "roommate_confirmed"] }, deletedAt: null },
+    })
+    if (incoming) return { ok: false, error: "Respond to your pending roommate request before submitting another preference." }
+    if (type === "double" && !input.roommateMatricId?.trim()) {
+      return { ok: false, error: "Enter your roommate's matric ID" }
+    }
+    let roommateId: string | null = null
+    if (type === "double") {
+      const matricId = input.roommateMatricId!.trim().toUpperCase()
+      if (matricId === student.matricId) return { ok: false, error: "You cannot choose yourself as a roommate" }
+      const intake = await getActiveIntake()
+      const roommate = intake ? await prisma.eligibleStudent.findFirst({ where: { intakeId: intake.id, matricId, deletedAt: null } }) : null
+      if (!roommate) return { ok: false, error: "We could not verify that roommate. Check the matric ID and try again." }
+      if (roommate.gender !== student.gender) return { ok: false, error: "Roommates must be the same gender." }
+      const existing = await prisma.roomApplication.findFirst({ where: { roommateId: roommate.id, deletedAt: null, status: { in: ["roommate_pending", "roommate_confirmed"] } } })
+      if (existing) return { ok: false, error: "That student already has an active roommate request." }
+      roommateId = roommate.id
+    }
+    await prisma.roomApplication.upsert({
+      where: { applicantId: student.id },
+      update: { type, roommateId, status: type === "single" ? "single_pending" : type === "double" ? "roommate_pending" : "flexible_submitted", submittedAt: nowMalaysia(), respondedAt: null, deletedAt: null },
+      create: { applicantId: student.id, type, roommateId, status: type === "single" ? "single_pending" : type === "double" ? "roommate_pending" : "flexible_submitted" },
+    })
+    revalidatePath("/ahli/bilik")
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Failed to release bed" }
+    return { ok: false, error: e instanceof Error ? e.message : "Application failed" }
+  }
+}
+
+export async function respondToRoommateRequest(response: "approved" | "rejected"): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { student } = await studentContext()
+    const request = await prisma.roomApplication.findFirst({ where: { roommateId: student.id, status: "roommate_pending", deletedAt: null }, include: { applicant: true } })
+    if (!request) return { ok: false, error: "There is no pending roommate request." }
+    if (response === "rejected") {
+      await prisma.roomApplication.update({ where: { id: request.id }, data: { status: "roommate_rejected", respondedAt: nowMalaysia() } })
+    } else {
+      const ownApplication = await prisma.roomApplication.findFirst({ where: { applicantId: student.id, deletedAt: null } })
+      if (ownApplication) return { ok: false, error: "Withdraw your existing preference before confirming this roommate request." }
+      await prisma.roomApplication.update({ where: { id: request.id }, data: { status: "roommate_confirmed", respondedAt: nowMalaysia() } })
+    }
+    revalidatePath("/ahli/bilik")
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not update request" }
+  }
+}
+
+export async function withdrawRoomApplication(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { student } = await studentContext()
+    const confirmed = await prisma.roomApplication.findFirst({
+      where: { OR: [{ applicantId: student.id }, { roommateId: student.id }], status: "roommate_confirmed", deletedAt: null },
+    })
+    if (confirmed) return { ok: false, error: "A confirmed roommate request is final and cannot be withdrawn." }
+    await prisma.roomApplication.updateMany({ where: { applicantId: student.id, deletedAt: null }, data: { status: "withdrawn", deletedAt: nowMalaysia() } })
+    revalidatePath("/ahli/bilik")
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not withdraw application" }
   }
 }
