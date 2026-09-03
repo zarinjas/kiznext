@@ -6,12 +6,10 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "16mb",
-      // OpenLiteSpeed reverse-proxies to 127.0.0.1:3010 without forwarding the
-      // original Host, so the browser `Origin` (mykiz.my) doesn't match the
-      // `host`/`x-forwarded-host` the app sees. Without this, Next aborts every
-      // Server Action with "Invalid Server Actions request." and the client
-      // buttons hang on "Saving…"/"Uploading…".
-      allowedOrigins: ["mykiz.my", "*.mykiz.my"],
+      // NOTE: `allowedOrigins` is accepted by the schema but NEVER wired into
+      // the runtime render pipeline in Next 16 — it's a dead config field.
+      // The reverse-proxy host mismatch (Origin: mykiz.my vs Host: localhost)
+      // is fixed in proxy.ts by injecting x-forwarded-host from AUTH_URL.
     },
   },
 };
