@@ -16,14 +16,16 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== 1. AUTH_URL exact (host masked, structure visible) ====="
-            sudo grep -E "AUTH_URL|NEXTAUTH_URL|NEXT_PUBLIC_SITE_URL" /home/mykiz.my/kiznext/.env 2>&1 | sed -E 's#(https?://)([^, ]+)#\1<host>#g'
+            echo "===== A. .env raw format (values masked) ====="
+            sudo sed -E 's/(=.{0,40}).*/\1…/' /home/mykiz.my/kiznext/.env
             echo
-            echo "===== 2. process.env of running service (AUTH_URL seen by node) ====="
-            sudo systemctl show mykiznext -p Environment 2>&1 | tr ' ' '\n' | grep -iE "AUTH_URL|NEXTAUTH_URL|SITE_URL|AUTH_SECRET" | sed -E 's#(https?://)([^, ]+)#\1<host>#g'
+            echo "===== B. running node process environ: AUTH_URL present? ====="
+            PID=$(sudo pgrep -f "next start" | head -1)
+            echo "node PID: $PID"
+            sudo tr '\0' '\n' < /proc/$PID/environ 2>/dev/null | grep -E "^AUTH_URL|^NEXTAUTH_URL|^AUTH_SECRET|^DATABASE_URL" | sed -E 's/(=.{0,30}).*/\1…/'
             echo
-            echo "===== 3. journalctl: request lines + Invalid URL context (method/url) ====="
-            sudo journalctl -u mykiznext --no-pager 2>/dev/null | grep -B2 -A3 "Invalid URL" | grep -iE "POST|GET|PUT|Invalid URL|input:|/superadmin|/login|/api|urus-tetapan" | tail -60
+            echo "===== C. what the proxy sends (via node listener) ====="
+            sudo timeout 3 bash -c 'cat < /dev/tcp/127.0.0.1/3010 >/dev/null' 2>/dev/null; echo "(can't easily sniff headers this way)"
             echo
-            echo "===== 4. raw stack lines (non-ignore-listed) for last error ====="
-            sudo journalctl -u mykiznext --no-pager 2>/dev/null | grep -A20 "Invalid URL" | grep -viE "ignore-listed|^\s*$|input:|code:" | tail -30
+            echo "===== D. OpenLiteSpeed vhost rewrite/header rules ====="
+            sudo grep -rniE "x-forwarded|proxy_set|extraHeader|add_header|Origin" /usr/local/lsws/conf/ 2>/dev/null | grep -iE "forwarded|origin|host" | head -20
