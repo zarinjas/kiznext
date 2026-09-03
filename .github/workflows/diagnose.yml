@@ -16,7 +16,7 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            DB_URL=$(sudo grep '^DATABASE_URL=' /home/mykiz.my/kiznext/.env | head -1 | cut -d= -f2-)
+            DB_URL=$(sudo grep '^DATABASE_URL=' /home/mykiz.my/kiznext/.env | head -1 | cut -d= -f2- | cut -d'?' -f1)
             echo "===== sanity: total users / users with avatar ====="
             psql "$DB_URL" -t -A -c "SELECT count(*) FROM users;"
             psql "$DB_URL" -t -A -c "SELECT count(*) FROM users WHERE avatar_url IS NOT NULL;"
