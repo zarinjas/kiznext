@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Check avatar URLs vs files
+      - name: Check avatar urls
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -16,12 +16,11 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== 1. distinct avatarUrl values in DB ====="
-            sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -F" | " -c "SELECT DISTINCT \"avatarUrl\" FROM users WHERE \"avatarUrl\" IS NOT NULL;"' 2>&1 | head -30
+            echo "===== distinct avatar_url in DB ====="
+            sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -F" | " -c "SELECT DISTINCT avatar_url FROM users WHERE avatar_url IS NOT NULL AND avatar_url <> chr(39)||chr(39);"' 2>&1 | grep -v "^$" | head -30
             echo
-            echo "===== 2. test each avatarUrl: file exists? + curl ====="
-            AVATARS=$(sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -c "SELECT DISTINCT \"avatarUrl\" FROM users WHERE \"avatarUrl\" IS NOT NULL;"' 2>/dev/null)
-            echo "$AVATARS" | while read -r url; do
+            echo "===== for each avatar_url: file + curl ====="
+            sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -c "SELECT DISTINCT avatar_url FROM users WHERE avatar_url IS NOT NULL;"' 2>/dev/null | while read -r url; do
               [ -z "$url" ] && continue
               REL="${url#/uploads/}"
               if [ -f "/home/mykiz.my/kiznext/public/uploads/$REL" ]; then
@@ -29,6 +28,5 @@ jobs:
               else
                 echo "FILE MISSING: $url"
               fi
-              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3010$url" 2>/dev/null)
-              echo "  curl $url -> HTTP $code"
+              echo "  curl -> HTTP $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3010$url")"
             done
