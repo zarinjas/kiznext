@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Collect server diagnostics
+      - name: Check uploaded files + sharp
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -16,13 +16,35 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== 1. [HEADER-DIAG] logs (last 20) ====="
-            sudo journalctl -u mykiznext --no-pager 2>/dev/null | grep "HEADER-DIAG" | tail -20
+            echo "===== 1. recent uploads ====="
+            ls -lt /home/mykiz.my/kiznext/public/uploads/ 2>/dev/null | head -10
             echo
-            echo "===== 2. latest errors ====="
-            sudo journalctl -u mykiznext --no-pager -n 60 2>/dev/null | grep -iE "Invalid URL|TypeError|input:|error" | tail -20
+            echo "===== 2. file types of recent uploads ====="
+            for f in $(ls -t /home/mykiz.my/kiznext/public/uploads/ 2>/dev/null | head -4); do
+              echo "--- $f ---"
+              file "/home/mykiz.my/kiznext/public/uploads/$f"
+              stat -c "%s bytes" "/home/mykiz.my/kiznext/public/uploads/$f"
+            done
             echo
-            echo "===== 3. full OpenLiteSpeed vhost header/proxy rules ====="
-            sudo sed -n '/extraHeaders/,/END_extraHeaders/p' /usr/local/lsws/conf/vhosts/mykiz.my/vhost.conf 2>/dev/null
-            echo "--- context lines around proxy ---"
-            sudo grep -niE "proxy|Context|X-Forwarded|Origin|Rewrite" /usr/local/lsws/conf/vhosts/mykiz.my/vhost.conf 2>/dev/null | head -30
+            echo "===== 3. sharp test on VPS ====="
+            cd /home/mykiz.my/kiznext && sudo runuser -u mykiz7808 -- env HOME=/home/mykiz.my node -e "
+              const sharp = require('sharp');
+              console.log('sharp:', sharp.versions.sharp, 'vips:', sharp.versions.vips);
+              // create a known test image
+              sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } } }).png().toBuffer().then(async buf => {
+                console.log('created test png bytes:', buf.length);
+                const out = await sharp(buf).resize(512,512).png().toBuffer();
+                console.log('resized png bytes:', out.length, '- OK, sharp works');
+              }).catch(e => console.log('SHARP TEST FAILED:', e.message));
+            " 2>&1 | head -10
+            echo
+            echo "===== 4. sharp decode latest uploaded file ====="
+            LATEST=$(ls -t /home/mykiz.my/kiznext/public/uploads/ 2>/dev/null | grep -vE "^\.|lost" | head -1)
+            if [ -n "$LATEST" ]; then
+              cd /home/mykiz.my/kiznext && sudo runuser -u mykiz7808 -- env HOME=/home/mykiz.my node -e "
+                const sharp = require('sharp');
+                sharp('public/uploads/$LATEST', { failOn: 'error' }).metadata().then(m => {
+                  console.log('DECODE OK:', m.format, m.width + 'x' + m.height);
+                }).catch(e => console.log('DECODE FAILED:', e.message));
+              " 2>&1 | head -5
+            fi
