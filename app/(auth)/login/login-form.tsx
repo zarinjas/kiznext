@@ -178,13 +178,7 @@ export function LoginForm({ logoUrl }: Props) {
             </Typography>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1.5 }}>
               <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("A123456", "kiz123")}>
-                Student (ahli)
-              </Button>
-              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("STAF001", "kiz123")}>
-                Staff (staf)
-              </Button>
-              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("ADMIN002", "kiz123")}>
-                Admin KIZ
+                Student
               </Button>
               <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("ADMIN001", "kiz123")}>
                 Super Admin
