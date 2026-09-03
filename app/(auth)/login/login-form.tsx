@@ -165,9 +165,9 @@ export function LoginForm({ logoUrl }: Props) {
 
           <Box sx={{ mt: 3, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              New to the app?{" "}
+              Are you a KIZ resident, UKM student or staff?{" "}
               <Typography component={Link} href="/daftar" variant="caption" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
-                Create an account
+                Register here
               </Typography>
             </Typography>
           </Box>

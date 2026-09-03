@@ -35,8 +35,14 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     }
 
     setUploading(true)
-    const result = await uploadAppLogo(formData)
-    setUploading(false)
+    let result
+    try {
+      result = await uploadAppLogo(formData)
+    } catch {
+      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } finally {
+      setUploading(false)
+    }
 
     if (result.success) {
       setPreview(result.url ?? null)
@@ -52,8 +58,14 @@ export function SettingsForm({ currentLogoUrl }: Props) {
     setSuccess("")
     setRemoving(true)
 
-    const result = await removeAppLogo()
-    setRemoving(false)
+    let result
+    try {
+      result = await removeAppLogo()
+    } catch {
+      result = { success: false, error: "Couldn't remove it — try again." }
+    } finally {
+      setRemoving(false)
+    }
 
     if (result.success) {
       setPreview(null)

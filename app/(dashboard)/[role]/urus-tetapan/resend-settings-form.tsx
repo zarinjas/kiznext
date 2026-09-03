@@ -31,8 +31,14 @@ export function ResendSettingsForm({ apiKeySet, initialFrom }: Props) {
     setSuccess("")
     setLoading(true)
 
-    const result = await saveResendConfig({ apiKey, from, removeKey })
-    setLoading(false)
+    let result
+    try {
+      result = await saveResendConfig({ apiKey, from, removeKey })
+    } catch {
+      result = { success: false, error: "Couldn't save — try again." }
+    } finally {
+      setLoading(false)
+    }
 
     if (result.success) {
       setSuccess(removeKey ? "API key removed. Email needs a key again to send." : "Resend config saved! Verification emails will use it.")

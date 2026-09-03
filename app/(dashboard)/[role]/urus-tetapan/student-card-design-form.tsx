@@ -51,8 +51,14 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     }
 
     setUploading(true)
-    const result = await uploadStudentCardBackground(formData)
-    setUploading(false)
+    let result
+    try {
+      result = await uploadStudentCardBackground(formData)
+    } catch {
+      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } finally {
+      setUploading(false)
+    }
 
     if (result.success) {
       setPreview(result.url ?? null)
@@ -68,8 +74,14 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     setSuccess("")
     setRemoving(true)
 
-    const result = await removeStudentCardBackground()
-    setRemoving(false)
+    let result
+    try {
+      result = await removeStudentCardBackground()
+    } catch {
+      result = { success: false, error: "Couldn't remove it — try again." }
+    } finally {
+      setRemoving(false)
+    }
 
     if (result.success) {
       setPreview(null)
@@ -84,8 +96,14 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     setColorStart(next)
     setSavingColor(true)
     setError("")
-    const result = await setStudentCardColor(next)
-    setSavingColor(false)
+    let result
+    try {
+      result = await setStudentCardColor(next)
+    } catch {
+      result = { success: false, error: "Couldn't save the colour." }
+    } finally {
+      setSavingColor(false)
+    }
     if (result.success) {
       router.refresh()
     } else {
@@ -98,8 +116,14 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     if (!gradientEnabled) return
     setSavingColor(true)
     setError("")
-    const result = await setStudentCardColorEnd(next)
-    setSavingColor(false)
+    let result
+    try {
+      result = await setStudentCardColorEnd(next)
+    } catch {
+      result = { success: false, error: "Couldn't save the colour." }
+    } finally {
+      setSavingColor(false)
+    }
     if (result.success) {
       router.refresh()
     } else {
@@ -111,8 +135,14 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     setGradientEnabled(enabled)
     setSavingColor(true)
     setError("")
-    const result = await setStudentCardColorEnd(enabled ? colorEnd : null)
-    setSavingColor(false)
+    let result
+    try {
+      result = await setStudentCardColorEnd(enabled ? colorEnd : null)
+    } catch {
+      result = { success: false, error: "Couldn't save the colour." }
+    } finally {
+      setSavingColor(false)
+    }
     if (result.success) {
       router.refresh()
     } else {
