@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: List recent student uploads
+      - name: Check avatar URLs vs files
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -16,21 +16,19 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== uploads dirs ====="
-            ls -la /home/mykiz.my/kiznext/public/uploads/ 2>/dev/null
+            echo "===== 1. distinct avatarUrl values in DB ====="
+            sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -F" | " -c "SELECT DISTINCT \"avatarUrl\" FROM users WHERE \"avatarUrl\" IS NOT NULL;"' 2>&1 | head -30
             echo
-            echo "===== fasiliti subdir (recent) ====="
-            ls -lt /home/mykiz.my/kiznext/public/uploads/fasiliti/ 2>/dev/null | head -15
-            echo
-            echo "===== latest 5 upload files anywhere (validate) ====="
-            find /home/mykiz.my/kiznext/public/uploads/ -type f -newermt "2026-09-03 18:00" 2>/dev/null | head -10
-            echo
-            echo "===== what does a student avatar URL resolve to? (curl via local) ====="
-            AVATAR=$(find /home/mykiz.my/kiznext/public/uploads/fasiliti/ -type f -newermt "2026-09-03 18:00" 2>/dev/null | head -1)
-            if [ -n "$AVATAR" ]; then
-              FNAME=$(basename "$AVATAR")
-              file "$AVATAR"
-              stat -c "%s bytes" "$AVATAR"
-              echo "curl test:"
-              curl -s -o /dev/null -w "  HTTP %{http_code}, %{content_type}\n" "http://127.0.0.1:3010/uploads/fasiliti/$FNAME"
-            fi
+            echo "===== 2. test each avatarUrl: file exists? + curl ====="
+            AVATARS=$(sudo bash -c 'set -a && . /home/mykiz.my/kiznext/.env && set +a && psql "$DATABASE_URL" -t -A -c "SELECT DISTINCT \"avatarUrl\" FROM users WHERE \"avatarUrl\" IS NOT NULL;"' 2>/dev/null)
+            echo "$AVATARS" | while read -r url; do
+              [ -z "$url" ] && continue
+              REL="${url#/uploads/}"
+              if [ -f "/home/mykiz.my/kiznext/public/uploads/$REL" ]; then
+                echo "FILE EXISTS: $url"
+              else
+                echo "FILE MISSING: $url"
+              fi
+              code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3010$url" 2>/dev/null)
+              echo "  curl $url -> HTTP $code"
+            done
