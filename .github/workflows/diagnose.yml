@@ -1,0 +1,20 @@
+name: Diagnose VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect latest errors
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            echo "===== FULL journalctl since last restart (last 80 lines, raw) ====="
+            sudo journalctl -u mykiznext --no-pager -n 80 2>/dev/null
