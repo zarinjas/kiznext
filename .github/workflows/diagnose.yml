@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Collect latest errors
+      - name: Collect server diagnostics
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -16,5 +16,13 @@ jobs:
           port: 22
           command_timeout: 10m
           script: |
-            echo "===== FULL journalctl since last restart (last 80 lines, raw) ====="
-            sudo journalctl -u mykiznext --no-pager -n 80 2>/dev/null
+            echo "===== 1. [HEADER-DIAG] logs (last 20) ====="
+            sudo journalctl -u mykiznext --no-pager 2>/dev/null | grep "HEADER-DIAG" | tail -20
+            echo
+            echo "===== 2. latest errors ====="
+            sudo journalctl -u mykiznext --no-pager -n 60 2>/dev/null | grep -iE "Invalid URL|TypeError|input:|error" | tail -20
+            echo
+            echo "===== 3. full OpenLiteSpeed vhost header/proxy rules ====="
+            sudo sed -n '/extraHeaders/,/END_extraHeaders/p' /usr/local/lsws/conf/vhosts/mykiz.my/vhost.conf 2>/dev/null
+            echo "--- context lines around proxy ---"
+            sudo grep -niE "proxy|Context|X-Forwarded|Origin|Rewrite" /usr/local/lsws/conf/vhosts/mykiz.my/vhost.conf 2>/dev/null | head -30
