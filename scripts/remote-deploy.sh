@@ -25,23 +25,34 @@ as_app() {
   runuser -u "$RUNUSER" -- env HOME="$HOME_DIR" CI=true bash -lc "cd $APP && set -a && . ./.env && set +a && $1"
 }
 
-echo "==> [1/6] git fetch + hard reset to origin/$BRANCH"
+echo "==> [1/7] git fetch + hard reset to origin/$BRANCH"
 runuser -u "$RUNUSER" -- env HOME="$HOME_DIR" git -C "$APP" fetch --quiet origin "$BRANCH"
 runuser -u "$RUNUSER" -- env HOME="$HOME_DIR" git -C "$APP" reset --hard "origin/$BRANCH"
 
-echo "==> [2/6] npm ci"
+echo "==> [2/7] ensure AUTH_URL is set (fixes Auth.js 'Invalid URL' 500)"
+ENV_FILE="$APP/.env"
+if grep -qE '^AUTH_URL=https?://[^, ]+$' "$ENV_FILE"; then
+  echo "   -> AUTH_URL already set correctly"
+else
+  sed -i '/^AUTH_URL=/d' "$ENV_FILE"
+  printf 'AUTH_URL=https://mykiz.my\n' >> "$ENV_FILE"
+  echo "   -> set AUTH_URL=https://mykiz.my"
+fi
+chown "$RUNUSER:$RUNUSER" "$ENV_FILE"
+
+echo "==> [3/7] npm ci"
 as_app "npm ci --no-audit --no-fund"
 
-echo "==> [3/6] prisma generate"
+echo "==> [4/7] prisma generate"
 as_app "npx prisma generate"
 
-echo "==> [4/6] prisma db push (schema sync)"
+echo "==> [5/7] prisma db push (schema sync)"
 as_app "npx prisma db push --accept-data-loss"
 
-echo "==> [5/6] next build"
+echo "==> [6/7] next build"
 as_app "npm run build"
 
-echo "==> [6/6] ownership + restart service"
+echo "==> [7/7] ownership + restart service"
 chown -R "$RUNUSER:$RUNUSER" "$APP"
 systemctl restart "$SERVICE"
 
