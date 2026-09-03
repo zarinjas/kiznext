@@ -40,6 +40,7 @@ and work in dev. The gaps below are what stands between this and a real deployme
 | App settings | Done | Logo upload/remove by superadmin/admin_kiz. |
 | **Administrative Offices module** | Done | New `Office` model + `/pejabat` (all roles) and `/urus-pejabat` (admin). Student page shows an **interactive block panorama** — one wide shot covering both offices, **drag-to-pan** left/right via framer-motion `drag="x"` (no 360 lib), with two labels glued to the image at admin-configurable % positions (left = Pejabat Pentadbiran KIZ, right = Pejabat UKM Real Estate) that pan with the building. Below: two office cards (featured photo, function) opening a photo dialog with clickable gallery thumbnails. Admin `urus-pejabat` edits office name/function + uploads featured/gallery, and edits the panorama (uploads image + two X-position sliders). Uploads go through **validated server actions** (`lib/offices.ts`, MIME allowlist + 12 MB cap, `public/uploads/pejabat/`) — deliberately NOT the unvalidated `/api/upload` (issue #5). Labels derive from `Office.name` (single source of truth). Note: local-FS storage caveat (#8) applies. |
 | **User management** | Done | New `/urus-pengguna` admin module (superadmin + admin_kiz). Full CRUD on all accounts: add (with password), edit (name/email/phone/role; matric ID immutable), soft-delete (blocks login, keeps history), and **reset password** (generate/copy or type a new one). Guards: only Super Admin can manage/create/delete/demote Super Admin accounts; can't delete yourself; can't delete or demote the last Super Admin. Re-adding a soft-deleted matric ID restores the account. Login already rejects `deletedAt` users. Roles rendered via `StatusChip` (role tones/labels added to `lib/theme/status.ts`). |
+| **Live deployment** | Done | Running on the VPS behind CyberPanel/OpenLiteSpeed at `mykiz.my` (single VPS, PostgreSQL 16, `mykiznext` systemd service on `127.0.0.1:3010`). Deploy = `./deploy.sh` (lint → auto-commit → push to `main`) → GitHub Action → `scripts/remote-deploy.sh` on the server (pull, npm ci, prisma db push, build, restart). `.env` + uploads stay server-side only — the GitHub repo is public. |
 | Dark mode | Done | Dual color schemes via MUI CSS variables; toggle in the top bar; follows system by default. |
 | UI language | Done | Interface is English. URL slugs kept Malaysian (`pengumuman`, `tempahan`, etc.) by design; not converted to avoid breaking links. Seed `umum/penting/aktiviti` tags changed to English form values (`general`/`important`/`event`); dates localized to `en-MY`. |
 
@@ -111,8 +112,10 @@ All uploads (facility images, announcement attachments, lost & found photos,
 booking PDFs, app logo) are written to `public/uploads/`. On a stateless host such
 as Vercel these vanish on every deploy and are not shared between instances.
 
-*Fix:* pick object storage before going live, or deploy somewhere with a persistent
-volume. Hosting is still undecided.
+*Status:* partially resolved for the single-VPS deploy — the app now lives in
+`/home/mykiz.my/kiznext` on a persistent volume, so uploads survive deploys.
+Still not shared across instances; revisit object storage only if we ever scale
+out.
 
 ### #9 — Room selection: CSV-only import, no block editor for single-room work (low)
 
@@ -168,4 +171,4 @@ now resolved in code.
 | UI / design system | MUI v7 heavily customized; tokens in `lib/theme/`; dual light/dark via CSS variables; components in `components/kiz/`. |
 | Parcel notification channel | In-app only. No email/SMS/push. |
 | Task tracking | This file. The Telegram Director Bot and `TASKS.md` were removed. |
-| Hosting | Still undecided. |
+| Hosting | Live on VPS behind CyberPanel/OpenLiteSpeed (`mykiz.my`) — deploy via GitHub Actions. Run `./deploy.sh` locally: lint → auto-commit → push → action SSHes in, `scripts/remote-deploy.sh` pulls + rebuilds + restarts `mykiznext` systemd service. PostgreSQL 16 on the same VPS. `.env`/uploads live only on the server (repo is public). |
