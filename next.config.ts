@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["zarhafiz.tail39ef12.ts.net", "100.64.176.24"],
   serverExternalPackages: ["sharp"],
+  // Runtime uploads land in public/uploads/ but `next start` only serves files
+  // that existed at build time — anything uploaded live 404s as a static file.
+  // Rewrite /uploads/* to a dynamic route (app/api/uploads/[...path]) that
+  // reads the file from disk on demand.
+  async rewrites() {
+    return [{ source: "/uploads/:path*", destination: "/api/uploads/:path*" }]
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "16mb",
