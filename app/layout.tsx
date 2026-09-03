@@ -1,18 +1,25 @@
 import type { Metadata } from "next"
-import { Inter, Geist_Mono } from "next/font/google"
+import localFont from "next/font/local"
 import InitColorSchemeScript from "@mui/material/InitColorSchemeScript"
 import { AppProviders } from "@/components/providers/app-providers"
 import { siteUrl } from "@/lib/site-url"
 import "./globals.css"
 
 // Single clean sans across the whole product — modern SaaS, no serif.
-const inter = Inter({
+// Self-hosted (next/font/local) instead of next/font/google so production
+// builds never reach out to fonts.gstatic.com — the VPS blocks that host and
+// the build was timing out / failing on the font fetch. Files are the upstream
+// variable fonts vendored under app/fonts/.
+const inter = localFont({
   variable: "--font-sans",
-  subsets: ["latin"],
   display: "swap",
-  axes: ["opsz"],
+  src: [{ path: "./fonts/Inter-Variable.woff2", weight: "100 900", style: "normal" }],
 })
-const geistMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"], display: "swap" })
+const geistMono = localFont({
+  variable: "--font-mono",
+  display: "swap",
+  src: [{ path: "./fonts/GeistMono-Variable.woff2", weight: "100 900", style: "normal" }],
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
