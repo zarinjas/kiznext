@@ -2,12 +2,11 @@
 
 import Link from "next/link"
 import Box from "@mui/material/Box"
-import { useColorScheme } from "@mui/material/styles"
 import { glass, color } from "@/lib/theme"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import type { Role } from "@/lib/rbac"
 
-/** GlassTopBar — minimal frosted bar: breadcrumb, ⌘K search, theme, notifications. */
+/** GlassTopBar — minimal frosted bar: breadcrumb, ⌘K search, notifications. */
 export function GlassTopBar({
   role,
   title,
@@ -25,9 +24,6 @@ export function GlassTopBar({
   notificationCount?: number
   logoUrl?: string | null
 }) {
-  const { mode, setMode } = useColorScheme()
-  const toggleColorScheme = () => setMode(mode === "dark" ? "light" : "dark")
-
   const iconBtn = {
     width: 34,
     height: 34,
@@ -154,15 +150,6 @@ export function GlassTopBar({
 
       <Box component="button" onClick={onCommand} aria-label="Search" sx={{ ...iconBtn, display: { xs: "flex", sm: "none" } }}>
         <KIcon icon="search" size={19} />
-      </Box>
-
-      <Box
-        component="button"
-        onClick={toggleColorScheme}
-        aria-label={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        sx={iconBtn}
-      >
-        <KIcon icon={mode === "dark" ? "light_mode" : "dark_mode"} size={19} />
       </Box>
 
       <Box

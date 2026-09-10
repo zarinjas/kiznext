@@ -35,7 +35,7 @@ Status: MVP feature-complete, not production-ready.
 ## Design system
 
 Tokens + MUI theme live in `lib/theme/` (tokens.ts, theme.ts, status.ts) — single
-source of truth, dual light/dark schemes via CSS variables. Component library in
+source of truth, light-only (no dark mode) via CSS variables. Component library in
 `components/kiz/` (primitives, patterns, shell). All colors/shadows/radius from
 tokens — never hardcode.
 
@@ -53,6 +53,12 @@ tokens — never hardcode.
 Do **not** re-roll the old inline recipe (`borderRadius: 2.5` + 1px divider +
 `background.paper` + a 40×40 tinted icon tile). That pattern is replaced by
 `ListRow`/`Surface`.
+
+**Radius rule:** numeric `borderRadius` in `sx` multiplies by
+`theme.shape.borderRadius` (= 4, MUI default). Never write bare numbers expecting
+pixels — always use the px-string tokens `radius.input` (10) · `radius.card` (14) ·
+`radius.cardLg` (18) · `radius.sheet` (20) · `radius.pill` (999). Same for chips —
+pills are `radius.pill`, never `999` as a number.
 
 ## Non-negotiable rules
 

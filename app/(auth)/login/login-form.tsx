@@ -11,6 +11,7 @@ import Alert from "@mui/material/Alert"
 import CircularProgress from "@mui/material/CircularProgress"
 import { color, gradient, glass } from "@/lib/theme"
 import { resendVerification } from "../daftar/actions"
+import { quickSignIn } from "./actions"
 
 interface Props {
   logoUrl: string | null
@@ -45,19 +46,23 @@ export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
       })
 
       if (!result?.url || result?.error) {
-        if ((result?.error ?? "").toUpperCase().includes("EMAIL_NOT_VERIFIED")) {
+        const code = (result?.error ?? "").toUpperCase()
+        if (code.includes("EMAIL_NOT_VERIFIED")) {
           setUnverified(true)
           setEmailNotice("Almost there — your email hasn't been confirmed yet. Check your inbox, or send a fresh link below.")
+        } else if (code && code !== "CREDENTIALSSIGNIN") {
+          // Unusual server-side error — show it instead of guessing.
+          setError(`Sign-in failed (${code}). Please try again.`)
         } else {
           setError("Hmm, that Matric No. or password doesn't match. Give it another go.")
         }
-        setLoading(false)
         return
       }
 
       window.location.assign(result.url)
     } catch {
       setError("We could not connect to the login service. Please try again.")
+    } finally {
       setLoading(false)
     }
   }
@@ -92,7 +97,8 @@ export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
           p: { xs: 3, sm: 6 },
         }}
       >
-        <Box component="form" id="login-form" onSubmit={handleSubmit} sx={{ width: "100%", maxWidth: 360 }}>
+        <Box sx={{ width: "100%", maxWidth: 360 }}>
+        <Box component="form" id="login-form" onSubmit={handleSubmit}>
           {/* Brand */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 5 }}>
             {logoUrl ? (
@@ -172,18 +178,23 @@ export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
               </Typography>
             </Typography>
           </Box>
+        </Box>
 
           <Box sx={{ mt: 3, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
               Quick demo login (password: kiz123)
             </Typography>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1.5 }}>
-              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("A123456", "kiz123")}>
-                Student
-              </Button>
-              <Button type="button" variant="contained" size="large" disabled={loading} onClick={() => handleLogin("ADMIN001", "kiz123")}>
-                Super Admin
-              </Button>
+              <Box component="form" action={quickSignIn.bind(null, "A123456")} sx={{ display: "block", width: "100%" }}>
+                <Button type="submit" variant="contained" size="large" fullWidth>
+                  Student
+                </Button>
+              </Box>
+              <Box component="form" action={quickSignIn.bind(null, "ADMIN001")} sx={{ display: "block", width: "100%" }}>
+                <Button type="submit" variant="contained" size="large" fullWidth>
+                  Super Admin
+                </Button>
+              </Box>
             </Box>
           </Box>
 
@@ -214,7 +225,6 @@ export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
             : gradient.panel,
           backgroundPosition: "center",
           backgroundSize: "cover",
-          "[data-mui-color-scheme='dark'] &": { backgroundImage: "none", backgroundColor: "background.paper" },
         }}
       >
         <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />

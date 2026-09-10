@@ -4,150 +4,100 @@ import Link from "next/link"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
+import LinearProgress from "@mui/material/LinearProgress"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { StatusChip } from "@/components/kiz/primitives/status-chip"
-import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
-import { Bento, BentoItem, ActionTile } from "@/components/kiz/patterns/bento"
+import { Bento, BentoItem } from "@/components/kiz/patterns/bento"
 import { AvatarPicker } from "@/components/shared/avatar-picker"
-import { gradient, font, radius, color } from "@/lib/theme"
-import { formatMalaysia } from "@/lib/timezone"
-import type { BilikReminder } from "@/lib/bilik"
+import { HomeWidgets } from "@/components/shared/home/home-widgets"
+import { color, font, radius, gradient } from "@/lib/theme"
+import type { HomeTodo, ResidentHomeData } from "@/lib/dashboard"
+
+/**
+ * Member home (students + staff) — the resident-style dashboard.
+ *
+ * Layout mirrors the approved product mock:
+ *   1. gradient hero with full room placement (Block · Room · Bed + session)
+ *      and the roommate once allocations are published;
+ *   2. a "Things to Do" checklist with a progress bar that flips to a
+ *      celebratory "You're all caught up" state when nothing is pending;
+ *   3. the small living-at-KIZ widgets row (Important Notice, Upcoming at KIZ,
+ *      My Helpdesk Request, Emergency Contact, Life at KIZ).
+ *
+ * Quick actions / your bookings / latest announcements intentionally moved off
+ * the dashboard — they stay reachable from the navigation.
+ */
 
 interface Props {
-  user: {
-    name: string
-    matricId: string
-    block: string | null
-    roomNumber: string | null
-    avatarUrl: string | null
-  }
-  announcements: {
-    id: string
-    title: string
-    tag: string
-    isPinned: boolean
-    attachmentType: string | null
-    createdAt: Date
-  }[]
-  bookings: {
-    id: string
-    status: string
-    timeSlotStart: Date
-    facility: { name: string }
-  }[]
-  role: string
-  /** Hero badge label — "Resident" for students, "Staff" for staff accounts. */
-  memberTag?: string
-  roomReminder: BilikReminder | null
-  /** Computed on the server so SSR and hydration always agree. */
+  role: "ahli" | "staf" | "fellow"
+  user: { name: string; matricId: string; avatarUrl: string | null }
+  memberTag: string
   greeting: string
+  data: ResidentHomeData
+  /** Optional full-width banner image behind the hero (fallback = gradient). */
+  heroBackgroundUrl: string | null
+  /** Optional portrait poster (Instagram-style) shown beside Things to Do. */
+  posterUrl: string | null
 }
 
-const quickActions = [
-  { label: "Book facility", href: "tempahan-fasiliti", icon: "meeting_room", tint: color.info },
-  { label: "Guest house", href: "rumah-tamu", icon: "hotel", tint: { main: color.accent[600], soft: color.accent[100], ink: color.accent[700] } },
-  { label: "Helpdesk", href: "helpdesk", icon: "support_agent", tint: color.warning },
-  { label: "Lost & found", href: "hilang", icon: "search", tint: color.danger },
-  { label: "Offices", href: "pejabat", icon: "domain", tint: color.info },
-  { label: "AR Directory", href: "direktori", icon: "view_in_ar", tint: { main: color.brand[600], soft: color.brand[50], ink: color.brand[800] } },
-  { label: "My bookings", href: "tempahan", icon: "calendar_month", tint: color.neutral },
-]
+export function AhliHome({ role, user, memberTag, greeting, data, heroBackgroundUrl, posterUrl }: Props) {
+  const fullName = user.name.trim()
 
-const shortDate = (d: Date) =>
-  new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short" })
-
-export function AhliHome({ user, announcements, bookings, role, memberTag, roomReminder, greeting }: Props) {
-  const firstName = user.name.trim().split(" ")[0]
-
-  const upcoming = bookings.filter((b) => b.status !== "rejected" && b.status !== "cancelled")
-  const location = [user.block, user.roomNumber].filter(Boolean)
+  const pending = data.todos.filter((t) => !t.done)
+  const allCaughtUp = data.todos.length > 0 && pending.length === 0
 
   return (
     <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <Bento>
-        {/* Room-selection reminder */}
-        {roomReminder?.show && (
-          <BentoItem span={12} delay={0}>
-            <Box
-              sx={{
-                position: "relative",
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 2,
-                p: { xs: 2, sm: 2.5 },
-                borderRadius: `${radius.cardLg}px`,
-                border: "1px solid",
-                borderColor: color.accent[300],
-                backgroundImage: gradient.panel,
-                "[data-mui-color-scheme='dark'] &": { backgroundImage: "none", backgroundColor: "background.paper" },
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.75, minWidth: 0, flex: 1 }}>
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 2.5,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    backgroundColor: color.accent[100],
-                    color: color.accent[700],
-                  }}
-                >
-                  <KIcon icon="bedroom_parent" size={24} />
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 640, letterSpacing: "-0.02em", fontSize: { xs: 15, sm: 17 } }}>
-                    Complete your accommodation application
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
-                    Room selection is open{roomReminder.closesAt ? ` — closes ${formatMalaysia(new Date(roomReminder.closesAt))}` : ""}. Choose your bed before it closes.
-                  </Typography>
-                </Box>
-              </Box>
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <Button
-                  component={Link}
-                  href={`/${role}/bilik`}
-                  variant="contained"
-                  startIcon={<KIcon icon="arrow_forward" size={17} />}
-                >
-                  Choose room
-                </Button>
-              </Box>
-            </Box>
-          </BentoItem>
-        )}
-
-        {/* Hero + avatar */}
-        <BentoItem span={8} spanXs={2}>
+        {/* ── Hero ───────────────────────────────────────────────────────── */}
+        <BentoItem span={12} spanXs={2}>
           <Box
             sx={{
               position: "relative",
               overflow: "hidden",
               height: "100%",
+              minHeight: { xs: 240, sm: 300 },
               borderRadius: `${radius.cardLg}px`,
               border: "1px solid",
               borderColor: "divider",
-              backgroundImage: gradient.hero,
-              "[data-mui-color-scheme='dark'] &": {
-                backgroundImage: "none",
-                backgroundColor: "background.paper",
-              },
+              backgroundImage: heroBackgroundUrl ? "none" : gradient.hero,
               p: { xs: 2.5, sm: 3.5 },
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
               gap: 3,
-              minHeight: { xs: 0, md: 210 },
             }}
           >
-            <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />
+            {heroBackgroundUrl ? (
+              <Box
+                component="img"
+                src={heroBackgroundUrl}
+                alt=""
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: { xs: "right bottom", sm: "center" },
+                  pointerEvents: "none",
+                }}
+              />
+            ) : (
+              <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />
+            )}
+
+            {/* Legibility scrim over the custom banner image */}
+            {heroBackgroundUrl && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  backgroundImage:
+                    "linear-gradient(100deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.72) 40%, rgba(255,255,255,0.10) 100%)",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
 
             <Box sx={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box sx={{ minWidth: 0 }}>
@@ -160,28 +110,72 @@ export function AhliHome({ user, announcements, bookings, role, memberTag, roomR
                 </Typography>
                 <Typography
                   sx={{
-                    fontSize: { xs: 26, sm: 30 },
+                    fontSize: { xs: 24, sm: 28 },
                     fontWeight: 640,
-                    lineHeight: 1.14,
+                    lineHeight: 1.2,
                     letterSpacing: "-0.032em",
                     mt: 0.25,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    overflowWrap: "anywhere",
                   }}
                 >
-                  {firstName}
+                  {fullName}
                 </Typography>
-                <Typography
-                  sx={{ fontSize: 12.5, color: "text.secondary", fontFamily: font.mono, mt: 1 }}
-                >
+                <Typography sx={{ fontSize: 12.5, color: "text.secondary", fontFamily: font.mono, mt: 1 }}>
                   {user.matricId}
-                  {location.length > 0 && ` · ${location.join(" • ")}`}
                 </Typography>
               </Box>
 
               <AvatarPicker avatarUrl={user.avatarUrl} name={user.name} size={72} />
             </Box>
+
+            {/* Full room placement */}
+            {data.room ? (
+              <Box sx={{ position: "relative", display: "flex", flexDirection: "column", gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  <Box
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.625,
+                      px: 1.25,
+                      py: 0.625,
+                      borderRadius: 999,
+                      backgroundColor: color.brand[600],
+                      color: "#fff",
+                      fontSize: 13.5,
+                      fontWeight: 600,
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    <KIcon icon="meeting_room" size={16} />
+                    Block {data.room.blockName} · Room {data.room.roomNumber}
+                    {data.room.bed ? ` · Bed ${data.room.bed}` : ""}
+                  </Box>
+                  {data.room.session && (
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, px: 1, py: 0.5, borderRadius: 999, backgroundColor: "background.paper", border: "1px solid", borderColor: "divider", fontSize: 11.5, fontWeight: 550, color: "text.secondary" }}>
+                      <KIcon icon="calendar_month" size={14} />
+                      {data.room.session}
+                    </Box>
+                  )}
+                </Box>
+                {data.room.roommateName && (
+                  <Typography variant="caption" sx={{ color: "text.secondary", display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                    <KIcon icon="group" size={14} />
+                    Roommate · {data.room.roommateName}
+                    {data.room.roommateMatricId ? ` (${data.room.roommateMatricId})` : ""}
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              role === "ahli" && (
+                <Box sx={{ position: "relative" }}>
+                  <Typography variant="caption" sx={{ color: "text.secondary", display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                    <KIcon icon="hourglass_top" size={14} />
+                    Your room will appear here once the KIZ office publishes the allocation.
+                  </Typography>
+                </Box>
+              )
+            )}
 
             <Box sx={{ position: "relative", display: "flex", gap: 1, flexWrap: "wrap" }}>
               <Button
@@ -198,14 +192,14 @@ export function AhliHome({ user, announcements, bookings, role, memberTag, roomR
                 variant="outlined"
                 startIcon={<KIcon icon="add" size={18} />}
               >
-                Book
+                Book facility
               </Button>
             </Box>
           </Box>
         </BentoItem>
 
-        {/* Upcoming bookings */}
-        <BentoItem span={4} spanXs={2} delay={0.05}>
+        {/* ── Things to Do ────────────────────────────────────────────────── */}
+        <BentoItem span={posterUrl ? 8 : 12} spanXs={2} delay={0.05}>
           <Box
             sx={{
               height: "100%",
@@ -218,140 +212,267 @@ export function AhliHome({ user, announcements, bookings, role, memberTag, roomR
               flexDirection: "column",
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
-                Your bookings
-              </Typography>
-              <Button
-                component={Link}
-                href={`/${role}/tempahan`}
-                size="small"
-                variant="text"
-                sx={{ minHeight: 26, px: 0.75 }}
-              >
-                All
-              </Button>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.25 }}>
+              <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+                <KIcon icon="task_alt" size={18} sx={{ color: color.brand[600] }} />
+                <Typography sx={{ fontWeight: 640, letterSpacing: "-0.018em", fontSize: { xs: 15.5, sm: 17 } }}>
+                  Things to do
+                </Typography>
+              </Box>
+              {data.todos.length > 0 && (
+                <Box
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    px: 1,
+                    py: 0.375,
+                    borderRadius: 999,
+                    backgroundColor: allCaughtUp ? color.success.soft : color.warning.soft,
+                    color: allCaughtUp ? color.success.ink : color.warning.ink,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {data.doneCount} of {data.todos.length} done
+                </Box>
+              )}
             </Box>
 
-            {upcoming.length === 0 ? (
-              <Box
+            {data.todos.length > 0 && (
+              <LinearProgress
+                variant="determinate"
+                value={data.todos.length ? (data.doneCount / data.todos.length) * 100 : 0}
                 sx={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 1,
-                  py: 3,
+                  height: 6,
+                  borderRadius: 999,
+                  mb: 1.5,
+                  backgroundColor: color.canvasSunk,
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: 999,
+                    backgroundColor: allCaughtUp ? color.success.main : color.brand[600],
+                  },
                 }}
-              >
-                <KIcon icon="calendar_month" size={22} sx={{ color: "var(--mui-palette-text-disabled)" }} />
-                <Typography variant="caption" sx={{ color: "text.secondary", textAlign: "center" }}>
-                  No bookings yet
-                </Typography>
-                <Button component={Link} href={`/${role}/tempahan-fasiliti`} size="small" variant="outlined">
-                  Book a facility
-                </Button>
-              </Box>
+              />
+            )}
+
+            {data.todos.length === 0 || allCaughtUp ? (
+              <CaughtUpPanel hasTasks={data.todos.length > 0} />
             ) : (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
-                {upcoming.slice(0, 3).map((b) => (
-                  <Box key={b.id} sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 550,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {b.facility.name}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "text.disabled" }}>
-                        {shortDate(b.timeSlotStart)}
-                      </Typography>
-                    </Box>
-                    <StatusChip status={b.status} />
-                  </Box>
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                {data.todos.map((todo) => (
+                  <TodoRow key={todo.id} todo={todo} />
                 ))}
               </Box>
             )}
           </Box>
         </BentoItem>
 
-        {/* Quick actions */}
-        <BentoItem span={12} sx={{ mt: { xs: 1, md: 1.5 } }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary", mb: 1.5 }}>
-            Quick actions
-          </Typography>
-          <Box
+        {/* ── Poster card ─────────────────────────────────────────────────── */}
+        {posterUrl && (
+          <BentoItem span={4} spanXs={2} delay={0.1}>
+            <Box
+              component="a"
+              href={posterUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open poster"
+              sx={{
+                position: "relative",
+                display: "block",
+                overflow: "hidden",
+                borderRadius: `${radius.cardLg}px`,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundColor: "background.paper",
+                cursor: "zoom-in",
+                WebkitTapHighlightColor: "transparent",
+                "&:active": { opacity: 0.92 },
+              }}
+            >
+              <Box
+                component="img"
+                src={posterUrl}
+                alt="College poster"
+                sx={{
+                  display: "block",
+                  width: "100%",
+                  aspectRatio: "4 / 5",
+                  objectFit: "cover",
+                  objectPosition: "top center",
+                  transition: "transform 240ms cubic-bezier(0.22,1,0.36,1)",
+                  "@media (hover: hover)": { "&:hover": { transform: "scale(1.02)" } },
+                }}
+              />
+              <Box
+                sx={{
+                  position: "absolute",
+                  bottom: 10,
+                  right: 10,
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(9,9,11,0.55)",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backdropFilter: "blur(4px)",
+                  pointerEvents: "none",
+                }}
+              >
+                <KIcon icon="open_in_new" size={16} />
+              </Box>
+            </Box>
+          </BentoItem>
+        )}
+
+        {/* ── Widgets row ─────────────────────────────────────────────────── */}
+        {(data.importantNotice ||
+          data.nextEvents.length > 0 ||
+          data.helpdesk ||
+          data.officeOpen ||
+          data.emergencyContacts.length > 0 ||
+          data.livingGuides.length > 0) && (
+          <BentoItem span={12} spanXs={2} delay={0.1}>
+            <HomeWidgets
+              role={role}
+              importantNotice={data.importantNotice}
+              nextEvents={data.nextEvents}
+              helpdesk={data.helpdesk}
+              officeOpen={data.officeOpen}
+              emergencyContacts={data.emergencyContacts}
+              livingGuides={data.livingGuides}
+            />
+          </BentoItem>
+        )}
+      </Bento>
+    </Box>
+  )
+}
+
+function CaughtUpPanel({ hasTasks }: { hasTasks: boolean }) {
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        gap: 1,
+        px: 2,
+        py: 4,
+        borderRadius: `${radius.card}px`,
+        backgroundColor: color.success.soft,
+      }}
+    >
+      <Box
+        sx={{
+          width: 46,
+          height: 46,
+          borderRadius: "50%",
+          backgroundColor: color.success.main,
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          mb: 0.5,
+        }}
+      >
+        <KIcon icon="check" size={26} />
+      </Box>
+      <Typography sx={{ fontWeight: 650, color: color.success.ink, letterSpacing: "-0.015em" }}>
+        {hasTasks ? "You're all caught up" : "Nothing to do yet"}
+      </Typography>
+      <Typography variant="body2" sx={{ color: color.success.ink, opacity: 0.8, maxWidth: 240 }}>
+        {hasTasks
+          ? "No action is required at the moment."
+          : "Check back soon — your onboarding tasks will appear here."}
+      </Typography>
+    </Box>
+  )
+}
+
+function TodoRow({
+  todo,
+}: {
+  todo: HomeTodo
+}) {
+  const statusColor = todo.done ? color.success : color.neutral
+  const leading = todo.done ? "check_circle" : "check_box_outline_blank"
+  const showDue = !todo.done && Boolean(todo.dueLabel)
+
+  const cta = (
+    <Button
+      component={Link}
+      href={todo.href}
+      size="small"
+      variant={todo.done ? "outlined" : "contained"}
+      sx={{ minWidth: 0, whiteSpace: "nowrap", minHeight: 30 }}
+    >
+      {todo.ctaLabel}
+    </Button>
+  )
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1.25,
+        py: { xs: 1.25, sm: 1.5 },
+        minHeight: { xs: 48, sm: 52 },
+        "& + &": { borderTop: "1px solid", borderColor: "divider" },
+      }}
+    >
+      <KIcon
+        icon={leading}
+        size={22}
+        filled={todo.done}
+        sx={{ color: statusColor.main, flexShrink: 0 }}
+      />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography
+          variant="body1"
+          sx={{
+            fontWeight: 600,
+            fontSize: 13.5,
+            lineHeight: 1.35,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            ...(todo.done && { color: "text.secondary" }),
+          }}
+        >
+          {todo.title}
+        </Typography>
+        {todo.subtitle && (
+          <Typography
+            variant="caption"
             sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "repeat(3, minmax(0,1fr))",
-                sm: "repeat(3, minmax(0,1fr))",
-                md: "repeat(auto-fit, minmax(120px, 1fr))",
-              },
-              gap: { xs: 1.25, sm: 1.5, md: 2 },
+              color: "text.secondary",
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            {quickActions.map((a) => (
-              <ActionTile key={a.href} {...a} href={`/${role}/${a.href}`} />
-            ))}
-          </Box>
-        </BentoItem>
-
-        {/* Announcements */}
-        <BentoItem span={12} sx={{ mt: { xs: 1, md: 1.5 } }}>
-          <ListGroup
-            title="Latest announcements"
-            action={
-              <Button
-                component={Link}
-                href={`/${role}/pengumuman`}
-                size="small"
-                variant="text"
-                sx={{ minHeight: 26, px: 0.75 }}
-              >
-                View all
-              </Button>
-            }
+            {todo.subtitle}
+          </Typography>
+        )}
+        {showDue && (
+          <Typography
+            variant="caption"
+            sx={{ color: color.warning.ink, display: "block", fontWeight: 600, mt: 0.25 }}
           >
-            {announcements.length === 0 ? (
-              <ListRow>
-                <Typography variant="body2" sx={{ color: "text.secondary", py: 1 }}>
-                  No announcements yet.
-                </Typography>
-              </ListRow>
-            ) : (
-              announcements.map((a) => (
-                <ListRow
-                  key={a.id}
-                  href={`/${role}/pengumuman`}
-                  icon={a.isPinned ? "push_pin" : "campaign"}
-                  title={a.title}
-                  subtitle={
-                    <Box component="span" sx={{ textTransform: "capitalize" }}>
-                      {a.tag} · {shortDate(a.createdAt)}
-                    </Box>
-                  }
-                  trailing={
-                    a.attachmentType ? (
-                      <KIcon
-                        icon="attach_file"
-                        size={16}
-                        sx={{ color: "var(--mui-palette-text-disabled)" }}
-                      />
-                    ) : undefined
-                  }
-                />
-              ))
-            )}
-          </ListGroup>
-        </BentoItem>
-      </Bento>
+            <KIcon icon="schedule" size={12} sx={{ verticalAlign: -2, marginRight: 0.25 }} />
+            {todo.dueLabel}
+          </Typography>
+        )}
+      </Box>
+      {cta}
     </Box>
   )
 }

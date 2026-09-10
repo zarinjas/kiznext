@@ -11,6 +11,7 @@ enum Role {
   superadmin
   admin_kiz
   pengetua
+  fellow
   ahli
   staf
 }
@@ -38,6 +39,8 @@ model User {
   residentCardQr  String        @map("resident_card_qr")
   phone           String?
   avatarUrl       String?       @map("avatar_url")
+  ecardRegisteredAt DateTime?   @map("ecard_registered_at")
+  lastSeenAt      DateTime?     @map("last_seen_at")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
   deletedAt       DateTime?     @map("deleted_at")
@@ -52,13 +55,72 @@ model User {
   announcements      Announcement[]
   chatMessages       CommunityChatMessage[]
   deletedChatMessages CommunityChatMessage[] @relation("DeletedMessages")
+  chatReactions      ChatMessageReaction[]
+  chatReports        ChatMessageReport[]   @relation("ChatReporters")
   parcels            Parcel[]
   lostFoundItems     LostFoundItem[]
   importedIntakes    Intake[]
   eligibleRecords    EligibleStudent[]
   verificationTokens VerificationToken[]
+  announcementAcknowledgements AnnouncementAcknowledgment[]
+  announcementReactions AnnouncementReaction[]
+  announcementReads AnnouncementRead[]
+  createdCheckInSessions CheckInSession[]   @relation("CreatedCheckInSessions")
 
   @@map("users")
+}
+
+/// Direction of a check-in counter session and its records. A `check_in`
+/// session opens move-in; a `check_out` session opens move-out at semester end.
+enum CheckInType {
+  check_in
+  check_out
+}
+
+/// A single QR code campaign for the check-in / check-out counter. The admin
+/// creates one per session (long/short sem), toggles it active/inactive, prints
+/// the QR, and pastes it at the counter. Students scan it from their own phone.
+model CheckInSession {
+  id          String       @id @default(uuid())
+  name        String
+  type        CheckInType
+  /// Random token embedded in the QR URL (`/checkin/<token>`). Public-facing.
+  token       String       @unique
+  isActive    Boolean      @default(true) @map("is_active")
+  createdById String       @map("created_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  createdBy User             @relation("CreatedCheckInSessions", fields: [createdById], references: [id])
+  records   CheckInRecord[]
+
+  @@map("check_in_sessions")
+}
+
+/// One student's signed check-in / check-out at the counter. Matric/name/room
+/// are snapshotted so the admin record ("fail pentadbiran") stays stable even
+/// if the allocation later changes. Signature PNG + KL timestamp only.
+model CheckInRecord {
+  id                String      @id @default(uuid())
+  sessionId         String      @map("session_id")
+  eligibleStudentId String?     @map("eligible_student_id")
+  matricId          String      @map("matric_id")
+  name              String
+  type              CheckInType
+  roomLabel         String?     @map("room_label")
+  signatureUrl      String?     @map("signature_url")
+  signedAt          DateTime    @map("signed_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  deletedAt         DateTime?   @map("deleted_at")
+
+  session CheckInSession   @relation(fields: [sessionId], references: [id])
+  student EligibleStudent? @relation(fields: [eligibleStudentId], references: [id])
+
+  @@index([sessionId])
+  @@index([eligibleStudentId])
+  @@map("check_in_records")
 }
 
 /// Single-use email-verification tokens. The raw token is never stored — only a
@@ -117,23 +179,138 @@ model Office {
   @@map("offices")
 }
 
+/// Upcoming KIZ activity/programme — powers the "Upcoming at KIZ" dashboard widget.
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  venue       String?
+  startsAt    DateTime @map("starts_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@index([startsAt])
+  @@map("events")
+}
+
+/// Kind of a managed dashboard content item. `emergency_contact` rows feed the
+/// "Emergency Contact" widget; `living_guide` rows feed "Life at KIZ".
+enum ContentKind {
+  emergency_contact
+  living_guide
+}
+
+/// Managed dashboard content — emergency contacts and the digital living guide.
+/// Kept deliberately generic (label + optional phone/link/description) so admins
+/// can publish small info widgets without a schema change.
+model ContentItem {
+  id        String      @id @default(uuid())
+  kind      ContentKind
+  title     String
+  subtitle  String?
+  body      String?
+  phone     String?
+  link      String?
+  sortOrder Int         @default(0) @map("sort_order")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  deletedAt DateTime?   @map("deleted_at")
+
+  @@index([kind])
+  @@map("content_items")
+}
+
+/// Kind of place the AR Directory can navigate to.
+enum DestinationType {
+  block
+  facility
+  office
+  room
+  hall
+  seminar
+  meeting
+  admin
+}
+
+/// AR Directory destination — an admin-managed lat/lng pin the student page
+/// points the camera-arrow at. GPS for all of them (indoor places included:
+/// the admin building is a single elongated floor, so a per-room pin is enough).
+model Destination {
+  id          String          @id @default(uuid())
+  name        String
+  type        DestinationType
+  icon        String          @default("place")
+  latitude    Float
+  longitude   Float
+  indoor      Boolean         @default(false) @map("indoor")
+  building    String?
+  description String?
+  sortOrder   Int             @default(0) @map("sort_order")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  deletedAt   DateTime?       @map("deleted_at")
+
+  @@map("destinations")
+}
+
+/// Whether a facility can be booked ahead of time. Bookable facilities appear
+/// under the "Bookable Facilities" directory section (reservation required);
+/// shared facilities are available without advance booking.
+enum FacilitySection {
+  bookable
+  shared
+}
+
+/// Live availability of a facility shown to residents.
+enum FacilityStatus {
+  open
+  coming_soon
+}
+
+/// A resident-facing grouping for facilities within one directory section
+/// (e.g. "Event & Meeting Spaces" under bookable, "Resident Services" under
+/// shared). Admin-managed; drives the sub-headings on the member directory.
+model FacilityCategory {
+  id        String           @id @default(uuid())
+  name      String
+  section   FacilitySection
+  sortOrder Int              @default(0) @map("sort_order")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  deletedAt DateTime?        @map("deleted_at")
+
+  facilities Facility[]
+
+  @@unique([section, name])
+  @@map("facility_categories")
+}
+
 model Facility {
-  id               String   @id @default(uuid())
-  name             String   @unique
-  blockId          String   @map("block_id")
+  id               String          @id @default(uuid())
+  name             String          @unique
+  blockId          String          @map("block_id")
   description      String
-  featuredImage    String?  @map("featured_image")
-  gallery          String[] @map("gallery")
+  featuredImage    String?         @map("featured_image")
+  gallery          String[]        @map("gallery")
   price            Float?
   capacity         Int?
-  timeSlotDuration Int?     @map("time_slot_duration")
-  maxPerDay        Int?     @default(3) @map("max_per_day")
-  requiresApproval Boolean  @default(true) @map("requires_approval")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-  deletedAt        DateTime? @map("deleted_at")
+  timeSlotDuration Int?            @map("time_slot_duration")
+  maxPerDay        Int?            @default(3) @map("max_per_day")
+  requiresApproval Boolean         @default(true) @map("requires_approval")
+  // ── Facilities directory ──────────────────────────────────────────────────
+  // `bookable` drives the top-level directory section ("Bookable Facilities"
+  // vs "Shared Facilities"); it stays in sync with the category's section.
+  // `status` shows whether the facility is open now or coming soon.
+  categoryId String?         @map("category_id")
+  bookable   Boolean         @default(true)
+  status     FacilityStatus  @default(open)
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  deletedAt  DateTime?       @map("deleted_at")
 
   block    Block                       @relation(fields: [blockId], references: [id])
+  category FacilityCategory?           @relation(fields: [categoryId], references: [id])
   bookings FacilityBooking[]
 
   @@map("facilities")
@@ -226,22 +403,47 @@ model GuestHouseBooking {
   @@map("guest_house_bookings")
 }
 
+/// What a helpdesk ticket is about — routes the request to the right team and
+/// labels the ticket everywhere it appears. Order here drives the picker order.
+enum HelpdeskCategory {
+  accommodation_room
+  maintenance_repair
+  facilities_booking
+  cleanliness_waste
+  internet_technology
+  safety_security
+  payment_charges
+  student_welfare
+  general_enquiry
+}
+
+/// Full ticket lifecycle. Declared in workflow order so `orderBy status` sorts
+/// fresh work first in the admin inbox.
 enum HelpdeskStatus {
-  open
+  submitted
+  under_review
   in_progress
+  more_info_required
+  resolved
   closed
 }
 
 model HelpdeskTicket {
-  id          String         @id @default(uuid())
-  displayId   Int            @unique @default(autoincrement()) @map("display_id")
-  userId      String         @map("user_id")
-  subject     String?
-  status      HelpdeskStatus @default(open)
-  assignedTo  String?        @map("assigned_to")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-  deletedAt   DateTime?      @map("deleted_at")
+  id             String          @id @default(uuid())
+  displayId      Int             @unique @default(autoincrement()) @map("display_id")
+  userId         String          @map("user_id")
+  subject        String?
+  category       HelpdeskCategory @default(general_enquiry)
+  status         HelpdeskStatus  @default(submitted)
+  /// Building the issue is about (e.g. "K18A"). Free text so it works before
+  /// the block inventory is configured.
+  locationBlock  String?         @map("location_block")
+  /// Room number OR facility name the issue is about.
+  locationDetail String?         @map("location_detail")
+  assignedTo     String?         @map("assigned_to")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
 
   user     User              @relation("UserTickets", fields: [userId], references: [id])
   assignee User?             @relation("AssignedTickets", fields: [assignedTo], references: [id])
@@ -283,22 +485,140 @@ model Announcement {
 
   poster User @relation(fields: [postedBy], references: [id])
 
+  acknowledgements AnnouncementAcknowledgment[]
+  reactions AnnouncementReaction[]
+  reads AnnouncementRead[]
+
   @@map("announcements")
+}
+
+/// A user's explicit acknowledgement of a specific announcement (used by the
+/// dashboard "Acknowledge important announcement" task).
+model AnnouncementAcknowledgment {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  announcementId String    @map("announcement_id")
+  acknowledgedAt DateTime  @default(now()) @map("acknowledged_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+
+  @@unique([userId, announcementId])
+  @@index([announcementId])
+  @@map("announcement_acknowledgements")
+}
+
+/// A resident's reaction to an announcement: Noted / Excited / Interested.
+/// Toggled on/off (soft delete, never hard delete). For "important"
+/// announcements the "noted" reaction doubles as the acknowledgement that
+/// clears the dashboard "Things to Do" task.
+model AnnouncementReaction {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  announcementId String   @map("announcement_id")
+  /// "noted" | "excited" | "interested" (plain string, mirrors `tag`).
+  type           String   @default("noted")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+
+  @@unique([userId, announcementId, type])
+  @@index([announcementId])
+  @@index([userId])
+  @@map("announcement_reactions")
+}
+
+/// Whether a member has opened an announcement. Unread cards keep a green
+/// "New/Unread" dot that clears once the announcement is opened.
+model AnnouncementRead {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  announcementId String   @map("announcement_id")
+  readAt         DateTime @default(now()) @map("read_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+
+  @@unique([userId, announcementId])
+  @@index([announcementId])
+  @@index([userId])
+  @@map("announcement_reads")
 }
 
 model CommunityChatMessage {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   message   String
+  /// Message this one is replying to (inline quote thread), if any.
+  replyToId String?   @map("reply_to_id")
+  /// Optional attachment — URL under /uploads, kind ("image"|"pdf"), display name.
+  attachmentUrl  String? @map("attachment_url")
+  attachmentType String? @map("attachment_type")
+  attachmentName String? @map("attachment_name")
   deletedBy String?   @map("deleted_by")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  user    User   @relation(fields: [userId], references: [id])
-  deletedByUser User? @relation("DeletedMessages", fields: [deletedBy], references: [id])
+  user           User                  @relation(fields: [userId], references: [id])
+  replyTo        CommunityChatMessage? @relation("ChatReplies", fields: [replyToId], references: [id])
+  replies        CommunityChatMessage[] @relation("ChatReplies")
+  deletedByUser  User?                 @relation("DeletedMessages", fields: [deletedBy], references: [id])
+  reactions      ChatMessageReaction[]
+  reports        ChatMessageReport[]
 
+  @@index([replyToId])
   @@map("community_chat_messages")
+}
+
+/// A resident's emoji reaction to a community chat message. One row per
+/// (user, message, emoji); toggled on/off via soft delete.
+model ChatMessageReaction {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  messageId String   @map("message_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user    User                  @relation(fields: [userId], references: [id])
+  message CommunityChatMessage @relation(fields: [messageId], references: [id])
+
+  @@unique([userId, messageId, emoji])
+  @@index([messageId])
+  @@map("chat_message_reactions")
+}
+
+/// A member reporting a community chat message. Admins review open reports
+/// inline (delete the message / dismiss the report). Soft-deleted when handled.
+model ChatMessageReport {
+  id         String   @id @default(uuid())
+  messageId  String   @map("message_id")
+  reporterId String   @map("reporter_id")
+  /// Preset reason ("spam" | "harassment" | "inappropriate" | "other").
+  reason     String
+  /// Optional free-text detail from the reporter.
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  message  CommunityChatMessage @relation(fields: [messageId], references: [id])
+  reporter User                 @relation("ChatReporters", fields: [reporterId], references: [id])
+
+  @@index([messageId])
+  @@index([reporterId])
+  @@map("chat_message_reports")
 }
 
 model Parcel {
@@ -471,6 +791,10 @@ model EligibleStudent {
   userId            String?   @map("user_id")
   selectedAt        DateTime? @map("selected_at")
   assignedByAdmin   Boolean   @default(false) @map("assigned_by_admin")
+  // ── Resident onboarding ───────────────────────────────────────────────────
+  // Final check-in/out happens at the counter via the QR-session flow and is
+  // recorded in CheckInRecord (signedAt). No accommodation-payment column: fees
+  // are settled manually at the UKM Real Estate counter (no payment gateway).
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
@@ -480,6 +804,7 @@ model EligibleStudent {
   bed    Bed?
   roomApplication      RoomApplication?  @relation("RoomApplicationApplicant")
   roommateApplications RoomApplication[] @relation("RoomApplicationRoommate")
+  checkInRecords       CheckInRecord[]
 
   @@unique([intakeId, matricId])
   @@map("eligible_students")
@@ -523,6 +848,10 @@ model LostFoundItem {
   photoUrl     String?         @map("photo_url")
   status       LostFoundStatus @default(lost)
   locationFound String?        @map("location_found")
+  /// Date (KL calendar) the item was lost or found.
+  happenedDate DateTime?       @map("happened_date")
+  /// Approximate time the item was lost/found ("HH:MM", 24h) — optional.
+  happenedTime String?         @map("happened_time")
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
   deletedAt    DateTime?       @map("deleted_at")

@@ -2,7 +2,9 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
-import { areAllocationsPublished, getOccupancySummary } from "@/lib/bilik"
+import { areAllocationsPublished, getOccupancySummary, getRoomFees } from "@/lib/bilik"
+import { nowMalaysia } from "@/lib/room-selection"
+import { roomAssignmentLabel } from "@/lib/bilik-format"
 import { UrusBilikClient } from "./urus-bilik-client"
 import { getOccupancy } from "./actions"
 
@@ -17,7 +19,7 @@ export default async function UrusBilikPage() {
   // the shared read-only helper directly instead of the admin-gated action.
   const occupancy = readOnly ? await getOccupancySummary() : await getOccupancy()
 
-  const [window, intakes, blocks, allocationsPublished] = await Promise.all([
+  const [window, intakes, blocks, allocationsPublished, fees] = await Promise.all([
     prisma.selectionWindow.findFirst({
       where: { isActive: true, deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -39,7 +41,11 @@ export default async function UrusBilikPage() {
       },
     }),
     areAllocationsPublished(),
+    getRoomFees(),
   ])
+
+  // "Publish results" unlocks only once the application period has closed.
+  const windowClosed = window ? new Date(window.closesAt).getTime() <= nowMalaysia().getTime() : false
 
   const activeIntake = intakes.find((i) => i.status === "active")
   const students = activeIntake
@@ -92,7 +98,13 @@ export default async function UrusBilikPage() {
     isB40: s.isB40,
     isOku: s.isOku,
     isUniform: s.isUniform,
-    room: s.bed ? `${s.bed.room.block.name} · ${s.bed.room.number}` : null,
+    room: s.bed
+      ? roomAssignmentLabel({
+          blockName: s.bed.room.block.name,
+          number: s.bed.room.number,
+          position: s.bed.position,
+        })
+      : null,
     position: s.bed?.position ?? null,
     selectedAt: s.selectedAt ? s.selectedAt.toISOString() : null,
     assignedByAdmin: s.assignedByAdmin,
@@ -115,7 +127,11 @@ export default async function UrusBilikPage() {
 
   const freeBedsData = freeBeds.map((b) => ({
     id: b.id,
-    label: `${b.room.block.name} · ${b.room.number} · ${b.position}`,
+    label: `${roomAssignmentLabel({
+      blockName: b.room.block.name,
+      number: b.room.number,
+      position: b.position,
+    }) ?? ""} · ${b.room.type === "single" ? "single" : "shared double"}`,
     gender: b.room.block.gender,
   }))
 
@@ -144,6 +160,8 @@ export default async function UrusBilikPage() {
       occupancy={occupancy}
       freeBeds={freeBedsData}
       allocationsPublished={allocationsPublished}
+      windowClosed={windowClosed}
+      fees={fees}
     />
   )
 }

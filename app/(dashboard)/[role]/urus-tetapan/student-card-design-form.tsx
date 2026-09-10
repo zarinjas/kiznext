@@ -6,12 +6,13 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
 import Alert from "@mui/material/Alert"
-import Switch from "@mui/material/Switch"
+import TextField from "@mui/material/TextField"
 import {
   uploadStudentCardBackground,
   removeStudentCardBackground,
-  setStudentCardColor,
-  setStudentCardColorEnd,
+  uploadStudentCardLogo,
+  removeStudentCardLogo,
+  setResidentialSession,
 } from "@/lib/settings"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KIcon } from "@/components/kiz/primitives/icon"
@@ -19,24 +20,48 @@ import { StudentCardFace } from "@/components/shared/student-card-face"
 
 interface Props {
   currentBackgroundUrl: string | null
-  currentColor: string
-  currentColorEnd: string | null
-  logoUrl: string | null
+  ukmLogoUrl: string | null
+  kizLogoUrl: string | null
+  /** Current Residential Session shown on the card, e.g. "2026/2027". */
+  session: string | null
 }
 
 const PREVIEW_NAME = "Ahmad Firdaus Bin Zainal"
+const PREVIEW_MATRIC = "A123456"
 
-export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, currentColorEnd, logoUrl }: Props) {
+export function StudentCardDesignForm({ currentBackgroundUrl, ukmLogoUrl, kizLogoUrl, session }: Props) {
   const router = useRouter()
   const [preview, setPreview] = useState<string | null>(currentBackgroundUrl)
   const [uploading, setUploading] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const [colorStart, setColorStart] = useState(currentColor)
-  const [gradientEnabled, setGradientEnabled] = useState(Boolean(currentColorEnd))
-  const [colorEnd, setColorEnd] = useState(currentColorEnd ?? "#164E63")
-  const [savingColor, setSavingColor] = useState(false)
+  const [ukmLogo, setUkmLogo] = useState<string | null>(ukmLogoUrl)
+  const [kizLogo, setKizLogo] = useState<string | null>(kizLogoUrl)
+  const [logoUploading, setLogoUploading] = useState<string | null>(null)
+  const [logoRemoving, setLogoRemoving] = useState<string | null>(null)
+  const [sessionValue, setSessionValue] = useState(session ?? "")
+  const [savingSession, setSavingSession] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+
+  async function handleSessionSave() {
+    setError("")
+    setSuccess("")
+    setSavingSession(true)
+    let result
+    try {
+      result = await setResidentialSession(sessionValue)
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the session." }
+    } finally {
+      setSavingSession(false)
+    }
+    if (result.success) {
+      setSuccess("Residential session updated.")
+      router.refresh()
+    } else {
+      setError(result.error ?? "Couldn't save the session.")
+    }
+  }
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -92,72 +117,105 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
     }
   }
 
-  async function handleStartChange(next: string) {
-    setColorStart(next)
-    setSavingColor(true)
+  async function handleLogoUpload(slot: "ukm" | "kiz", file: File) {
     setError("")
+    setSuccess("")
+    setLogoUploading(slot)
+
+    const formData = new FormData()
+    formData.set("logo", file)
+    formData.set("slot", slot)
+
     let result
     try {
-      result = await setStudentCardColor(next)
+      result = await uploadStudentCardLogo(formData)
     } catch (err) {
-      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the colour." }
+      result = { success: false, error: err instanceof Error ? err.message : "Upload didn't go through — give it another shot." }
     } finally {
-      setSavingColor(false)
+      setLogoUploading(null)
     }
+
     if (result.success) {
+      if (slot === "ukm") setUkmLogo(result.url ?? null)
+      else setKizLogo(result.url ?? null)
+      setSuccess(slot === "ukm" ? "UKM logo updated." : "KIZ logo updated.")
       router.refresh()
     } else {
-      setError(result.error ?? "Couldn't save the colour.")
+      setError(result.error ?? "Upload didn't go through — give it another shot.")
     }
   }
 
-  async function handleEndChange(next: string) {
-    setColorEnd(next)
-    if (!gradientEnabled) return
-    setSavingColor(true)
+  async function handleLogoRemove(slot: "ukm" | "kiz") {
     setError("")
+    setSuccess("")
+    setLogoRemoving(slot)
+
     let result
     try {
-      result = await setStudentCardColorEnd(next)
+      result = await removeStudentCardLogo(slot)
     } catch (err) {
-      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the colour." }
+      result = { success: false, error: err instanceof Error ? err.message : "Couldn't remove it — try again." }
     } finally {
-      setSavingColor(false)
+      setLogoRemoving(null)
     }
+
     if (result.success) {
+      if (slot === "ukm") setUkmLogo(null)
+      else setKizLogo(null)
+      setSuccess(slot === "ukm" ? "UKM logo removed." : "KIZ logo removed.")
       router.refresh()
     } else {
-      setError(result.error ?? "Couldn't save the colour.")
+      setError(result.error ?? "Couldn't remove it — try again.")
     }
   }
 
-  async function handleGradientToggle(enabled: boolean) {
-    setGradientEnabled(enabled)
-    setSavingColor(true)
-    setError("")
-    let result
-    try {
-      result = await setStudentCardColorEnd(enabled ? colorEnd : null)
-    } catch (err) {
-      result = { success: false, error: err instanceof Error ? err.message : "Couldn't save the colour." }
-    } finally {
-      setSavingColor(false)
-    }
-    if (result.success) {
-      router.refresh()
-    } else {
-      setError(result.error ?? "Couldn't save the colour.")
-    }
+  function logoSlot(slot: "ukm" | "kiz") {
+    const value = slot === "ukm" ? ukmLogo : kizLogo
+    const uploading = logoUploading === slot
+    const removing = logoRemoving === slot
+    const busy = uploading || removing
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <Box sx={{ width: 56, height: 52, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", p: 0.5, borderRadius: 1.5, border: "1px solid", borderColor: "divider", backgroundColor: "#fff", overflow: "hidden" }}>
+          {value ? (
+            <Box component="img" src={value} alt={`${slot.toUpperCase()} logo`} sx={{ maxWidth: "100%", maxHeight: "100%", width: "auto", objectFit: "contain" }} />
+          ) : (
+            <Typography variant="caption" sx={{ color: "text.disabled", fontWeight: 600 }}>
+              {slot.toUpperCase()}
+            </Typography>
+          )}
+        </Box>
+        <Button
+          component="label"
+          variant="outlined"
+          size="small"
+          disabled={busy}
+          startIcon={<KIcon icon="upload" size={15} />}
+        >
+          {uploading ? "Saving…" : "Choose"}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleLogoUpload(slot, file)
+            }}
+          />
+        </Button>
+        {value && (
+          <Button size="small" onClick={() => handleLogoRemove(slot)} disabled={removing} startIcon={<KIcon icon="delete" size={15} />} sx={{ color: "error.main" }}>
+            {removing ? "Removing…" : "Remove"}
+          </Button>
+        )}
+      </Box>
+    )
   }
-
-  const nameBarBackground = gradientEnabled
-    ? `linear-gradient(135deg, ${colorStart} 0%, ${colorEnd} 100%)`
-    : colorStart
 
   return (
     <FormSection
       title="Student Card Design"
-      subtitle="Background image and name-bar colour for the Student Digital KIZ Card."
+      subtitle="Background image and logos for the Student Digital KIZ Card."
       icon="badge"
     >
       <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 3 }}>
@@ -167,16 +225,16 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
             Card background
           </Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1.5 }}>
-            Recommended background size: 639px × 1125px (portrait). PNG or JPG, max 4MB.
+            Recommended background size: 380px × 550px (portrait). PNG or JPG, max 4MB.
           </Typography>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
             {preview ? (
-              <Box sx={{ width: 64, height: 112, borderRadius: 1.5, border: "1px solid", borderColor: "divider", overflow: "hidden" }}>
+              <Box sx={{ width: 64, height: 108, borderRadius: 1.5, border: "1px solid", borderColor: "divider", overflow: "hidden" }}>
                 <Box component="img" src={preview} alt="Background preview" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </Box>
             ) : (
-              <Box sx={{ width: 64, height: 112, borderRadius: 1.5, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled", fontSize: 11 }}>
+              <Box sx={{ width: 64, height: 108, borderRadius: 1.5, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled", fontSize: 11 }}>
                 No bg
               </Box>
             )}
@@ -212,55 +270,50 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
             </Button>
           </form>
 
-          {/* Name bar colour */}
+          {/* Logos */}
           <Typography variant="body2" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
-            Name bar colour
+            Card logos
           </Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1.5 }}>
-            Applies to all Student Digital Cards. Optionally blend two colours into a gradient.
+            UKM crest appears top-left, KIZ logo top-right. PNG, JPEG, WebP, or SVG. Max 2MB.
           </Typography>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
-            <Box
-              component="input"
-              type="color"
-              value={colorStart}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleStartChange(e.target.value)}
-              sx={{ width: 44, height: 36, p: 0, border: "1px solid", borderColor: "divider", borderRadius: 1, cursor: "pointer", backgroundColor: "transparent" }}
-            />
-            <Typography variant="body2" sx={{ fontFamily: "var(--font-mono), monospace", color: "text.secondary" }}>
-              {colorStart.toUpperCase()}
-            </Typography>
-            {savingColor && (
-              <Typography variant="caption" sx={{ color: "text.disabled" }}>
-                Saving…
-              </Typography>
-            )}
-          </Box>
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: gradientEnabled ? 1.5 : 0 }}>
-            <Switch
-              size="small"
-              checked={gradientEnabled}
-              onChange={(e) => handleGradientToggle(e.target.checked)}
-            />
-            <Typography variant="body2">Use gradient</Typography>
-          </Box>
-
-          {gradientEnabled && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <Box
-                component="input"
-                type="color"
-                value={colorEnd}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleEndChange(e.target.value)}
-                sx={{ width: 44, height: 36, p: 0, border: "1px solid", borderColor: "divider", borderRadius: 1, cursor: "pointer", backgroundColor: "transparent" }}
-              />
-              <Typography variant="body2" sx={{ fontFamily: "var(--font-mono), monospace", color: "text.secondary" }}>
-                {colorEnd.toUpperCase()}
-              </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography variant="body2" sx={{ width: 64, color: "text.secondary" }}>UKM</Typography>
+              {logoSlot("ukm")}
             </Box>
-          )}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography variant="body2" sx={{ width: 64, color: "text.secondary" }}>KIZ</Typography>
+              {logoSlot("kiz")}
+            </Box>
+          </Box>
+
+          {/* Residential Session */}
+          <Typography variant="body2" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
+            Residential Session
+          </Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1.5 }}>
+            Printed under the room line, e.g. &ldquo;2026/2027&rdquo;. Falls back to the active intake when empty.
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <TextField
+              value={sessionValue}
+              onChange={(e) => setSessionValue(e.target.value)}
+              placeholder="2026/2027"
+              size="small"
+              sx={{ flex: 1, minWidth: 160 }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  handleSessionSave()
+                }
+              }}
+            />
+            <Button variant="contained" size="small" disabled={savingSession} onClick={handleSessionSave} startIcon={savingSession ? undefined : <KIcon icon="save" size={16} />}>
+              {savingSession ? "Saving…" : "Save"}
+            </Button>
+          </Box>
 
           {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
           {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
@@ -273,12 +326,16 @@ export function StudentCardDesignForm({ currentBackgroundUrl, currentColor, curr
           </Typography>
           <StudentCardFace
             name={PREVIEW_NAME}
-            block="A-12"
-            roomNumber="03"
+            matricId={PREVIEW_MATRIC}
+            blockName="K18A"
+            roomNumber="101"
+            bed="A"
+            session={sessionValue.trim() ? `Session ${sessionValue.trim()}` : null}
+            validUntil="30 September 2027"
             avatarUrl={null}
             backgroundUrl={preview}
-            nameBarBackground={nameBarBackground}
-            logoUrl={logoUrl}
+            ukmLogoUrl={ukmLogo}
+            kizLogoUrl={kizLogo}
           />
         </Box>
       </Box>

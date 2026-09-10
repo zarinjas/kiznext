@@ -12,7 +12,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <AppRouterCacheProvider options={{ enableCssLayer: true }}>
-      <ThemeProvider theme={theme} defaultMode="system">
+      <ThemeProvider theme={theme} defaultMode="light">
         <CssBaseline />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       </ThemeProvider>

@@ -22,6 +22,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   superadmin: "Super Admin",
   admin_kiz: "Admin KIZ",
   pengetua: "Principal",
+  fellow: "Fellow",
   ahli: "Student",
   staf: "Staff",
 }
@@ -30,6 +31,7 @@ export const ROLE_OVERLINES: Record<Role, string> = {
   superadmin: "College operations",
   admin_kiz: "College operations",
   pengetua: "Principal view · read only",
+  fellow: "Fellow",
   ahli: "Resident",
   staf: "Staff",
 }
@@ -49,7 +51,7 @@ export function navForRole(role: Role): NavGroup[] {
     {
       label: "Bookings",
       items: [
-        { label: "Accommodation", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
+        { label: "Room Selection", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
         { label: "Facilities", href: `/${role}/tempahan-fasiliti`, icon: "meeting_room" },
         { label: "Guest House", href: `/${role}/rumah-tamu`, icon: "hotel" },
         { label: "My Bookings", href: `/${role}/tempahan`, icon: "calendar_month" },
@@ -82,6 +84,7 @@ export function navForRole(role: Role): NavGroup[] {
           { label: "Facility Requests", href: `/${role}/urus-tempahan-fasiliti`, icon: "task_alt", admin: true },
           { label: "Guest House", href: `/${role}/urus-rumah-tamu`, icon: "hotel_class", admin: true },
           { label: "Accommodation", href: `/${role}/urus-bilik`, icon: "bedroom_parent", admin: true },
+          { label: "Check-in / Out", href: `/${role}/urus-checkin`, icon: "qr_code_2", admin: true },
           { label: "Helpdesk Inbox", href: `/${role}/urus-helpdesk`, icon: "inbox", admin: true },
         ],
       },
@@ -89,8 +92,11 @@ export function navForRole(role: Role): NavGroup[] {
         label: "Content",
         items: [
           { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true },
+          { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true },
+          { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true },
           { label: "Facilities", href: `/${role}/urus-fasiliti`, icon: "apartment", admin: true },
           { label: "Offices", href: `/${role}/urus-pejabat`, icon: "domain", admin: true },
+          { label: "AR Directory", href: `/${role}/urus-direktori`, icon: "view_in_ar", admin: true },
         ],
       },
       {

@@ -7,8 +7,6 @@ import { revalidatePath } from "next/cache"
 interface ProfileInput {
   name: string
   email: string
-  block: string
-  roomNumber: string
   phone: string
   avatarUrl: string
 }
@@ -19,13 +17,13 @@ export async function updateProfile(data: ProfileInput) {
     throw new Error("Unauthorized")
   }
 
+  // Room/block are intentionally NOT editable here — a resident's room is
+  // assigned by the KIZ office and read from the bed allocation.
   await prisma.user.update({
     where: { id: session.user.id },
     data: {
       name: data.name,
       email: data.email || null,
-      block: data.block || null,
-      roomNumber: data.roomNumber || null,
       phone: data.phone || null,
       avatarUrl: data.avatarUrl || null,
     },

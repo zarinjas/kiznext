@@ -21,9 +21,9 @@ type Type = "single" | "double" | "flexible"
 type Result = { ok: boolean; error?: string }
 
 const copy: Record<Type, { title: string; body: string; icon: string }> = {
-  single: { title: "Request a single room", body: "Single rooms are very limited. Your request will be reviewed by the KIZ office and is not guaranteed.", icon: "bed" },
-  double: { title: "Request a double room", body: "Choose a same-gender roommate using their matric ID. They must approve before your pair is confirmed.", icon: "group" },
-  flexible: { title: "I am flexible", body: "No room type or roommate preference. The KIZ office will assign your room and roommate.", icon: "shuffle" },
+  single: { title: "Single Room", body: "I prefer a room to myself.", icon: "bed" },
+  double: { title: "Twin-Sharing Room", body: "I prefer to share a room with another student.", icon: "group" },
+  flexible: { title: "No Preference", body: "I\u2019m happy for KIZ to assign my room type and roommate.", icon: "shuffle" },
 }
 
 export function RoomApplicationFlow({ initial, checkRoommate, submit, respond, withdraw }: {
@@ -39,7 +39,8 @@ export function RoomApplicationFlow({ initial, checkRoommate, submit, respond, w
   const [roommate, setRoommate] = useState<{ race: string | null; religion: string | null } | null>(null)
   const [confirm, setConfirm] = useState(false)
   const [pending, start] = useTransition()
-  if (!initial.eligible) return <Box sx={{ maxWidth: 720, mx: "auto" }}><PageHeader overline="Residence" title="Accommodation application" /><KEmpty icon="domain_disabled" title="No accommodation offer found" body={initial.reason} /></Box>
+  const pageSubtitle = "Tell us your preferred room type. We\u2019ll do our best to accommodate your choice, subject to approval and availability."
+  if (!initial.eligible) return <Box sx={{ maxWidth: 820, mx: "auto" }}><PageHeader overline="Residence" title="Choose Your Room Preference" subtitle={pageSubtitle} /><ApplicationResultBanner eligible={false} /></Box>
   const actionable = canSelect(initial.windowState)
   const app = initial.application
   const submitChoice = () => start(async () => {
@@ -48,7 +49,8 @@ export function RoomApplicationFlow({ initial, checkRoommate, submit, respond, w
   })
 
   return <Box sx={{ maxWidth: 820, mx: "auto" }}>
-    <PageHeader overline="Residence" title="Accommodation application" subtitle="Choose your preference. Your block and room will be assigned by the KIZ office after applications are processed." />
+    <PageHeader overline="Residence" title="Choose Your Room Preference" subtitle={pageSubtitle} />
+    <ApplicationResultBanner eligible />
     <WindowStatusBanner state={initial.windowState} windowName={initial.window?.name ?? null} opensAt={initial.window?.opensAt ?? null} closesAt={initial.window?.closesAt ?? null} />
     {notice && <Alert severity={notice.error ? "error" : "success"} sx={{ mb: 2, borderRadius: 2 }}>{notice.message}</Alert>}
     {initial.allocation && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>Your room allocation: <b>{initial.allocation}</b></Alert>}
@@ -58,12 +60,27 @@ export function RoomApplicationFlow({ initial, checkRoommate, submit, respond, w
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}><KButton color="error" variant="outlined" disabled={pending} onClick={() => start(async () => { const r = await respond("rejected"); setNotice(r.ok ? { message: "Roommate request declined." } : { message: r.error ?? "Could not decline request.", error: true }) })}>Reject</KButton><KButton loading={pending} onClick={() => setConfirm(true)}>Approve request</KButton></Box>
       </FormSection>
     )}
-    {app ? <ApplicationSummary app={app} actionable={actionable} pending={pending} onWithdraw={() => start(async () => { const r = await withdraw(); setNotice(r.ok ? { message: "Application withdrawn. You may submit a new preference while the window is open." } : { message: r.error ?? "Could not withdraw application.", error: true }) })} /> : actionable ? <FormSection title="Your preference" subtitle="Select one option. If you do not submit anything, the KIZ office will keep your application for consideration and arrange placement." icon="assignment">
+    {app ? <ApplicationSummary app={app} actionable={actionable} pending={pending} onWithdraw={() => start(async () => { const r = await withdraw(); setNotice(r.ok ? { message: "Application withdrawn. You may submit a new preference while the window is open." } : { message: r.error ?? "Could not withdraw application.", error: true }) })} /> : actionable ? <FormSection title="Select a Room Type" icon="assignment">
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.25, mb: 2.5 }}>
-        {(Object.keys(copy) as Type[]).map((key) => <Box key={key} component="button" onClick={() => setType(key)} sx={{ textAlign: "left", cursor: "pointer", p: 2, borderRadius: 2, border: "1px solid", borderColor: type === key ? "primary.main" : "divider", backgroundColor: type === key ? "action.selected" : "background.paper" }}><Typography sx={{ fontWeight: 700, mb: 0.5 }}>{copy[key].title}</Typography><Typography variant="caption" sx={{ color: "text.secondary" }}>{copy[key].body}</Typography></Box>)}
+        {(Object.keys(copy) as Type[]).map((key) => {
+          const fee = key === "single" ? initial.fees.single : key === "double" ? initial.fees.double : null
+          return (
+            <Box key={key} component="button" onClick={() => setType(key)} sx={{ textAlign: "left", cursor: "pointer", p: 2, borderRadius: 2, border: "1px solid", borderColor: type === key ? "primary.main" : "divider", backgroundColor: type === key ? "action.selected" : "background.paper" }}>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>{copy[key].title}</Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>{copy[key].body}</Typography>
+              {fee != null && (
+                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+                  <Typography sx={{ fontWeight: 750, lineHeight: 1.2 }}>RM {fee.toFixed(2)}<Typography component="span" variant="caption" sx={{ color: "text.secondary", fontWeight: 500 }}> / month</Typography></Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>Plus a one-month deposit</Typography>
+                </Box>
+              )}
+            </Box>
+          )
+        })}
       </Box>
-      {type === "double" && <Box sx={{ maxWidth: 420 }}><Alert severity="info" sx={{ mb: 1.5, borderRadius: 2 }}>Enter your roommate&apos;s matric ID. They must be on the accommodation offer list and be the same gender. We only show Bangsa and Agama for compatibility.</Alert><TextField fullWidth label="Roommate matric ID" value={matricId} onChange={(e) => { setMatricId(e.target.value.toUpperCase()); setRoommate(null) }} onBlur={() => start(async () => { if (!matricId.trim()) return; const r = await checkRoommate(matricId); if (r.ok) setRoommate({ race: r.race ?? null, religion: r.religion ?? null }); else setNotice({ message: r.error ?? "We could not verify that roommate.", error: true }) })} placeholder="e.g. A123456" />{roommate && <Alert severity="success" sx={{ mt: 1.25, borderRadius: 2 }}>Bangsa: <b>{roommate.race ?? "Not provided"}</b> · Agama: <b>{roommate.religion ?? "Not provided"}</b></Alert>}</Box>}
+      {type === "double" && <Box sx={{ maxWidth: 460 }}><Alert severity="info" sx={{ mb: 1.5, borderRadius: 2 }}>Enter your preferred roommate&apos;s matric ID. They must be of the same gender and have received an accommodation offer. Limited profile information will be displayed to help you confirm your selection.</Alert><TextField fullWidth label="Roommate matric ID" value={matricId} onChange={(e) => { setMatricId(e.target.value.toUpperCase()); setRoommate(null) }} onBlur={() => start(async () => { if (!matricId.trim()) return; const r = await checkRoommate(matricId); if (r.ok) setRoommate({ race: r.race ?? null, religion: r.religion ?? null }); else setNotice({ message: r.error ?? "We could not verify that roommate.", error: true }) })} placeholder="e.g. A123456" />{roommate && <Alert severity="success" sx={{ mt: 1.25, borderRadius: 2 }}>Bangsa: <b>{roommate.race ?? "Not provided"}</b> · Agama: <b>{roommate.religion ?? "Not provided"}</b></Alert>}</Box>}
       <KButton loading={pending} disabled={type === "double" && !matricId.trim()} sx={{ mt: 2.5 }} onClick={submitChoice}>{type === "double" ? "Send roommate request" : "Submit preference"}</KButton>
+      <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 1.5 }}>Room preferences are subject to approval and availability. Final placement will be confirmed by the KIZ office.</Typography>
     </FormSection> : <KEmpty icon="schedule" title="Application is not available" body="Please wait for the application window to open, or contact the KIZ office after it closes." />}
     <Dialog open={confirm} onClose={() => setConfirm(false)}><DialogTitle>Confirm roommate request?</DialogTitle><DialogContent><Typography variant="body2">Are you sure? Approving this request is final. You and this student will be recorded as a double-room pair for the KIZ office to allocate.</Typography></DialogContent><DialogActions><KButton variant="text" onClick={() => setConfirm(false)}>Cancel</KButton><KButton loading={pending} onClick={() => start(async () => { const r = await respond("approved"); setConfirm(false); setNotice(r.ok ? { message: "Roommate request confirmed. The KIZ office will allocate your room later." } : { message: r.error ?? "Could not confirm request.", error: true }) })}>Approve & confirm</KButton></DialogActions></Dialog>
   </Box>
@@ -76,4 +93,22 @@ function ApplicationSummary({ app, actionable, pending, onWithdraw }: { app: Non
     {app.status === "roommate_rejected" && actionable && <Typography variant="body2" sx={{ color: "text.secondary" }}>You can withdraw this request and submit a new preference.</Typography>}
     {app.status === "roommate_confirmed" && <Alert severity="success" sx={{ mt: 1.5, borderRadius: 2 }}>This decision is final. Both students will be allocated together in a double room where possible.</Alert>}
   </FormSection>
+}
+
+/** Application-result banner shown at the top of the page. */
+function ApplicationResultBanner({ eligible }: { eligible: boolean }) {
+  if (eligible) {
+    return (
+      <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
+        <Typography sx={{ fontWeight: 650 }}>Yay, you&apos;ve got a place at KIZ!</Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>Your accommodation application was successful.</Typography>
+      </Alert>
+    )
+  }
+  return (
+    <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+      <Typography sx={{ fontWeight: 650 }}>We&apos;re sorry, we couldn&apos;t offer you a room this time.</Typography>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>Your application was not successful this time. Please contact the KIZ Office for further assistance.</Typography>
+    </Alert>
+  )
 }

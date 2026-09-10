@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["zarhafiz.tail39ef12.ts.net", "100.64.176.24"],
+  allowedDevOrigins: [
+    "*.trycloudflare.com",
+    "zarhafiz.tail39ef12.ts.net",
+    "100.64.176.24",
+    "192.168.0.*",
+    "192.168.1.*",
+    "10.0.0.*",
+  ],
   serverExternalPackages: ["sharp"],
   // Runtime uploads land in public/uploads/ but `next start` only serves files
   // that existed at build time — anything uploaded live 404s as a static file.

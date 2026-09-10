@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Button from "@mui/material/Button"
 import Alert from "@mui/material/Alert"
+import Typography from "@mui/material/Typography"
 import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { deleteGuestHouse } from "./guest-house-actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
@@ -62,10 +63,10 @@ export function DeleteGuestHouseButton({ guestHouseId, guestHouseName }: Props) 
           </>
         }
       >
-        <p style={{ fontSize: 14, color: "text.secondary", margin: 0 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary", m: 0 }}>
           Are you sure you want to delete <strong>{guestHouseName}</strong>? It will be hidden
           from students. Guest houses with active bookings cannot be deleted.
-        </p>
+        </Typography>
         {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
       </KDialog>
     </>

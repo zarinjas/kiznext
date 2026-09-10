@@ -16,11 +16,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 })
   }
 
+  // Whitelisted subdirectory — chat attachments go to /uploads/chat, everything
+  // else (existing callers) stays under /uploads/fasiliti.
+  const requestedDir = String(formData.get("dir") ?? "fasiliti")
+  const dir = requestedDir === "chat" ? "chat" : "fasiliti"
+
   const buffer = Buffer.from(await file.arrayBuffer())
 
   try {
     const { url, filename } = await saveUpload(buffer, {
-      dir: "fasiliti",
+      dir,
       prefix: "upload",
       maxBytes: MAX_UPLOAD,
       allowPdf: true,

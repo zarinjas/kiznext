@@ -64,7 +64,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         />
       </head>
       <body>
-        <InitColorSchemeScript attribute="data" defaultMode="system" />
+        <InitColorSchemeScript attribute="data" defaultMode="light" />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

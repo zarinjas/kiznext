@@ -13,24 +13,28 @@ async function main() {
 
   await prisma.user.upsert({
     where: { matricId: "ADMIN001" },
-    update: { passwordHash, deletedAt: null },
+    // update repairs the row no matter what state it drifted into (role,
+    // status), so the demo/quick-login account always works after a seed.
+    update: { passwordHash, deletedAt: null, role: "superadmin", accountStatus: "active" },
     create: {
       matricId: "ADMIN001",
       name: "Super Admin",
       passwordHash,
       role: "superadmin",
+      accountStatus: "active",
       residentCardQr: "ADMIN001",
     },
   })
 
   await prisma.user.upsert({
     where: { matricId: "ADMIN002" },
-    update: { passwordHash, deletedAt: null },
+    update: { passwordHash, deletedAt: null, role: "admin_kiz", accountStatus: "active" },
     create: {
       matricId: "ADMIN002",
       name: "Admin KIZ",
       passwordHash,
       role: "admin_kiz",
+      accountStatus: "active",
       residentCardQr: "ADMIN002",
     },
   })
@@ -52,19 +56,84 @@ async function main() {
     },
   })
 
+  // Demo fellow (residential college fellow — member experience like `staf`,
+  // with a visible "Fellow" tag in the community chat). Admin-created only.
+  await prisma.user.upsert({
+    where: { matricId: "FEL001" },
+    update: { passwordHash, deletedAt: null, role: "fellow", accountStatus: "active" },
+    create: {
+      matricId: "FEL001",
+      name: "Fellow Demo",
+      email: "fellow@ukm.edu.my",
+      emailVerifiedAt: new Date(),
+      accountStatus: "active",
+      passwordHash,
+      role: "fellow",
+      residentCardQr: "FEL001",
+    },
+  })
+
   await prisma.user.upsert({
     where: { matricId: "A123456" },
-    update: { passwordHash, deletedAt: null, email: "pelajar@siswa.ukm.edu.my" },
+    update: { passwordHash, deletedAt: null, email: "pelajar@siswa.ukm.edu.my", role: "ahli", accountStatus: "active" },
     create: {
       matricId: "A123456",
       name: "Example Student",
       email: "pelajar@siswa.ukm.edu.my",
       passwordHash,
       role: "ahli",
-      block: "A",
-      roomNumber: "101",
+      accountStatus: "active",
       residentCardQr: "A123456",
       phone: "0123456789",
+    },
+  })
+
+  // ── Stable, permanent test accounts ──────────────────────────────────────
+  // Unlike the demo accounts above, these are intentionally boring and always
+  // exist after any seed/deploy — perfect for manual testing without depending
+  // on the one-click demo buttons. Both are repaired to `active` on every run
+  // and are never removed by the seed.
+  await prisma.user.upsert({
+    where: { matricId: "SUPER001" },
+    update: {
+      passwordHash,
+      deletedAt: null,
+      role: "superadmin",
+      accountStatus: "active",
+      email: "stable.superadmin@ukm.edu.my",
+      emailVerifiedAt: new Date(),
+    },
+    create: {
+      matricId: "SUPER001",
+      name: "Stable Super Admin",
+      email: "stable.superadmin@ukm.edu.my",
+      emailVerifiedAt: new Date(),
+      passwordHash,
+      role: "superadmin",
+      accountStatus: "active",
+      residentCardQr: "SUPER001",
+    },
+  })
+
+  await prisma.user.upsert({
+    where: { matricId: "A999999" },
+    update: {
+      passwordHash,
+      deletedAt: null,
+      role: "ahli",
+      accountStatus: "active",
+      email: "stable.student@siswa.ukm.edu.my",
+      emailVerifiedAt: new Date(),
+    },
+    create: {
+      matricId: "A999999",
+      name: "Stable Student",
+      email: "stable.student@siswa.ukm.edu.my",
+      emailVerifiedAt: new Date(),
+      passwordHash,
+      role: "ahli",
+      accountStatus: "active",
+      residentCardQr: "A999999",
     },
   })
 
@@ -113,41 +182,206 @@ async function main() {
 
   console.log("Offices seeded")
 
-  const facilityData = [
-    { name: "Main Meeting Room", blockName: "KIZ Office", description: "KIZ main meeting room — capacity 20 people", capacity: 20, requiresApproval: true },
-    { name: "TV Room Block A", blockName: "Block A", description: "Lounge with TV — capacity 10 people", capacity: 10, requiresApproval: false },
-    { name: "TV Room Block B", blockName: "Block B", description: "Lounge with TV — capacity 10 people", capacity: 10, requiresApproval: false },
-    { name: "Surau Al-Hidayah", blockName: "Block A", description: "KIZ main surau — fits 40 worshippers", capacity: 40, requiresApproval: false },
-    { name: "Laundry Block A", blockName: "Block A", description: "6 washing machines, 4 dryers", capacity: null, requiresApproval: false },
-    { name: "Laundry Block B", blockName: "Block B", description: "4 washing machines, 3 dryers", capacity: null, requiresApproval: false },
-    { name: "Pantry Block C", blockName: "Block C", description: "Shared pantry — fridge, microwave, kettle", capacity: null, requiresApproval: false },
-    { name: "Futsal Field", blockName: "Block E", description: "Outdoor futsal field — fits 10v10", capacity: 20, requiresApproval: true },
-    { name: "Study Room Block D", blockName: "Block D", description: "Quiet study space — 8 study desks", capacity: 8, requiresApproval: false },
+  // ── AR Directory destinations ─────────────────────────────────────────────
+  // GPS pins the AR arrow navigates to. Coordinates are spread across the real
+  // KIZ footprint (centre ≈ 2.92972, 101.78397) as first-pass estimates —
+  // fine-tune each pin in `urus-direktori` (right-click → "What's here?" in
+  // Google Maps) for production. The admin building is one elongated floor, so
+  // its rooms each carry their own pin and are flagged `indoor`.
+  const iconForType: Record<string, string> = {
+    block: "apartment",
+    facility: "meeting_room",
+    office: "domain",
+    room: "door_front",
+    hall: "theater_comedy",
+    seminar: "co_present",
+    meeting: "forum",
+    admin: "admin_panel_settings",
+  }
+
+  const destinationData = [
+    {
+      name: "Blok K18A",
+      type: "block" as const,
+      latitude: 2.93055,
+      longitude: 101.7843,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 1,
+    },
+    {
+      name: "Blok K18B",
+      type: "block" as const,
+      latitude: 2.9307,
+      longitude: 101.78355,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 2,
+    },
+    {
+      name: "Dewan Sutera",
+      type: "hall" as const,
+      latitude: 2.92962,
+      longitude: 101.78378,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "Main college hall — assembly, events, exams",
+      sortOrder: 3,
+    },
+    {
+      name: "Bilik Seminar",
+      type: "seminar" as const,
+      latitude: 2.92956,
+      longitude: 101.78362,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "Seminar room",
+      sortOrder: 4,
+    },
+    {
+      name: "Meeting Room",
+      type: "meeting" as const,
+      latitude: 2.9295,
+      longitude: 101.78352,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "KIZ main meeting room",
+      sortOrder: 5,
+    },
+    {
+      name: "Pejabat Pentadbiran KIZ",
+      type: "admin" as const,
+      latitude: 2.92944,
+      longitude: 101.78344,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "College administration — registration, resident matters, forms",
+      sortOrder: 6,
+    },
+    {
+      name: "Pejabat UKM Real Estate",
+      type: "office" as const,
+      latitude: 2.9294,
+      longitude: 101.78336,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "Property, facility and building management matters",
+      sortOrder: 7,
+    },
   ]
 
-  const blocks = await prisma.block.findMany()
-  const blockMap = Object.fromEntries(blocks.map((b) => [b.name, b.id]))
-
-  for (const f of facilityData) {
-    const blockId = blockMap[f.blockName]
-    if (!blockId) {
-      console.warn(`Block not found: ${f.blockName}`)
-      continue
-    }
-    await prisma.facility.upsert({
-      where: { name: f.name },
-      update: {},
+  for (const d of destinationData) {
+    const destId = `${d.type}-${d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+    await prisma.destination.upsert({
+      where: { id: destId },
+      update: {
+        name: d.name,
+        type: d.type,
+        latitude: d.latitude,
+        longitude: d.longitude,
+        indoor: d.indoor,
+        building: d.building,
+        description: d.description,
+        sortOrder: d.sortOrder,
+        icon: iconForType[d.type] ?? "place",
+        deletedAt: null,
+      },
       create: {
-        name: f.name,
-        blockId,
-        description: f.description,
-        capacity: f.capacity,
-        requiresApproval: f.requiresApproval,
+        id: destId,
+        name: d.name,
+        type: d.type,
+        latitude: d.latitude,
+        longitude: d.longitude,
+        indoor: d.indoor,
+        building: d.building,
+        description: d.description,
+        sortOrder: d.sortOrder,
+        icon: iconForType[d.type] ?? "place",
       },
     })
   }
 
-  console.log("Facilities seeded")
+  console.log("AR Directory destinations seeded")
+
+  // ── Facilities directory ──────────────────────────────────────────────────
+  // Categories (grouped by section) then the facilities shown to residents.
+  // Bookable section = reservation required ("View & Book"); shared section =
+  // kemudahan umum, available without advance booking ("View Details").
+  const facilityCategoryData: { name: string; section: "bookable" | "shared"; sortOrder: number }[] = [
+    // Bookable Facilities
+    { name: "Event & Meeting Spaces", section: "bookable", sortOrder: 1 },
+    { name: "Sports & Recreation", section: "bookable", sortOrder: 2 },
+    { name: "Cooking Facilities", section: "bookable", sortOrder: 3 },
+    // Shared Facilities
+    { name: "Prayer Facilities", section: "shared", sortOrder: 1 },
+    { name: "Resident Services", section: "shared", sortOrder: 2 },
+    { name: "Health & Well-being", section: "shared", sortOrder: 3 },
+  ]
+
+  const categoryMap = new Map<string, { id: string; bookable: boolean }>()
+  for (const c of facilityCategoryData) {
+    const cat = await prisma.facilityCategory.upsert({
+      where: { section_name: { section: c.section, name: c.name } },
+      update: { sortOrder: c.sortOrder, deletedAt: null },
+      create: { name: c.name, section: c.section, sortOrder: c.sortOrder },
+    })
+    categoryMap.set(c.name, { id: cat.id, bookable: c.section === "bookable" })
+  }
+
+  const blocks = await prisma.block.findMany()
+  const blockMap = Object.fromEntries(blocks.map((b) => [b.name, b.id]))
+
+  const facilityData = [
+    // ── Bookable Facilities ─────────────────────────────────────────────────
+    { name: "Dewan Sutera", blockName: "Blok Pentadbiran", category: "Event & Meeting Spaces", description: "Multipurpose hall for events, programmes and large-group activities.", capacity: 300, requiresApproval: true, status: "open" as const },
+    { name: "Seminar Room 1", blockName: "Blok Pentadbiran", category: "Event & Meeting Spaces", description: "Seminar space for presentations, discussions and group activities.", capacity: 40, requiresApproval: true, status: "open" as const },
+    { name: "Seminar Room 2", blockName: "Blok Pentadbiran", category: "Event & Meeting Spaces", description: "Seminar space for presentations, discussions and group activities.", capacity: 40, requiresApproval: true, status: "open" as const },
+    { name: "Meeting Room", blockName: "Blok Pentadbiran", category: "Event & Meeting Spaces", description: "Meeting space for small-group discussions and official meetings.", capacity: 20, requiresApproval: true, status: "open" as const },
+    { name: "Futsal Court", blockName: "Block E", category: "Sports & Recreation", description: "Outdoor court for futsal and recreational activities.", capacity: 20, requiresApproval: true, status: "open" as const },
+    { name: "Dapur Siswa", blockName: "Block A", category: "Cooking Facilities", description: "A shared cooking space for KIZ residents.", capacity: null, requiresApproval: true, status: "coming_soon" as const },
+    // ── Shared Facilities (kemudahan umum) ──────────────────────────────────
+    { name: "Surau", blockName: "Block A", category: "Prayer Facilities", description: "A shared prayer space for KIZ residents.", capacity: 40, requiresApproval: false, status: "open" as const },
+    { name: "Laundry Room", blockName: "Block A", category: "Resident Services", description: "Self-service washing and drying facilities for residents.", capacity: null, requiresApproval: false, status: "open" as const },
+    { name: "Parcel Locker", blockName: "KIZ Office", category: "Resident Services", description: "A secure and convenient self-service parcel collection facility.", capacity: null, requiresApproval: false, status: "coming_soon" as const },
+    { name: "Sick Bay", blockName: "Blok Pentadbiran", category: "Health & Well-being", description: "A designated space for residents who require temporary rest or basic assistance.", capacity: null, requiresApproval: false, status: "coming_soon" as const },
+  ]
+
+  for (const f of facilityData) {
+    const blockId = blockMap[f.blockName]
+    const category = f.category ? categoryMap.get(f.category) : undefined
+    if (!blockId || !category) {
+      console.warn(`Block/category not found: ${f.blockName} / ${f.category}`)
+      continue
+    }
+    const bookable = category.bookable
+    await prisma.facility.upsert({
+      where: { name: f.name },
+      update: {
+        blockId,
+        categoryId: category.id,
+        description: f.description,
+        capacity: f.capacity,
+        requiresApproval: f.requiresApproval,
+        status: f.status,
+        bookable,
+        deletedAt: null,
+      },
+      create: {
+        name: f.name,
+        blockId,
+        categoryId: category.id,
+        description: f.description,
+        capacity: f.capacity,
+        requiresApproval: f.requiresApproval,
+        status: f.status,
+        bookable,
+      },
+    })
+  }
+
+  console.log("Facility categories + facilities seeded")
 
   const guestHouseData = [
     {
@@ -190,17 +424,17 @@ async function main() {
 
     const bookingData = [
       {
-        facilityName: "Main Meeting Room",
+        facilityName: "Meeting Room",
         timeSlotStart: tomorrow,
         status: "approved" as const,
       },
       {
-        facilityName: "Futsal Field",
+        facilityName: "Futsal Court",
         timeSlotStart: nextWeek,
         status: "pending" as const,
       },
       {
-        facilityName: "TV Room Block A",
+        facilityName: "Dewan Sutera",
         timeSlotStart: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
         status: "approved" as const,
       },
@@ -270,7 +504,118 @@ async function main() {
     }
 
     console.log("Dummy announcements seeded")
+
+    // Reactions + read state for the demo student, so the member feed shows
+    // reaction counts, a "Noted"-acknowledged important card, and a mix of
+    // read/unread cards. Idempotent: re-runs restore, never duplicate.
+    const demoStudents = await prisma.user.findMany({
+      where: {
+        matricId: { in: ["A200001", "A200002", "A200003", "A200016", "A200023", "A200027"] },
+      },
+      select: { id: true },
+    })
+    const demoPeers = demoStudents.map((u) => u.id)
+
+    const seededAnnouncements = await prisma.announcement.findMany({
+      where: { title: { in: announcementData.map((a) => a.title) }, deletedAt: null },
+      select: { id: true, title: true },
+    })
+    const byTitle = Object.fromEntries(seededAnnouncements.map((s) => [s.title, s]))
+    const water = byTitle["Water Supply Disruption — Blocks A & B — 17 July"]
+    const cleanUp = byTitle["KIZ Community Clean-Up — This Saturday"]
+    const welcome = byTitle["Welcome to the New Semester 2024/2025!"]
+
+    const notedOn = async (announcementId: string, userId: string) => {
+      await prisma.announcementReaction.upsert({
+        where: { userId_announcementId_type: { userId, announcementId, type: "noted" } },
+        update: { deletedAt: null },
+        create: { userId, announcementId, type: "noted" },
+      })
+    }
+
+    if (water && student) {
+      // The demo student acknowledged the important disruption notice.
+      await notedOn(water.id, student.id)
+      await prisma.announcementAcknowledgment.upsert({
+        where: { userId_announcementId: { userId: student.id, announcementId: water.id } },
+        update: { deletedAt: null },
+        create: { userId: student.id, announcementId: water.id },
+      })
+      for (const pid of demoPeers) await notedOn(water.id, pid)
+    }
+    if (cleanUp) {
+      for (const pid of demoPeers.slice(0, 3)) {
+        await prisma.announcementReaction.upsert({
+          where: { userId_announcementId_type: { userId: pid, announcementId: cleanUp.id, type: "interested" } },
+          update: { deletedAt: null },
+          create: { userId: pid, announcementId: cleanUp.id, type: "interested" },
+        })
+      }
+    }
+    if (welcome) {
+      for (const pid of demoPeers.slice(3)) {
+        await prisma.announcementReaction.upsert({
+          where: { userId_announcementId_type: { userId: pid, announcementId: welcome.id, type: "excited" } },
+          update: { deletedAt: null },
+          create: { userId: pid, announcementId: welcome.id, type: "excited" },
+        })
+      }
+    }
+    if (student) {
+      for (const a of [welcome, water, byTitle["Guest House Bookings Now Open!"]]) {
+        if (!a) continue
+        await prisma.announcementRead.upsert({
+          where: { userId_announcementId: { userId: student.id, announcementId: a.id } },
+          update: { deletedAt: null },
+          create: { userId: student.id, announcementId: a.id },
+        })
+      }
+    }
+
+    console.log("Dummy announcement reactions seeded")
   }
+
+  // ── Dashboard content + upcoming activities ────────────────────────────────
+  // Content items feed the "Emergency Contact" / "Life at KIZ" dashboard
+  // widgets; events feed "Upcoming at KIZ". Idempotent by (kind, title).
+  const contentSeed: {
+    kind: "emergency_contact" | "living_guide"
+    title: string
+    subtitle: string | null
+    phone: string | null
+    link: string | null
+    body: string | null
+    sortOrder: number
+  }[] = [
+    { kind: "emergency_contact", title: "Security Guard Post", subtitle: "24 hours · Main Gate", phone: "03-8921 5000", link: null, body: null, sortOrder: 1 },
+    { kind: "emergency_contact", title: "KIZ Management Office", subtitle: "Mon–Fri, 8am–5pm", phone: "03-8921 4000", link: null, body: null, sortOrder: 2 },
+    { kind: "emergency_contact", title: "Duty Fellow (on-call)", subtitle: "After hours", phone: "012-345 6789", link: null, body: null, sortOrder: 3 },
+    { kind: "living_guide", title: "Resident Handbook", subtitle: null, phone: null, link: "/pengumuman", body: "Rules, facilities & the do’s and don’ts of college life.", sortOrder: 1 },
+  ]
+  for (const c of contentSeed) {
+    const existing = await prisma.contentItem.findFirst({ where: { kind: c.kind, title: c.title, deletedAt: null } })
+    if (!existing) {
+      await prisma.contentItem.create({ data: c })
+    }
+  }
+  console.log("Dashboard content seeded")
+
+  const eventSeed = [
+    { title: "KIZ Community Clean-Up", venue: "KIZ Square", daysAhead: 3, description: "Join the flagship community clean-up — gloves and trash bags provided." },
+    { title: "Tea Time with the Principal", venue: "Dewan Sutera", daysAhead: 10, description: "An informal session to share ideas with the college principal." },
+  ]
+  const eventBase = new Date()
+  for (const ev of eventSeed) {
+    const existing = await prisma.event.findFirst({ where: { title: ev.title, deletedAt: null } })
+    if (!existing) {
+      const startsAt = new Date(eventBase.getTime() + ev.daysAhead * 24 * 60 * 60 * 1000)
+      startsAt.setHours(9, 0, 0, 0)
+      await prisma.event.create({
+        data: { title: ev.title, description: ev.description, venue: ev.venue, startsAt },
+      })
+    }
+  }
+  console.log("Upcoming activities seeded")
 
   // ── Room selection (bilik) ────────────────────────────────────────────────
   // Residence blocks (gender-restricted), rooms + auto beds, an active intake,
@@ -352,8 +697,10 @@ async function main() {
   // Active intake with a realistic batch of accepted students. Every student gets
   // a login account (password kiz123) so any of them can be used to test the
   // accommodation application. A123456 is the demo login and stays unassigned
-  // so the student application flow can be tested.
+  // so the student application flow can be tested. A999999 (Stable Student) is
+  // included too so the stable account can also exercise the flow.
   const eligibleData = [
+    { matricId: "A999999", name: "Stable Student", gender: "male" as const, religion: "Islam", race: "Malay" },
     { matricId: "A123456", name: "Example Student", gender: "female" as const, religion: "Islam", race: "Malay" },
     { matricId: "A200001", name: "Nurul Aisyah Rahman", gender: "female" as const, religion: "Islam", race: "Malay" },
     { matricId: "A200002", name: "Tan Mei Ling", gender: "female" as const, religion: "Buddhist", race: "Chinese" },
@@ -437,6 +784,89 @@ async function main() {
   })
   console.log(`Active intake + ${eligibleData.length} eligible students seeded`)
 
+  // ── Community chat demo thread ───────────────────────────────────────────
+  // Only seeded into an empty room so repeated reseeds never duplicate the
+  // thread. Gives the redesigned room (role badges, reactions, replies) some
+  // life out of the box.
+  const existingChat = await prisma.communityChatMessage.count({ where: { deletedAt: null } })
+  if (existingChat === 0) {
+    const demo = await prisma.user.findMany({
+      where: { matricId: { in: ["ADMIN001", "ADMIN002", "STAF001", "FEL001", "A123456", "A999999", "SUPER001"] } },
+    })
+    const byMatric = new Map(demo.map((u) => [u.matricId, u]))
+    const admin1 = byMatric.get("ADMIN001")
+    const admin2 = byMatric.get("ADMIN002")
+    const staf = byMatric.get("STAF001")
+    const fellow = byMatric.get("FEL001")
+    const student = byMatric.get("A123456")
+    const stableStudent = byMatric.get("A999999")
+    if (admin1 && admin2 && staf && fellow && student && stableStudent) {
+      const t = Date.now() - 1000 * 60 * 30
+      const mk = (i: number) => new Date(t + i * 1000 * 90)
+      const welcome = await prisma.communityChatMessage.create({
+        data: {
+          userId: admin1.id,
+          message:
+            "Welcome to the KIZ Community Chat! 🎉 This is our shared room for everything college — events, roommates, quick questions and daily life at KIZ.",
+          createdAt: mk(0),
+        },
+      })
+      await prisma.communityChatMessage.create({
+        data: {
+          userId: student.id,
+          message: "Hi everyone! Just moved into K18A this week — anyone know when the laundry room is quietest? 😅",
+          replyToId: welcome.id,
+          createdAt: mk(1),
+        },
+      })
+      await prisma.communityChatMessage.create({
+        data: {
+          userId: stableStudent.id,
+          message: "Usually late morning on weekdays! I did my laundry yesterday around 10am and had it all to myself.",
+          replyToId: welcome.id,
+          createdAt: mk(2),
+        },
+      })
+      await prisma.communityChatMessage.create({
+        data: {
+          userId: admin2.id,
+          message:
+            "Great to see everyone chatting! Reminder: complaints and damage reports belong in Helpdesk (Support → Help & Support) so the office can track them properly.",
+          createdAt: mk(3),
+        },
+      })
+      await prisma.communityChatMessage.create({
+        data: {
+          userId: fellow.id,
+          message:
+            "And if you need a quiet study corner, the seminar rooms are bookable on weekdays — check Facilities in the menu. Have a great semester, KIZ! 📚",
+          createdAt: mk(4),
+        },
+      })
+      await prisma.communityChatMessage.create({
+        data: {
+          userId: staf.id,
+          message: "Seconding the laundry tip — weekday mornings are your best bet. Enjoy the new semester, everyone!",
+          createdAt: mk(5),
+        },
+      })
+
+      const reacts: Array<{ userId: string; messageId: string; emoji: string }> = [
+        { userId: stableStudent.id, messageId: welcome.id, emoji: "🎉" },
+        { userId: fellow.id, messageId: welcome.id, emoji: "❤️" },
+        { userId: student.id, messageId: welcome.id, emoji: "👍" },
+        { userId: student.id, messageId: admin2.id, emoji: "🙏" },
+        { userId: stableStudent.id, messageId: fellow.id, emoji: "👍" },
+        { userId: staf.id, messageId: welcome.id, emoji: "🎉" },
+        { userId: admin1.id, messageId: student.id, emoji: "😂" },
+      ]
+      for (const r of reacts) {
+        await prisma.chatMessageReaction.create({ data: r })
+      }
+      console.log("Community chat demo thread seeded")
+    }
+  }
+
   // ── Pre-placed occupants (roommates) ──────────────────────────────────────
   // Fill beds across the male blocks (K19A/K19B) and female blocks
   // (K19C/K19D/K18B) so the picker shows a live mix of full / partial /
@@ -494,10 +924,6 @@ async function main() {
         // These are final-allocation fixtures for the admin inventory view, not
         // student applications. Keep them unpublished by default.
         data: { selectedAt: now, assignedByAdmin: true },
-      })
-      await tx.user.updateMany({
-        where: { matricId: row.matricId },
-        data: { block: row.room.split("-")[0], roomNumber: row.room },
       })
     })
   }

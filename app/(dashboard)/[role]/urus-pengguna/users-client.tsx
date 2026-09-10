@@ -31,8 +31,8 @@ export interface UserRow {
   role: Role
   accountStatus: AccountStatus
   emailVerifiedAt: string | null
-  block: string | null
-  roomNumber: string | null
+  /** Canonical allocated room ("K18A-101 (Bed A)"), null when not allocated. */
+  roomLabel: string | null
   createdAt: string
 }
 
@@ -42,7 +42,7 @@ interface Props {
   isSuperAdmin: boolean
 }
 
-const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "ahli", "staf"]
+const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "fellow", "ahli", "staf"]
 const ACCOUNT_OPTIONS: AccountStatus[] = ["unverified", "pending", "active"]
 const ACCOUNT_LABELS: Record<AccountStatus, string> = {
   unverified: "Unverified",
@@ -140,8 +140,8 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
       headerName: "Room",
       width: 150,
       renderCell: ({ row }) =>
-        row.block && row.roomNumber ? (
-          <Typography variant="body2" noWrap>{`${row.block} · ${row.roomNumber}`}</Typography>
+        row.roomLabel ? (
+          <Typography variant="body2" noWrap>{row.roomLabel}</Typography>
         ) : (
           <Typography variant="body2" sx={{ color: "text.disabled" }}>—</Typography>
         ),
@@ -159,9 +159,9 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
       headerName: "",
       sortable: false,
       filterable: false,
-      width: 152,
+      width: 176,
       renderCell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.75 }}>
           {row.accountStatus === "unverified" && (
             <ResendVerificationButton userId={row.id} userName={row.name} />
           )}

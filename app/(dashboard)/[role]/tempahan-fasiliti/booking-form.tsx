@@ -13,7 +13,7 @@ import { createFacilityBooking } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KButton } from "@/components/kiz/primitives/k-button"
-import { color } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 interface Facility {
   id: string
@@ -30,9 +30,10 @@ interface Facility {
 interface Props {
   facility: Facility
   role: string
+  onBack?: () => void
 }
 
-export function BookingForm({ facility, role }: Props) {
+export function BookingForm({ facility, role, onBack }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<"detail" | "form" | "done">("detail")
   const [error, setError] = useState("")
@@ -73,7 +74,7 @@ export function BookingForm({ facility, role }: Props) {
 
   if (step === "done") {
     return (
-      <Box sx={{ textAlign: "center", py: 5 }}>
+      <Box sx={{ maxWidth: 760, mx: "auto", textAlign: "center", py: 5 }}>
         <Box
           sx={{
             width: 64,
@@ -97,7 +98,7 @@ export function BookingForm({ facility, role }: Props) {
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
           Sitting with the admin for approval now — hang tight!
         </Typography>
-        <Button sx={{ mt: 3 }} variant="contained" onClick={() => router.push(`/${role}/tempahan-fasiliti`)}>
+        <Button sx={{ mt: 3 }} variant="contained" onClick={() => (onBack ? onBack() : router.push(`/${role}/tempahan-fasiliti`))}>
           Back to facilities
         </Button>
       </Box>
@@ -106,8 +107,8 @@ export function BookingForm({ facility, role }: Props) {
 
   if (step === "form") {
     return (
-      <form onSubmit={handleSubmit}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+      <form onSubmit={handleSubmit} style={{ width: "100%" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 640 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Typography variant="h4" sx={{ fontWeight: 600 }}>Book: {facility.name}</Typography>
             <Button size="small" onClick={() => setStep("detail")}>Back</Button>
@@ -157,14 +158,21 @@ export function BookingForm({ facility, role }: Props) {
   }))
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: 860, mx: "auto" }}>
+      {onBack && (
+        <Box sx={{ mb: 1.5 }}>
+          <Button size="small" onClick={onBack} startIcon={<KIcon icon="arrow_back" size={16} />} sx={{ color: "text.secondary" }}>
+            All facilities
+          </Button>
+        </Box>
+      )}
       {facility.featuredImage && (
-        <Box component="img" src={facility.featuredImage} alt={facility.name} sx={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 2.5, mb: 2 }} />
+        <Box component="img" src={facility.featuredImage} alt={facility.name} sx={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: `${radius.cardLg}px`, mb: 2 }} />
       )}
       {facility.gallery.length > 0 && (
         <Box sx={{ display: "flex", gap: 1, overflowX: "auto", pb: 1, mb: 2 }}>
           {facility.gallery.map((url, i) => (
-            <Box key={i} component="img" src={url} alt="" sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1.5, flexShrink: 0 }} />
+            <Box key={i} component="img" src={url} alt="" sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: `${radius.input}px`, flexShrink: 0 }} />
           ))}
         </Box>
       )}

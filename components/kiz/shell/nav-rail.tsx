@@ -49,7 +49,6 @@ export function NavRail({
         flexDirection: "column",
         backgroundColor: "background.default",
         backgroundImage: gradient.rail,
-        "[data-mui-color-scheme='dark'] &": { backgroundImage: "none" },
         borderRight: "1px solid",
         borderColor: "divider",
         transition: "width 220ms cubic-bezier(0.22,1,0.36,1)",
@@ -73,7 +72,7 @@ export function NavRail({
             component="img"
             src={logoUrl}
             alt="KIZ"
-            sx={{ height: collapsed ? 28 : 50, width: collapsed ? 28 : "auto", objectFit: "contain", borderRadius: 0.4 }}
+            sx={{ height: collapsed ? 28 : 50, width: collapsed ? 28 : "auto", objectFit: "contain", borderRadius: "4px" }}
           />
         ) : (
           <Box
@@ -180,14 +179,13 @@ export function NavRail({
                     {!collapsed && roomBadge && (
                       <Box
                         sx={{
-                          fontSize: 10,
-                          fontWeight: 650,
+                          fontSize: 10.5,
+                          fontWeight: 600,
                           color: color.warning.ink,
                           backgroundColor: color.warning.soft,
-                          px: 0.625,
+                          px: 0.75,
                           py: 0.25,
                           borderRadius: 999,
-                          lineHeight: 1.4,
                         }}
                       >
                         Open

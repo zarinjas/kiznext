@@ -2,11 +2,13 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import type { PrismaClient } from "@/app/generated/prisma/client"
 import { requireRole, type Role } from "@/lib/rbac"
-import { getOccupancySummary, getActiveWindow, ALLOCATIONS_PUBLISHED_KEY } from "@/lib/bilik"
+import { getOccupancySummary, getActiveWindow, ALLOCATIONS_PUBLISHED_KEY, ROOM_FEE_SINGLE_KEY, ROOM_FEE_DOUBLE_KEY } from "@/lib/bilik"
 import { revalidatePath } from "next/cache"
 import { parseCsvToObjects } from "@/lib/csv"
-import { mapEkolejRows, nowMalaysia, windowState, type MappedRow } from "@/lib/room-selection"
+import { mapEkolejRows, nowMalaysia, windowState, splitRoomCode, type MappedRow } from "@/lib/room-selection"
+import { roomCode, parseRoomNumber } from "@/lib/bilik-format"
 import { reconcileIntakeStudents } from "@/lib/registration"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
@@ -32,6 +34,7 @@ export interface ImportPreview {
     matricId: string
     name: string
     gender: string
+    room: string | null
     status: "ok" | "duplicate" | "invalid" | "existing"
     reason?: string
   }[]
@@ -88,6 +91,7 @@ export async function previewImport(csvText: string): Promise<ImportPreview> {
       matricId: m.mapped?.matricId ?? m.raw["No. Matrik"] ?? "—",
       name: m.mapped?.name ?? m.raw["Nama"] ?? "—",
       gender: m.mapped?.gender ?? "—",
+      room: m.mapped?.roomNumber ?? null,
       status,
       reason,
     }
@@ -108,7 +112,7 @@ export async function previewImport(csvText: string): Promise<ImportPreview> {
 export async function confirmImport(
   csvText: string,
   intakeName: string,
-): Promise<{ ok: boolean; imported: number; error?: string }> {
+): Promise<{ ok: boolean; imported: number; roomsAssigned?: number; error?: string }> {
   const session = await requireAdmin()
   try {
     if (!intakeName.trim()) return { ok: false, imported: 0, error: "Give the intake a name" }
@@ -143,6 +147,8 @@ export async function confirmImport(
       }
     }
 
+    let assignedRooms = 0
+
     await prisma.$transaction(async (tx) => {
       const intake = await tx.intake.create({
         data: {
@@ -155,7 +161,7 @@ export async function confirmImport(
 
       for (const m of mapped) {
         const s = m.mapped!
-        await tx.eligibleStudent.create({
+        const student = await tx.eligibleStudent.create({
           data: {
             intakeId: intake.id,
             matricId: s.matricId,
@@ -176,14 +182,114 @@ export async function confirmImport(
             merit: s.merit,
           },
         })
+
+        // Rows carrying a room ("No. Bilik") get a bed claimed as part of the
+        // same import — find-or-create the block/room/bed, then auto-assign.
+        // Beds in a twin room go A (left) then B (right) in file order.
+        if (s.roomNumber) {
+          await claimBedForImport(tx, student, s.roomNumber)
+          assignedRooms++
+        }
+      }
+
+      if (assignedRooms > 0 && assignedRooms !== mapped.length) {
+        const missing = mapped.filter((m) => !m.mapped!.roomNumber).map((m) => m.mapped!.matricId)
+        throw new Error(
+          `${missing.length} student${missing.length === 1 ? "" : "s"} (${missing.join(", ")}) have no room in the file — give every row a No. Bilik before importing.`,
+        )
       }
     })
 
     revalidatePath(`/${session.user.role}/urus-bilik`)
-    return { ok: true, imported: mapped.length }
+    revalidatePath("/ahli")
+    return { ok: true, imported: mapped.length, roomsAssigned: assignedRooms }
   } catch (e) {
     return { ok: false, imported: 0, error: e instanceof Error ? e.message : "Import failed" }
   }
+}
+
+/**
+ * Claim a bed for a freshly-imported EligibleStudent against a room code from
+ * the CSV (e.g. "K18A-101"). Finds or creates the block, room (double = 2 beds)
+ * and claims the first free bed. Runs inside the import transaction.
+ */
+async function claimBedForImport(
+  tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$use" | "$extends">,
+  student: { id: string; gender: "male" | "female" },
+  roomNumber: string,
+): Promise<void> {
+  const split = splitRoomCode(roomNumber)
+  if (!split) throw new Error(`Invalid room code "${roomNumber}" for ${student.id}`)
+  const code = roomCode(split.block, split.number)
+  const parsed = parseRoomNumber(split.block, code)
+  if (!parsed) throw new Error(`Room "${code}" doesn't look like a room number (block · floor · 2-digit room)`)
+
+  const existingBlock = await tx.residenceBlock.findFirst({ where: { name: split.block, deletedAt: null } })
+  if (existingBlock && existingBlock.gender !== student.gender) {
+    throw new Error(
+      `Block ${existingBlock.name} is for ${existingBlock.gender} students — ${student.id} is ${student.gender}. Check the room list.`,
+    )
+  }
+  const block = existingBlock ?? (await tx.residenceBlock.create({
+    data: { name: split.block, gender: student.gender, floors: Math.max(parsed.floor + 1, 2) },
+  }))
+
+  // Find or create the room, then re-read it WITH its beds so the free-bed
+  // scan below always sees the freshest set (new rooms get A/B created here).
+  const existingRoom = await tx.residenceRoom.findFirst({
+    where: { blockId: block.id, number: code, deletedAt: null },
+    select: { id: true },
+  })
+  const roomId = existingRoom?.id ?? (await tx.residenceRoom.create({
+    data: {
+      blockId: block.id,
+      floor: parsed.floor,
+      number: code,
+      type: "double",
+      status: "available",
+      sortOrder: 0,
+    },
+    select: { id: true },
+  })).id
+  if (!existingRoom) {
+    for (const position of ["left", "right"] as const) {
+      await tx.bed.create({ data: { roomId, position } })
+    }
+  }
+
+  const room = await tx.residenceRoom.findUnique({
+    where: { id: roomId },
+    include: { beds: { where: { deletedAt: null } } },
+  })
+  if (!room) throw new Error(`Room ${code} not found after create.`)
+  if (room.status !== "available") {
+    throw new Error(
+      `Room ${code} is ${room.status === "closed" ? "closed" : "under maintenance"} — set it available in Room inventory first.`,
+    )
+  }
+
+  // Free beds, twins preferred left → right.
+  const free = room.beds
+    .filter((b) => !b.occupantId)
+    .sort((a, b) => bedPriority(a.position) - bedPriority(b.position))
+  if (free.length === 0) {
+    throw new Error(`Room ${code} is already full — no free bed for ${student.id}.`)
+  }
+
+  const claimed = await tx.bed.updateMany({
+    where: { id: free[0].id, occupantId: null, deletedAt: null },
+    data: { occupantId: student.id },
+  })
+  if (claimed.count === 0) throw new Error(`Bed in ${code} was just taken — try the import again.`)
+
+  await tx.eligibleStudent.update({
+    where: { id: student.id },
+    data: { selectedAt: nowMalaysia(), assignedByAdmin: true },
+  })
+}
+
+function bedPriority(position: string): number {
+  return position === "left" ? 0 : position === "right" ? 1 : 2
 }
 
 /** Activate an intake (archives any other active one). */
@@ -235,6 +341,18 @@ export async function saveWindow(input: {
 export async function setAllocationsPublished(published: boolean) {
   const session = await requireAdmin()
   if (published) {
+    // Results can only be revealed after the application period has closed.
+    const win = await getActiveWindow()
+    const closed = win
+      ? windowState(
+          { opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours },
+          nowMalaysia(),
+        ) === "closed"
+      : false
+    if (!win) throw new Error("Set up an application period before publishing results.")
+    if (!closed) {
+      throw new Error("Room results can only be published after the application period closes.")
+    }
     const intake = await prisma.intake.findFirst({ where: { status: "active", deletedAt: null } })
     if (intake) {
       const awaiting = await prisma.eligibleStudent.count({ where: { intakeId: intake.id, deletedAt: null, bed: null } })
@@ -248,6 +366,38 @@ export async function setAllocationsPublished(published: boolean) {
   })
   revalidatePath(`/${session.user.role}/urus-bilik`)
   revalidatePath("/ahli/bilik")
+  revalidatePath("/ahli")
+  revalidatePath("/ahli/kad-maya")
+  revalidatePath("/ahli/lagi")
+  revalidatePath("/ahli/profile")
+}
+
+/** Monthly room fees (RM, per student) shown on the students' Room Selection cards. */
+export async function saveRoomFees(input: { single: number | null; double: number | null }) {
+  const session = await requireAdmin()
+  const parseFee = (v: number | null | undefined, label: string): number | null => {
+    if (v == null || Number.isNaN(v)) return null
+    if (v < 0) throw new Error(`${label} fee can't be negative.`)
+    return v
+  }
+  const single = parseFee(input.single, "Single room")
+  const double = parseFee(input.double, "Twin-sharing room")
+
+  await prisma.$transaction([
+    prisma.appSetting.upsert({
+      where: { key: ROOM_FEE_SINGLE_KEY },
+      update: { value: single != null ? String(single) : "" },
+      create: { key: ROOM_FEE_SINGLE_KEY, value: single != null ? String(single) : "" },
+    }),
+    prisma.appSetting.upsert({
+      where: { key: ROOM_FEE_DOUBLE_KEY },
+      update: { value: double != null ? String(double) : "" },
+      create: { key: ROOM_FEE_DOUBLE_KEY, value: double != null ? String(double) : "" },
+    }),
+  ])
+  revalidatePath(`/${session.user.role}/urus-bilik`)
+  revalidatePath("/ahli/bilik")
+  revalidatePath("/ahli")
 }
 
 // ── Building management ────────────────────────────────────────────────────
@@ -260,26 +410,42 @@ export async function upsertBlock(input: {
   sortOrder?: number
 }) {
   const session = await requireAdmin()
-  if (!input.name.trim()) throw new Error("Give the block a name")
+  const name = input.name.trim().toUpperCase()
+  if (!name) throw new Error("Give the block a name")
   try {
     if (input.id) {
+      const existing = await prisma.residenceBlock.findUnique({
+        where: { id: input.id },
+        include: {
+          rooms: {
+            where: { deletedAt: null },
+            include: { beds: { where: { deletedAt: null, occupantId: { not: null } } } },
+          },
+        },
+      })
+      if (!existing) throw new Error("Block not found")
+
+      // Renaming a block changes its room-code prefix ("K18A-101") — only safe
+      // while the block has no rooms yet, otherwise stored codes go stale.
+      if (existing.name !== name && existing.rooms.length > 0) {
+        throw new Error("Rename a block only after removing its rooms, or the stored room codes (e.g. K18A-101) won't match the new name")
+      }
+      // A block is single-gender — flipping it while beds are occupied would
+      // strand students of the opposite gender inside it.
+      if (existing.gender !== input.gender) {
+        const occupied = existing.rooms.reduce((total, room) => total + room.beds.length, 0)
+        if (occupied > 0) {
+          throw new Error(`Cannot change the gender — ${occupied} bed${occupied === 1 ? "" : "s"} in this block ${occupied === 1 ? "is" : "are"} occupied. Move the occupants first.`)
+        }
+      }
+
       await prisma.residenceBlock.update({
         where: { id: input.id },
-        data: {
-          name: input.name.trim().toUpperCase(),
-          gender: input.gender,
-          floors: input.floors,
-          sortOrder: input.sortOrder ?? 0,
-        },
+        data: { name, gender: input.gender, floors: input.floors, sortOrder: input.sortOrder ?? 0 },
       })
     } else {
       await prisma.residenceBlock.create({
-        data: {
-          name: input.name.trim().toUpperCase(),
-          gender: input.gender,
-          floors: input.floors,
-          sortOrder: input.sortOrder ?? 0,
-        },
+        data: { name, gender: input.gender, floors: input.floors, sortOrder: input.sortOrder ?? 0 },
       })
     }
     revalidatePath(`/${session.user.role}/urus-bilik`)
@@ -297,18 +463,29 @@ export async function upsertBlock(input: {
 /** Create a room and auto-create its beds (single → 1, double → 2). */
 export async function createRoom(input: {
   blockId: string
-  floor: number
   number: string
   type: "single" | "double"
 }) {
   const session = await requireAdmin()
   try {
+    const block = await prisma.residenceBlock.findUnique({ where: { id: input.blockId } })
+    if (!block) throw new Error("Block not found")
+
+    // Store the canonical full code ("K18A-101"). Accept a full code or a short
+    // number ("101") and normalise to the full form; the floor is derived from
+    // the code, never entered separately.
+    const code = roomCode(block.name, input.number)
+    const parsed = parseRoomNumber(block.name, code)
+    if (!parsed) {
+      throw new Error(`Room number must be a code like "${block.name}-101" (block · floor · 2-digit room)`)
+    }
+
     await prisma.$transaction(async (tx) => {
       const room = await tx.residenceRoom.create({
         data: {
           blockId: input.blockId,
-          floor: input.floor,
-          number: input.number.trim().toUpperCase(),
+          floor: parsed.floor,
+          number: code,
           type: input.type,
         },
       })
@@ -375,13 +552,12 @@ export async function deleteRoom(roomId: string) {
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
 
-/** Bulk-generate N sequential rooms on a floor. */
+/** Bulk-generate N sequential rooms on a floor (codes are derived from the block). */
 export async function generateFloor(input: {
   blockId: string
   floor: number
   count: number
   type: "single" | "double"
-  prefix: string
 }) {
   const session = await requireAdmin()
   const block = await prisma.residenceBlock.findUnique({ where: { id: input.blockId } })
@@ -389,7 +565,8 @@ export async function generateFloor(input: {
 
   await prisma.$transaction(async (tx) => {
     for (let i = 1; i <= input.count; i++) {
-      const number = `${input.prefix}${input.floor}${String(i).padStart(2, "0")}`
+      // Canonical full code: block name + floor digit(s) + 2-digit room.
+      const number = `${block.name}-${input.floor}${String(i).padStart(2, "0")}`
       const existing = await tx.residenceRoom.findFirst({
         where: { blockId: input.blockId, number, deletedAt: null },
       })
@@ -413,8 +590,27 @@ export async function generateFloor(input: {
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
 
+/** Guard: a room can't be taken out of service while it still has occupants. */
+async function assertRoomsFreeToChange(roomIds: string[]): Promise<void> {
+  const ids = [...new Set(roomIds.filter(Boolean))]
+  if (ids.length === 0) return
+  const occupied = await prisma.bed.count({
+    where: {
+      roomId: { in: ids },
+      occupantId: { not: null },
+      deletedAt: null,
+    },
+  })
+  if (occupied > 0) {
+    throw new Error(
+      `Cannot change the status — ${occupied} bed${occupied === 1 ? "" : "s"} ${occupied === 1 ? "is" : "are"} still occupied. Move the occupants to an available room first.`,
+    )
+  }
+}
+
 export async function setRoomStatus(roomId: string, status: "available" | "maintenance" | "closed") {
   const session = await requireAdmin()
+  if (status !== "available") await assertRoomsFreeToChange([roomId])
   await prisma.residenceRoom.update({ where: { id: roomId }, data: { status } })
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
@@ -424,6 +620,7 @@ export async function setRoomsStatus(roomIds: string[], status: "available" | "m
   const session = await requireAdmin()
   const ids = [...new Set(roomIds.filter(Boolean))]
   if (ids.length === 0) throw new Error("Select at least one room")
+  if (status !== "available") await assertRoomsFreeToChange(ids)
   const result = await prisma.residenceRoom.updateMany({
     where: { id: { in: ids }, deletedAt: null },
     data: { status },
@@ -439,7 +636,7 @@ export async function getOccupancy(): Promise<OccupancySummary> {
   return getOccupancySummary()
 }
 
-// ── Manual assignment (post-deadline backfill) ─────────────────────────────
+// ── Manual assignment ───────────────────────────────────────────────────────
 
 export async function adminAssign(
   studentId: string,
@@ -447,21 +644,8 @@ export async function adminAssign(
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAdmin()
   try {
-    // Post-deadline only. Manual backfill must never run while students can
-    // still self-select — enforced server-side, not just hidden in the UI.
-    const win = await getActiveWindow()
-    if (!win) return { ok: false, error: "No selection window is configured" }
-    const ws = windowState(
-      { opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours },
-      nowMalaysia(),
-    )
-    if (ws !== "closed") {
-      return {
-        ok: false,
-        error: "Manual assignment is only allowed after the selection window closes",
-      }
-    }
-
+    // The office may assign rooms as applications come in — students never see
+    // their room until the allocation is published (see setAllocationsPublished).
     const student = await prisma.eligibleStudent.findUnique({ where: { id: studentId } })
     if (!student) return { ok: false, error: "Student not found" }
 
@@ -528,22 +712,17 @@ export async function adminAssign(
       })
       if (roommateId) {
         await tx.eligibleStudent.update({ where: { id: roommateId }, data: { selectedAt: nowMalaysia(), assignedByAdmin: true } })
-        const roommate = await tx.eligibleStudent.findUnique({ where: { id: roommateId }, select: { userId: true } })
-        if (roommate?.userId) {
-          await tx.user.update({ where: { id: roommate.userId }, data: { block: bed.room.block.name, roomNumber: bed.room.number } })
-        }
       }
-      if (student.userId) {
-        await tx.user.update({
-          where: { id: student.userId },
-          data: { block: bed.room.block.name, roomNumber: bed.room.number },
-        })
-      }
+      // No user.block/room_number writes — the Bed.occupantId link is the single
+      // source of truth; member surfaces read their room from the bed graph.
     })
 
     revalidatePath(`/${session.user.role}/urus-bilik`)
+    revalidatePath("/ahli")
+    revalidatePath("/ahli/kad-maya")
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Assignment failed" }
   }
 }
+

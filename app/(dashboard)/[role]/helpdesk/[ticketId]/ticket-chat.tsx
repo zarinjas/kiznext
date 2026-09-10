@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography"
 import Tooltip from "@mui/material/Tooltip"
 import { sendReply, closeTicket, getTicketMessages } from "../actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { color } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 const IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
 
@@ -19,7 +19,7 @@ function renderMessage(msg: string) {
         src={msg.trim()}
         alt=""
         loading="lazy"
-        sx={{ maxWidth: "100%", borderRadius: 1.5, display: "block" }}
+        sx={{ maxWidth: "100%", borderRadius: `${radius.input}px`, display: "block" }}
       />
     )
   }
@@ -41,6 +41,7 @@ interface Props {
   role: string
 }
 
+/** TicketChat — helpdesk conversation, styled from the shared chat recipe. */
 export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, role }: Props) {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -76,6 +77,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
       setText("")
       const updated = await getTicketMessages(ticketId)
       setMessages(updated as unknown as Message[])
+      router.refresh()
     } catch {
       // ignore
     } finally {
@@ -91,7 +93,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
         height: { xs: "calc(100dvh - 200px)", md: 560 },
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: 3,
+        borderRadius: `${radius.card}px`,
         overflow: "hidden",
         backgroundColor: "background.paper",
       }}
@@ -101,40 +103,68 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
           This ticket is closed.
         </Box>
       )}
+      {ticketStatus === "resolved" && (
+        <Box sx={{ px: 2, py: 1, textAlign: "center", backgroundColor: color.success.soft, fontSize: 12.5, color: color.success.ink, fontWeight: 600 }}>
+          Marked as resolved — reply below to reopen it if anything&apos;s still not right.
+        </Box>
+      )}
 
-      <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1, "&::-webkit-scrollbar": { width: 6 } }}>
+      <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5, "&::-webkit-scrollbar": { width: 6 } }}>
         {messages.map((msg) => {
           const mine = msg.sender.role === role
+          const time = new Date(msg.createdAt).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })
+
+          if (msg.isAutoReply) {
+            return (
+              <Box key={msg.id} sx={{ display: "flex", justifyContent: "center" }}>
+                <Box
+                  sx={{
+                    maxWidth: { xs: "88%", sm: "62%" },
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: `${radius.input}px`,
+                    backgroundColor: "action.hover",
+                    color: "text.secondary",
+                    fontSize: 13,
+                    fontStyle: "italic",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    textAlign: "center",
+                  }}
+                >
+                  {renderMessage(msg.message)}
+                </Box>
+              </Box>
+            )
+          }
+
           return (
-            <Box key={msg.id} sx={{ display: "flex", justifyContent: msg.isAutoReply ? "center" : mine ? "flex-end" : "flex-start" }}>
-              <Box
-                sx={{
-                  maxWidth: { xs: "85%", sm: "72%" },
-                  px: 1.5,
-                  py: 1,
-                  borderRadius: msg.isAutoReply ? 2 : mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                  backgroundColor: msg.isAutoReply
-                    ? "action.hover"
-                    : mine
-                    ? color.brand[900]
-                    : color.info.soft,
-                  color: msg.isAutoReply
-                    ? "text.secondary"
-                    : mine
-                    ? "#fff"
-                    : color.info.ink,
-                  fontSize: 13.5,
-                  fontStyle: msg.isAutoReply ? "italic" : "normal",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-              >
-                {!msg.isAutoReply && (
-                  <Typography variant="caption" sx={{ display: "block", mb: 0.25, opacity: 0.75, fontWeight: 600 }}>
-                    {msg.sender.name}
-                  </Typography>
+            <Box key={msg.id} sx={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 1 }}>
+              <Box sx={{ maxWidth: { xs: "80%", sm: "70%" }, minWidth: 0 }}>
+                {!mine && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 0.5, mb: 0.25 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: "text.primary" }}>
+                      {msg.sender.name}
+                    </Typography>
+                  </Box>
                 )}
-                {renderMessage(msg.message)}
+                <Box
+                  sx={{
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                    backgroundColor: mine ? color.brand[900] : "action.hover",
+                    color: mine ? "#fff" : "text.primary",
+                    fontSize: 14,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {renderMessage(msg.message)}
+                </Box>
+                <Typography variant="caption" sx={{ display: "block", px: 0.5, mt: 0.25, color: "text.disabled", textAlign: mine ? "right" : "left" }}>
+                  {time}
+                </Typography>
               </Box>
             </Box>
           )
@@ -160,7 +190,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
               flex: 1,
               minHeight: 42,
               px: 1.75,
-              borderRadius: 99,
+              borderRadius: 999,
               border: "1px solid",
               borderColor: "divider",
               backgroundColor: "background.default",
@@ -197,7 +227,7 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
       )}
 
       {!isClosed && !isAdmin && (
-        <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 1.5, py: 1 }}>
+        <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 2, py: 1 }}>
           <Box
             component="button"
             onClick={async () => {
@@ -205,19 +235,22 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
               router.refresh()
             }}
             sx={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
               gap: 0.5,
+              minHeight: 40,
+              px: 1,
               background: "none",
               border: "none",
               cursor: "pointer",
-              fontSize: 12.5,
+              fontSize: 13,
               color: "text.secondary",
               fontWeight: 600,
-              "&:hover": { color: "error.main" },
+              borderRadius: `${radius.button}px`,
+              "&:hover": { color: "error.main", backgroundColor: "action.hover" },
             }}
           >
-            <KIcon icon="close" size={14} />
+            <KIcon icon="close" size={16} />
             Close Ticket
           </Box>
         </Box>

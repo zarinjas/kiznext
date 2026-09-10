@@ -130,7 +130,7 @@ export const gradient = {
 
 /**
  * Frosted surfaces — top bar, palette, sheets.
- * `background` uses the MUI CSS variable so it follows light/dark automatically.
+ * `background` uses the MUI CSS variable so it always matches the page canvas.
  */
 export const glass = {
   background:

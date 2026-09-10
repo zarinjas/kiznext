@@ -50,7 +50,6 @@ export function NavDrawer({
           flexDirection: "column",
           backgroundColor: "background.default",
           backgroundImage: gradient.rail,
-          "[data-mui-color-scheme='dark'] &": { backgroundImage: "none" },
         }}
       >
         {/* Brand */}
@@ -66,7 +65,7 @@ export function NavDrawer({
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
             {logoUrl ? (
-              <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 34, width: "auto", objectFit: "contain", borderRadius: 0.4 }} />
+              <Box component="img" src={logoUrl} alt="KIZ" sx={{ height: 34, width: "auto", objectFit: "contain", borderRadius: "4px" }} />
             ) : (
               <Box
                 sx={{

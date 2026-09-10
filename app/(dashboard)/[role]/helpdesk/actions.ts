@@ -4,20 +4,40 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { isOfficeHours, getOfficeHoursMessage } from "@/lib/office-hours"
+import type { HelpdeskCategory } from "@/app/generated/prisma/client"
 
-export async function createTicket(subject: string, message: string) {
+export interface CreateTicketInput {
+  subject: string
+  message?: string
+  category: HelpdeskCategory
+  locationBlock: string | null
+  locationDetail: string | null
+}
+
+export async function createTicket(input: CreateTicketInput) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const category = input.category ?? "general_enquiry"
+  const subject = (input.subject ?? "").trim()
+  const message = (input.message ?? "").trim()
+  const locationBlock = input.locationBlock?.trim() || null
+  const locationDetail = input.locationDetail?.trim() || null
+
+  if (!subject) throw new Error("Subject is required")
 
   const ticket = await prisma.helpdeskTicket.create({
     data: {
       userId: session.user.id,
       subject,
-      status: "open",
+      category,
+      status: "submitted",
+      locationBlock,
+      locationDetail,
       messages: {
         create: {
           senderId: session.user.id,
-          message,
+          message: message || subject,
         },
       },
     },
@@ -45,7 +65,6 @@ export async function sendReply(ticketId: string, message: string) {
 
   const ticket = await prisma.helpdeskTicket.findUnique({
     where: { id: ticketId },
-    include: { messages: { take: 1, orderBy: { createdAt: "asc" } } },
   })
   if (!ticket || ticket.deletedAt) throw new Error("Ticket not found")
 
@@ -56,6 +75,14 @@ export async function sendReply(ticketId: string, message: string) {
       message,
     },
   })
+
+  // A reply on a resolved or awaiting-more-info ticket brings it back to life.
+  if (ticket.status === "resolved" || ticket.status === "more_info_required") {
+    await prisma.helpdeskTicket.update({
+      where: { id: ticketId },
+      data: { status: "in_progress" },
+    })
+  }
 
   revalidatePath(`/${session.user.role}/helpdesk/${ticketId}`)
 }

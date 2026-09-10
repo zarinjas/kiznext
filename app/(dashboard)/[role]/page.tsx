@@ -2,8 +2,9 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Role } from "@/lib/rbac"
 import { prisma } from "@/lib/db"
-import { getBilikReminder } from "@/lib/bilik"
 import { nowMalaysia } from "@/lib/timezone"
+import { getResidentHomeData } from "@/lib/dashboard"
+import { getDashboardHeroBackground, getDashboardPoster } from "@/lib/settings"
 import { AhliHome } from "./ahli-home"
 import { AdminHome } from "./admin-home"
 
@@ -19,6 +20,10 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
   pengetua: {
     title: "Principal Dashboard",
     description: "College management reports and statistics.",
+  },
+  fellow: {
+    title: "Fellow Dashboard",
+    description: "Book facilities, check announcements, and more.",
   },
   ahli: {
     title: "Student Dashboard",
@@ -49,36 +54,26 @@ export default async function RoleDashboardPage({
   const userRole = session.user.role as string
   if (role !== userRole) redirect(`/${userRole}`)
 
-  // Students (ahli) and staff (staf) both get the resident-style member home.
-  // Only students can apply for accommodation, so the room reminder is ahli-only.
-  const isMember = userRole === "ahli" || userRole === "staf"
+  // Students (ahli), staff (staf) and fellows all get the resident-style member
+  // home. Only students can apply for accommodation, so the room reminder is
+  // ahli-only (handled inside `getResidentHomeData`).
+  const memberRoles = new Set(["ahli", "staf", "fellow"])
+  const isMember = memberRoles.has(userRole)
 
   if (isMember) {
-    const [user, announcements, bookings, roomReminder] = await Promise.all([
+    const role = userRole as "ahli" | "staf" | "fellow"
+    const [user, data, heroBackgroundUrl, posterUrl] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { name: true, matricId: true, block: true, roomNumber: true, avatarUrl: true },
+        select: { name: true, matricId: true, avatarUrl: true },
       }),
-      prisma.announcement.findMany({
-        where: { deletedAt: null },
-        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-        take: 5,
-        select: {
-          id: true,
-          title: true,
-          tag: true,
-          isPinned: true,
-          attachmentType: true,
-          createdAt: true,
-        },
+      getResidentHomeData({
+        userId: session.user.id,
+        matricId: session.user.matricId ?? "",
+        role,
       }),
-      prisma.facilityBooking.findMany({
-        where: { userId: session.user.id, deletedAt: null },
-        include: { facility: true },
-        orderBy: { createdAt: "desc" },
-        take: 3,
-      }),
-      userRole === "ahli" ? getBilikReminder(session.user.id, session.user.matricId) : Promise.resolve(null),
+      getDashboardHeroBackground(),
+      getDashboardPoster(),
     ])
 
     if (!user) redirect("/login")
@@ -86,12 +81,12 @@ export default async function RoleDashboardPage({
     return (
       <AhliHome
         user={user}
-        announcements={announcements}
-        bookings={bookings}
-        role={session.user.role}
-        memberTag={userRole === "staf" ? "Staff" : "Resident"}
-        roomReminder={roomReminder}
+        role={role}
+        memberTag={userRole === "staf" ? "Staff" : userRole === "fellow" ? "Fellow" : "Resident"}
         greeting={greetingFor(nowMalaysia())}
+        data={data}
+        heroBackgroundUrl={heroBackgroundUrl}
+        posterUrl={posterUrl}
       />
     )
   }
@@ -102,7 +97,9 @@ export default async function RoleDashboardPage({
     await Promise.all([
       prisma.facilityBooking.count({ where: { status: "pending", deletedAt: null } }),
       prisma.guestHouseBooking.count({ where: { status: "pending", deletedAt: null } }),
-      prisma.helpdeskTicket.count({ where: { status: { not: "closed" }, deletedAt: null } }),
+      prisma.helpdeskTicket.count({
+        where: { status: { in: ["submitted", "under_review", "in_progress", "more_info_required"] }, deletedAt: null },
+      }),
       prisma.lostFoundItem.count({ where: { status: { not: "claimed" }, deletedAt: null } }),
     ])
 

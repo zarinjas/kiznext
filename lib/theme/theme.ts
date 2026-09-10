@@ -7,7 +7,7 @@ import { color, font, radius, elevation } from "./tokens"
 /**
  * KIZ theme — MUI v7 as foundation, fully re-tokened.
  * Clean, minimalist, modern SaaS: white surfaces, neutral ink, hairline
- * structure, tight sans-serif type. Dual light/dark via CSS variables.
+ * structure, tight sans-serif type. Light-only (no dark mode).
  */
 
 const shadows = Array(25).fill(elevation.e1) as unknown as Shadows
@@ -35,13 +35,18 @@ const shared = {
     button: { textTransform: "none" as const, fontWeight: 550, fontSize: "0.875rem", letterSpacing: "-0.01em" },
     fontFamilyMonospace: font.mono,
   },
-  shape: { borderRadius: radius.button },
+  // MUI multiplies NUMERIC `borderRadius` in sx by theme.shape.borderRadius.
+  // Keep it at the MUI default (4) so inline numeric radii mean the conventional
+  // MUI multipliers. Branded radii must use the px-string tokens from
+  // lib/theme/tokens.ts (radius.input / .card / .cardLg / .sheet / .pill).
+  shape: { borderRadius: 4 },
 }
 
 export const theme = createTheme({
   ...shared,
   shadows,
   cssVariables: { colorSchemeSelector: "data" },
+  defaultColorScheme: "light",
   colorSchemes: {
     light: {
       palette: {
@@ -55,20 +60,6 @@ export const theme = createTheme({
         text: { primary: color.ink[900], secondary: color.ink[500], disabled: color.ink[300] },
         divider: color.border,
         action: { hover: "rgba(9,9,11,0.035)", selected: color.brand[50] },
-      },
-    },
-    dark: {
-      palette: {
-        primary: { main: "#FAFAFA", light: "#27272A", dark: "#FFFFFF", contrastText: "#09090B" },
-        secondary: { main: color.accent[400], light: "#241F45", dark: color.accent[300], contrastText: "#0B0A14" },
-        success: { main: "#4ADE80", light: "#0C1F14", dark: "#86EFAC" },
-        warning: { main: "#FBBF24", light: "#231A08", dark: "#FCD34D" },
-        error: { main: "#F87171", light: "#250F0F", dark: "#FCA5A5" },
-        info: { main: "#60A5FA", light: "#0C1A2E", dark: "#93C5FD" },
-        background: { default: "#09090B", paper: "#101012" },
-        text: { primary: "#FAFAFA", secondary: "#A1A1AA", disabled: "#52525B" },
-        divider: "#1F1F23",
-        action: { hover: "rgba(255,255,255,0.05)", selected: "rgba(255,255,255,0.08)" },
       },
     },
   },

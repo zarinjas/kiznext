@@ -1,22 +1,29 @@
 import QRCode from "qrcode"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
-import { color, elevation, font } from "@/lib/theme"
-import { getAppLogoUrl } from "@/lib/settings"
+import { color, elevation, font, radius } from "@/lib/theme"
 import { StudentCardFace } from "@/components/shared/student-card-face"
 
 interface Props {
   name: string
   matricId: string
-  block: string | null
-  roomNumber: string | null
+  /** Dormitory block name, e.g. "K18A". */
+  block?: string | null
+  /** Room number within the block, e.g. "101". */
+  roomNumber?: string | null
+  /** Bed letter "A"/"B", null for single rooms. */
+  bed?: string | null
+  /** Academic session, e.g. "Session 2026/2027". */
+  session?: string | null
+  /** Card "Valid until" line, e.g. "30 September 2027". */
+  validUntil?: string | null
   avatarUrl: string | null
   /** Only the "ahli" (student) role gets the official student card design. */
   role?: string
   cardBackgroundUrl?: string | null
-  cardColor?: string
-  cardColorEnd?: string | null
-  /** QR data URL rendered inside the student card (below room number). */
+  ukmLogoUrl?: string | null
+  kizLogoUrl?: string | null
+  /** QR data URL rendered inside the student card (bottom). */
   qrDataUrl?: string | null
 }
 
@@ -25,29 +32,31 @@ export async function KadMayaCard({
   matricId,
   block,
   roomNumber,
+  bed,
+  session,
+  validUntil,
   avatarUrl,
   role,
   cardBackgroundUrl,
-  cardColor,
-  cardColorEnd,
+  ukmLogoUrl,
+  kizLogoUrl,
   qrDataUrl,
 }: Props) {
   if (role === "ahli") {
-    const logoUrl = await getAppLogoUrl()
-    const start = cardColor ?? "#0891B2"
-    const nameBarBackground = cardColorEnd
-      ? `linear-gradient(135deg, ${start} 0%, ${cardColorEnd} 100%)`
-      : start
     return (
       <StudentCardFace
         name={name}
+        matricId={matricId}
+        blockName={block}
         roomNumber={roomNumber}
-        block={block}
+        bed={bed}
+        session={session}
         avatarUrl={avatarUrl}
         backgroundUrl={cardBackgroundUrl ?? null}
-        nameBarBackground={nameBarBackground}
-        logoUrl={logoUrl}
+        ukmLogoUrl={ukmLogoUrl ?? null}
+        kizLogoUrl={kizLogoUrl ?? null}
         qrDataUrl={qrDataUrl ?? null}
+        validUntil={validUntil ?? null}
       />
     )
   }
@@ -61,7 +70,7 @@ export async function KadMayaCard({
       sx={{
         width: "100%",
         maxWidth: 380,
-        borderRadius: 4,
+        borderRadius: `${radius.cardLg}px`,
         overflow: "hidden",
         backgroundColor: color.brand[900],
         color: "#fff",
@@ -144,11 +153,6 @@ export async function KadMayaCard({
             <Typography sx={{ fontSize: 12.5, fontFamily: font.mono, color: "rgba(255,255,255,0.6)", mt: 0.375 }}>
               {matricId}
             </Typography>
-            {(block || roomNumber) && (
-              <Typography sx={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)" }}>
-                {[block, roomNumber].filter(Boolean).join(" • ")}
-              </Typography>
-            )}
           </Box>
         </Box>
 

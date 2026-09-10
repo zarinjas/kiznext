@@ -26,7 +26,6 @@ export function FilterBar({
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mb: 2.5 }}>
       {onSearch && (
         <TextField
-          size="small"
           placeholder={searchPlaceholder}
           value={search}
           onChange={(e) => onSearch(e.target.value)}

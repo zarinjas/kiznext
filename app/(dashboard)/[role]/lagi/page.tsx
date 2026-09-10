@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { SignOutButton } from "@/components/shared/sign-out-button"
-import { getBilikWindowState } from "@/lib/bilik"
+import { getBilikWindowState, getResidentRoomLabel } from "@/lib/bilik"
 import { color, font, radius } from "@/lib/theme"
 
 function buildGroups(role: string): { label: string; items: { label: string; href: string; icon: string }[] }[] {
@@ -45,12 +45,13 @@ export default async function LagiPage({ params }: { params: Promise<{ role: str
   if (!session?.user) redirect("/login")
   const { role } = await params
 
-  const [user, bilikState] = await Promise.all([
+  const [user, bilikState, roomLabel] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { name: true, matricId: true, block: true, roomNumber: true, avatarUrl: true },
+      select: { name: true, matricId: true, avatarUrl: true },
     }),
     getBilikWindowState(),
+    session.user.role === "ahli" ? getResidentRoomLabel(session.user.id) : Promise.resolve(null),
   ])
   const bilikOpen = bilikState === "open" || bilikState === "closing_soon"
   const groups = buildGroups(session.user.role)
@@ -106,8 +107,7 @@ export default async function LagiPage({ params }: { params: Promise<{ role: str
           </Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: font.mono }}>
             {user?.matricId}
-            {[user?.block, user?.roomNumber].filter(Boolean).length > 0 &&
-              ` · ${[user?.block, user?.roomNumber].filter(Boolean).join(" • ")}`}
+            {roomLabel && ` · ${roomLabel}`}
           </Typography>
         </Box>
         <KIcon icon="chevron_right" size={18} sx={{ color: "var(--mui-palette-text-disabled)" }} />

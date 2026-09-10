@@ -3,25 +3,35 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Box from "@mui/material/Box"
-
 import TextField from "@mui/material/TextField"
 import MenuItem from "@mui/material/MenuItem"
+import ListSubheader from "@mui/material/ListSubheader"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
 import Button from "@mui/material/Button"
+import Alert from "@mui/material/Alert"
 import { createFacility, updateFacility, type FacilityFormData } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KButton } from "@/components/kiz/primitives/k-button"
 import { color } from "@/lib/theme"
+import type { FacilitySection, FacilityStatus } from "@/app/generated/prisma/client"
 
 interface BlockOption {
   id: string
   name: string
 }
 
+export interface CategoryOption {
+  id: string
+  name: string
+  section: FacilitySection
+  sortOrder: number
+}
+
 interface Props {
   role: string
   blocks: BlockOption[]
+  categories: CategoryOption[]
   initialData?: {
     id: string
     name: string
@@ -34,17 +44,28 @@ interface Props {
     timeSlotDuration: number | null
     maxPerDay: number | null
     requiresApproval: boolean
+    categoryId: string | null
+    status: FacilityStatus
   }
   onClose?: () => void
 }
 
-export function FacilityForm({ role: _role, blocks, initialData, onClose }: Props) {
+export function FacilityForm({ role: _role, blocks, categories, initialData, onClose }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState("")
   const [featuredImage, setFeaturedImage] = useState<string | null>(initialData?.featuredImage ?? null)
   const [gallery, setGallery] = useState<string[]>(initialData?.gallery ?? [])
+  const [status, setStatus] = useState<FacilityStatus>(initialData?.status ?? "open")
+  const [categoryId, setCategoryId] = useState<string>(initialData?.categoryId ?? "")
   const isEditing = !!initialData
+
+  const bookableCategories = categories.filter((c) => c.section === "bookable")
+  const sharedCategories = categories.filter((c) => c.section === "shared")
+
+  const chosenCategory = categoryId ? categories.find((c) => c.id === categoryId) : undefined
+  const chosenSection = chosenCategory?.section ?? "bookable"
 
   async function uploadFile(file: File): Promise<string | null> {
     const formData = new FormData()
@@ -88,6 +109,7 @@ export function FacilityForm({ role: _role, blocks, initialData, onClose }: Prop
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
+    setError("")
 
     const form = new FormData(e.currentTarget)
     const data: FacilityFormData = {
@@ -101,6 +123,8 @@ export function FacilityForm({ role: _role, blocks, initialData, onClose }: Prop
       timeSlotDuration: form.get("timeSlotDuration") ? parseInt(form.get("timeSlotDuration") as string, 10) : null,
       maxPerDay: form.get("maxPerDay") ? parseInt(form.get("maxPerDay") as string, 10) : 3,
       requiresApproval: form.get("requiresApproval") === "on",
+      categoryId: categoryId || null,
+      status,
     }
 
     try {
@@ -112,9 +136,9 @@ export function FacilityForm({ role: _role, blocks, initialData, onClose }: Prop
       router.refresh()
       onClose?.()
     } catch (err) {
-      console.error(err)
+      setError(err instanceof Error ? err.message : "Couldn't save the facility.")
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -127,6 +151,41 @@ export function FacilityForm({ role: _role, blocks, initialData, onClose }: Prop
             <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
           ))}
         </TextField>
+
+        {/* Directory grouping */}
+        <TextField
+          id="categoryId"
+          name="categoryId"
+          label="Directory Group"
+          select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          helperText={
+            chosenSection === "bookable"
+              ? "Appears under Bookable Facilities (reservation required)."
+              : "Appears under Shared Facilities (no advance booking)."
+          }
+        >
+          <MenuItem value="" disabled>Select a group…</MenuItem>
+          {bookableCategories.length > 0 && (
+            <ListSubheader sx={{ bgcolor: "transparent", lineHeight: "32px", fontWeight: 700 }}>Bookable Facilities</ListSubheader>
+          )}
+          {bookableCategories.map((c) => (
+            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+          ))}
+          {sharedCategories.length > 0 && (
+            <ListSubheader sx={{ bgcolor: "transparent", lineHeight: "32px", fontWeight: 700 }}>Shared Facilities</ListSubheader>
+          )}
+          {sharedCategories.map((c) => (
+            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+          ))}
+        </TextField>
+
+        <TextField id="status" name="status" label="Status" select value={status} onChange={(e) => setStatus(e.target.value as FacilityStatus)}>
+          <MenuItem value="open">Open — available now</MenuItem>
+          <MenuItem value="coming_soon">Coming soon — not bookable yet</MenuItem>
+        </TextField>
+
         <TextField
           id="description"
           name="description"
@@ -198,10 +257,12 @@ export function FacilityForm({ role: _role, blocks, initialData, onClose }: Prop
           control={<Switch name="requiresApproval" defaultChecked={initialData?.requiresApproval ?? true} sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: color.brand[600] }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: color.brand[600] } }} />}
           label={<Box>
             <Box sx={{ fontSize: 14, fontWeight: 600 }}>Requires Approval</Box>
-            <Box sx={{ fontSize: 12, color: "text.secondary" }}>If checked, student bookings need admin approval.</Box>
+            <Box sx={{ fontSize: 12, color: "text.secondary" }}>If checked, bookings need admin approval.</Box>
           </Box>}
           sx={{ alignItems: "flex-start", gap: 1, mx: 0 }}
         />
+
+        {error && <Alert severity="error">{error}</Alert>}
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
           <Button onClick={onClose ?? (() => router.back())} disabled={loading} variant="outlined">

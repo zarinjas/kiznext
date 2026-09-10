@@ -7,9 +7,12 @@ import Typography from "@mui/material/Typography"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { KadMayaCard } from "@/components/shared/kad-maya-card"
 import { AvatarPicker } from "@/components/shared/avatar-picker"
+import { EcardRegistration } from "@/components/shared/ecard-registration"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { color } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 import { getStudentCardDesign } from "@/lib/settings"
+import { getResidentRoomDetail } from "@/lib/bilik"
+import { addMonths, formatMalaysiaDate } from "@/lib/timezone"
 
 export default async function KadMayaPage() {
   const session = await auth()
@@ -18,20 +21,34 @@ export default async function KadMayaPage() {
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
+      id: true,
       name: true,
       matricId: true,
       block: true,
       roomNumber: true,
       avatarUrl: true,
       role: true,
+      ecardRegisteredAt: true,
     },
   })
 
   if (!user) redirect("/login")
 
   const isStudent = user.role === "ahli"
+  // A student's room is only shown once the KIZ office assigns AND publishes it.
+  const room = isStudent ? await getResidentRoomDetail(user.id) : null
   const cardDesign = isStudent ? await getStudentCardDesign() : null
   const qrDataUrl = isStudent ? await QRCode.toDataURL(user.matricId, { width: 220, margin: 1 }) : null
+
+  // Card validity = room check-in date + 6 months (one semester). Students
+  // without a check-in yet get no "Valid until" line.
+  const validUntil =
+    isStudent && room?.checkInAt ? formatMalaysiaDate(addMonths(room.checkInAt, 6)) : null
+
+  // First view of the eCard "registers" it (clears the dashboard checklist
+  // task). The DB write runs on the client via a server action after mount —
+  // revalidation is not allowed during a server-component render.
+  const isMember = user.role === "ahli" || user.role === "staf" || user.role === "fellow"
 
   return (
     <Box sx={{ maxWidth: 440, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -41,13 +58,16 @@ export default async function KadMayaPage() {
         <KadMayaCard
           name={user.name}
           matricId={user.matricId}
-          block={user.block}
-          roomNumber={user.roomNumber}
+          block={isStudent ? room?.blockName : user.block}
+          roomNumber={isStudent ? room?.roomNumber : user.roomNumber}
+          bed={isStudent ? room?.bed : null}
+          session={isStudent ? cardDesign?.session ?? null : null}
+          validUntil={validUntil}
           avatarUrl={user.avatarUrl}
           role={user.role}
           cardBackgroundUrl={cardDesign?.backgroundUrl}
-          cardColor={cardDesign?.color}
-          cardColorEnd={cardDesign?.colorEnd}
+          ukmLogoUrl={cardDesign?.ukmLogoUrl}
+          kizLogoUrl={cardDesign?.kizLogoUrl}
           qrDataUrl={qrDataUrl}
         />
       </Box>
@@ -56,13 +76,14 @@ export default async function KadMayaPage() {
       <Box
         sx={{
           width: "100%",
+          maxWidth: 380,
           mt: 2.5,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 2,
           p: 2,
-          borderRadius: `${16}px`,
+          borderRadius: `${radius.cardLg}px`,
           border: "1px solid",
           borderColor: "divider",
           backgroundColor: "background.paper",
@@ -86,10 +107,11 @@ export default async function KadMayaPage() {
           alignItems: "center",
           gap: 1,
           p: 1.75,
-          borderRadius: 2,
+          borderRadius: `${radius.cardLg}px`,
           backgroundColor: color.info.soft,
           color: color.info.ink,
-          maxWidth: 360,
+          width: "100%",
+          maxWidth: 380,
         }}
       >
         <KIcon icon="info" size={18} />
@@ -97,6 +119,8 @@ export default async function KadMayaPage() {
           Show this QR code to security officers or KIZ staff for identity verification.
         </Typography>
       </Box>
+
+      {isMember && <EcardRegistration shouldRegister={!user.ecardRegisteredAt} />}
     </Box>
   )
 }

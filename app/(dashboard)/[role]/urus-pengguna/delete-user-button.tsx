@@ -6,6 +6,7 @@ import Button from "@mui/material/Button"
 import Alert from "@mui/material/Alert"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
+import Typography from "@mui/material/Typography"
 import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { deleteUser } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
@@ -75,10 +76,10 @@ export function DeleteUserButton({ userId, userName, userMatricId, isSelf }: Pro
           </>
         }
       >
-        <p style={{ fontSize: 14, color: "text.secondary", margin: 0 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary", m: 0 }}>
           Delete <strong>{userName}</strong> ({userMatricId})? Their account will be deactivated —
           they can no longer log in, but their past records are kept.
-        </p>
+        </Typography>
         {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
       </KDialog>
     </>

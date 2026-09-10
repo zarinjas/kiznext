@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Button from "@mui/material/Button"
+import Typography from "@mui/material/Typography"
 import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { deleteFacility } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
@@ -58,10 +59,10 @@ export function DeleteButton({ facilityId, facilityName }: Props) {
           </>
         }
       >
-        <p style={{ fontSize: 14, color: "text.secondary", margin: 0 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary", m: 0 }}>
           Are you sure you want to delete <strong>{facilityName}</strong>? This facility will be
           hidden from students. This action can be reversed by contacting a super admin.
-        </p>
+        </Typography>
       </KDialog>
     </>
   )

@@ -11,13 +11,17 @@ const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
 const LOGIN_BACKGROUND_KEY = "login_background"
 const LOGIN_BACKGROUND_MAX_SIZE = 12 * 1024 * 1024
+const DASHBOARD_HERO_BG_KEY = "dashboard_hero_bg"
+const DASHBOARD_HERO_BG_MAX_SIZE = 12 * 1024 * 1024
+const DASHBOARD_POSTER_KEY = "dashboard_poster"
+const DASHBOARD_POSTER_MAX_SIZE = 12 * 1024 * 1024
 
 const CARD_BG_MAX_SIZE = 4 * 1024 * 1024
 const STUDENT_CARD_BG_KEY = "student_card_bg"
-const STUDENT_CARD_COLOR_KEY = "student_card_color"
-const STUDENT_CARD_COLOR_END_KEY = "student_card_color_end"
-const DEFAULT_STUDENT_CARD_COLOR = "#0891B2"
-const HEX_RE = /^#[0-9a-fA-F]{6}$/
+const STUDENT_CARD_UKM_LOGO_KEY = "student_card_ukm_logo"
+const STUDENT_CARD_KIZ_LOGO_KEY = "student_card_kiz_logo"
+/** Superadmin-set residential session shown on the student card, e.g. "2026/2027". */
+const RESIDENTIAL_SESSION_KEY = "residential_session"
 
 // Resend email config — admin-settable from App Settings so no server-side
 // `.env` edit is needed to switch the API key. Key names match lib/email.ts.
@@ -117,23 +121,147 @@ export async function removeAppLogo(): Promise<{ success: boolean; error?: strin
   }
 }
 
-/** Student Digital Card design — background image + name-bar colour/gradient, admin-configurable. */
+/** Student Digital Card design — admin-configurable background image. */
 export interface StudentCardDesign {
   backgroundUrl: string | null
-  color: string
-  colorEnd: string | null
+  /** UKM crest — left logo slot on the card. */
+  ukmLogoUrl: string | null
+  /** KIZ logo — right logo slot on the card. */
+  kizLogoUrl: string | null
+  /** "Residential Session" line shown on the card, e.g. "2026/2027". */
+  session: string | null
+}
+
+/** Resolve the uploaded student-card logos, falling UI-side to a monogram tile. */
+export async function getStudentCardLogos(): Promise<{ ukmLogoUrl: string | null; kizLogoUrl: string | null }> {
+  const [ukm, kiz] = await Promise.all([
+    getAppSetting(STUDENT_CARD_UKM_LOGO_KEY),
+    getAppSetting(STUDENT_CARD_KIZ_LOGO_KEY),
+  ])
+  return { ukmLogoUrl: ukm || null, kizLogoUrl: kiz || null }
+}
+
+/**
+ * The Residential Session printed on the student card ("Residential Session
+ * 2026/2027"). Superadmin sets it in App Settings; until then it falls back to
+ * the active intake's name so the card never looks empty.
+ */
+export async function getResidentialSession(): Promise<string | null> {
+  const stored = await getAppSetting(RESIDENTIAL_SESSION_KEY)
+  if (stored?.trim()) return stored.trim()
+  const intake = await prisma.intake.findFirst({
+    where: { status: "active", deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { name: true },
+  })
+  return intake?.name ?? null
+}
+
+export async function setResidentialSession(
+  value: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+    const clean = value.trim()
+    if (!clean) return { success: false, error: "Session can't be empty." }
+
+    await prisma.appSetting.upsert({
+      where: { key: RESIDENTIAL_SESSION_KEY },
+      update: { value: clean },
+      create: { key: RESIDENTIAL_SESSION_KEY, value: clean },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("setResidentialSession", err)
+  }
 }
 
 export async function getStudentCardDesign(): Promise<StudentCardDesign> {
-  const [bg, colorStart, colorEnd] = await Promise.all([
+  const [bg, logos, session] = await Promise.all([
     getAppSetting(STUDENT_CARD_BG_KEY),
-    getAppSetting(STUDENT_CARD_COLOR_KEY),
-    getAppSetting(STUDENT_CARD_COLOR_END_KEY),
+    getStudentCardLogos(),
+    getResidentialSession(),
   ])
-  return {
-    backgroundUrl: bg,
-    color: colorStart ?? DEFAULT_STUDENT_CARD_COLOR,
-    colorEnd: colorEnd || null,
+  return { backgroundUrl: bg ?? null, ...logos, session }
+}
+
+export async function uploadStudentCardLogo(
+  formData: FormData
+): Promise<{ success: boolean; error?: string; url?: string }> {
+  const key = formData.get("slot") as string | null
+  const settingKey =
+    key === "ukm" ? STUDENT_CARD_UKM_LOGO_KEY : key === "kiz" ? STUDENT_CARD_KIZ_LOGO_KEY : null
+  if (!settingKey) return { success: false, error: "Invalid logo slot" }
+
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const file = formData.get("logo") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: settingKey } })
+    if (existing?.value) {
+      const oldPath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(oldPath) } catch {}
+    }
+
+    let url: string
+    try {
+      const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+        prefix: key === "ukm" ? "ukm-logo" : "kiz-logo",
+        maxBytes: MAX_SIZE,
+        allowSvg: true,
+      })
+      url = result.url
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Upload failed" }
+    }
+
+    await prisma.appSetting.upsert({
+      where: { key: settingKey },
+      update: { value: url },
+      create: { key: settingKey, value: url },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true, url }
+  } catch (err) {
+    return actionError("uploadStudentCardLogo", err)
+  }
+}
+
+export async function removeStudentCardLogo(
+  slot: "ukm" | "kiz"
+): Promise<{ success: boolean; error?: string }> {
+  const settingKey = slot === "ukm" ? STUDENT_CARD_UKM_LOGO_KEY : STUDENT_CARD_KIZ_LOGO_KEY
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: settingKey } })
+    if (existing?.value) {
+      const filePath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(filePath) } catch {}
+    }
+
+    await prisma.appSetting.deleteMany({ where: { key: settingKey } })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeStudentCardLogo", err)
   }
 }
 
@@ -203,64 +331,6 @@ export async function removeStudentCardBackground(): Promise<{ success: boolean;
   }
 }
 
-export async function setStudentCardColor(
-  colorHex: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    if (!HEX_RE.test(colorHex)) {
-      return { success: false, error: "Invalid colour value" }
-    }
-
-    await prisma.appSetting.upsert({
-      where: { key: STUDENT_CARD_COLOR_KEY },
-      update: { value: colorHex },
-      create: { key: STUDENT_CARD_COLOR_KEY, value: colorHex },
-    })
-
-    revalidatePath("/", "layout")
-    return { success: true }
-  } catch (err) {
-    return actionError("setStudentCardColor", err)
-  }
-}
-
-export async function setStudentCardColorEnd(
-  colorHex: string | null
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    if (colorHex === null) {
-      await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_COLOR_END_KEY } })
-      revalidatePath("/", "layout")
-      return { success: true }
-    }
-
-    if (!HEX_RE.test(colorHex)) {
-      return { success: false, error: "Invalid colour value" }
-    }
-
-    await prisma.appSetting.upsert({
-      where: { key: STUDENT_CARD_COLOR_END_KEY },
-      update: { value: colorHex },
-      create: { key: STUDENT_CARD_COLOR_END_KEY, value: colorHex },
-    })
-
-    revalidatePath("/", "layout")
-    return { success: true }
-  } catch (err) {
-    return actionError("setStudentCardColorEnd", err)
-  }
-}
-
 export async function uploadLoginBackground(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
@@ -313,6 +383,137 @@ export async function removeLoginBackground(): Promise<{ success: boolean; error
     return { success: true }
   } catch (err) {
     return actionError("removeLoginBackground", err)
+  }
+}
+
+// ── Dashboard hero background ──────────────────────────────────────────────
+// Optional full-width banner image behind the member dashboard hero card. When
+// unset, the hero falls back to the default soft gradient. On mobile the image
+// is anchored bottom-right so the designed focal point stays in view.
+
+export async function getDashboardHeroBackground(): Promise<string | null> {
+  return getAppSetting(DASHBOARD_HERO_BG_KEY)
+}
+
+export async function uploadDashboardHeroBackground(
+  formData: FormData
+): Promise<{ success: boolean; error?: string; url?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const file = formData.get("background") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    if (existing?.value) {
+      const oldPath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(oldPath) } catch {}
+    }
+
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: "dashboard-hero",
+      maxBytes: DASHBOARD_HERO_BG_MAX_SIZE,
+    })
+
+    await prisma.appSetting.upsert({
+      where: { key: DASHBOARD_HERO_BG_KEY },
+      update: { value: result.url },
+      create: { key: DASHBOARD_HERO_BG_KEY, value: result.url },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true, url: result.url }
+  } catch (err) {
+    return actionError("uploadDashboardHeroBackground", err)
+  }
+}
+
+export async function removeDashboardHeroBackground(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+    await prisma.appSetting.deleteMany({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeDashboardHeroBackground", err)
+  }
+}
+
+// ── Dashboard poster ─────────────────────────────────────────────────────────
+// Optional portrait poster (Instagram-style, 1080 × 1350) shown beside the
+// Things-to-do card on the member dashboard. Hidden when not set.
+
+export async function getDashboardPoster(): Promise<string | null> {
+  return getAppSetting(DASHBOARD_POSTER_KEY)
+}
+
+export async function uploadDashboardPoster(
+  formData: FormData
+): Promise<{ success: boolean; error?: string; url?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const file = formData.get("poster") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_POSTER_KEY } })
+    if (existing?.value) {
+      const oldPath = path.join(process.cwd(), "public", existing.value)
+      try { await unlink(oldPath) } catch {}
+    }
+
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: "dashboard-poster",
+      maxBytes: DASHBOARD_POSTER_MAX_SIZE,
+    })
+
+    await prisma.appSetting.upsert({
+      where: { key: DASHBOARD_POSTER_KEY },
+      update: { value: result.url },
+      create: { key: DASHBOARD_POSTER_KEY, value: result.url },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true, url: result.url }
+  } catch (err) {
+    return actionError("uploadDashboardPoster", err)
+  }
+}
+
+export async function removeDashboardPoster(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_POSTER_KEY } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+    await prisma.appSetting.deleteMany({ where: { key: DASHBOARD_POSTER_KEY } })
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeDashboardPoster", err)
   }
 }
 

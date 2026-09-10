@@ -10,6 +10,14 @@ import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
+import { Bento, BentoItem, MetricTile } from "@/components/kiz/patterns/bento"
+import {
+  ticketRef,
+  helpdeskCategoryMeta,
+  helpdeskLocationLabel,
+  isHelpdeskActive,
+  isHelpdeskDone,
+} from "@/lib/helpdesk-meta"
 
 export default async function UrusHelpdeskPage() {
   const session = await auth()
@@ -26,72 +34,138 @@ export default async function UrusHelpdeskPage() {
     orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
   })
 
-  const openTickets = tickets.filter((t) => t.status !== "closed")
-  const closedTickets = tickets.filter((t) => t.status === "closed")
+  const activeTickets = tickets.filter((t) => isHelpdeskActive(t.status))
+  const doneTickets = tickets.filter((t) => isHelpdeskDone(t.status))
+  const awaitingInfo = tickets.filter((t) => t.status === "more_info_required").length
+  const resolvedCount = tickets.filter((t) => t.status === "resolved").length
+  const closedCount = tickets.filter((t) => t.status === "closed").length
   const role = session.user.role
 
+  const toDoGroup = activeTickets.length > 0 && (
+    <ListGroup title={`To do · ${activeTickets.length}`}>
+      {activeTickets.map((ticket) => {
+        const cat = helpdeskCategoryMeta(ticket.category)
+        const location = helpdeskLocationLabel(ticket.locationBlock, ticket.locationDetail)
+        return (
+          <ListRow
+            key={ticket.id}
+            href={`/${role}/urus-helpdesk/${ticket.id}`}
+            icon="support_agent"
+            title={ticket.user.name}
+            subtitle={
+              <>
+                <Box component="span" sx={{ fontFamily: "var(--font-mono), monospace" }}>
+                  {ticketRef(ticket.displayId)}
+                </Box>
+                {" · "}
+                {cat.label}
+                {location ? ` · ${location}` : ""}
+                {ticket.messages[0]?.message ? ` — ${ticket.messages[0].message}` : ""}
+              </>
+            }
+            trailing={
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                {ticket.assignee && (
+                  <Box
+                    sx={{
+                      display: { xs: "none", md: "flex" },
+                      alignItems: "center",
+                      gap: 0.375,
+                      color: "text.disabled",
+                    }}
+                  >
+                    <KIcon icon="person" size={14} />
+                    <Typography variant="caption">{ticket.assignee.name}</Typography>
+                  </Box>
+                )}
+                <StatusChip status={ticket.status} />
+              </Box>
+            }
+          />
+        )
+      })}
+    </ListGroup>
+  )
+
+  const doneGroup = doneTickets.length > 0 && (
+    <ListGroup title={`Done · ${doneTickets.length}`}>
+      {doneTickets.map((ticket) => {
+        const cat = helpdeskCategoryMeta(ticket.category)
+        return (
+          <ListRow
+            key={ticket.id}
+            href={`/${role}/urus-helpdesk/${ticket.id}`}
+            icon="history"
+            title={ticket.user.name}
+            subtitle={
+              <>
+                <Box component="span" sx={{ fontFamily: "var(--font-mono), monospace" }}>
+                  {ticketRef(ticket.displayId)}
+                </Box>
+                {" · "}
+                {cat.label}
+                {" · "}
+                {ticket.user.matricId}
+              </>
+            }
+            trailing={<StatusChip status={ticket.status} />}
+          />
+        )
+      })}
+    </ListGroup>
+  )
+
   return (
-    <Box sx={{ maxWidth: 900, mx: "auto" }}>
+    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <PageHeader
         overline="Admin"
         title="Helpdesk inbox"
         subtitle={
-          openTickets.length > 0
-            ? `${openTickets.length} open ticket${openTickets.length === 1 ? "" : "s"}.`
-            : "Reply and manage student support tickets."
+          activeTickets.length > 0
+            ? `${activeTickets.length} request${activeTickets.length === 1 ? "" : "s"} need${activeTickets.length === 1 ? "s" : ""} your attention.`
+            : "Reply and manage student support requests."
         }
       />
 
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        {openTickets.length === 0 ? (
-          <KEmpty icon="inbox" title="Inbox zero 🎉" body="No open tickets — nice work!" />
-        ) : (
-          <ListGroup title={`Open · ${openTickets.length}`}>
-            {openTickets.map((ticket) => (
-              <ListRow
-                key={ticket.id}
-                href={`/${role}/urus-helpdesk/${ticket.id}`}
-                icon="support_agent"
-                title={ticket.user.name}
-                subtitle={ticket.messages[0]?.message || "(empty)"}
-                trailing={
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {ticket.assignee && (
-                      <Box
-                        sx={{
-                          display: { xs: "none", md: "flex" },
-                          alignItems: "center",
-                          gap: 0.375,
-                          color: "text.disabled",
-                        }}
-                      >
-                        <KIcon icon="person" size={14} />
-                        <Typography variant="caption">{ticket.assignee.name}</Typography>
-                      </Box>
-                    )}
-                    <StatusChip status={ticket.status} />
-                  </Box>
-                }
-              />
-            ))}
-          </ListGroup>
-        )}
+      <Bento>
+        {/* Status metrics */}
+        <BentoItem span={3} spanXs={1}>
+          <MetricTile
+            label="To do"
+            value={activeTickets.length}
+            icon="pending_actions"
+            emphasis={activeTickets.length > 0}
+          />
+        </BentoItem>
+        <BentoItem span={3} spanXs={1}>
+          <MetricTile label="Waiting on student" value={awaitingInfo} icon="more_horiz" />
+        </BentoItem>
+        <BentoItem span={3} spanXs={1}>
+          <MetricTile label="Resolved" value={resolvedCount} icon="check_circle" />
+        </BentoItem>
+        <BentoItem span={3} spanXs={1}>
+          <MetricTile label="Closed" value={closedCount} icon="archive" />
+        </BentoItem>
 
-        {closedTickets.length > 0 && (
-          <ListGroup title={`Closed · ${closedTickets.length}`}>
-            {closedTickets.map((ticket) => (
-              <ListRow
-                key={ticket.id}
-                href={`/${role}/urus-helpdesk/${ticket.id}`}
-                icon="history"
-                title={ticket.user.name}
-                subtitle={ticket.user.matricId}
-                trailing={<StatusChip status="closed" />}
-              />
-            ))}
-          </ListGroup>
+        {activeTickets.length === 0 && doneTickets.length === 0 ? (
+          <BentoItem span={12} spanXs={2}>
+            <KEmpty icon="inbox" title="Inbox zero 🎉" body="No open requests — nice work!" />
+          </BentoItem>
+        ) : (
+          <>
+            {toDoGroup && (
+              <BentoItem span={doneGroup ? 8 : 12} spanXs={2}>
+                {toDoGroup}
+              </BentoItem>
+            )}
+            {doneGroup && (
+              <BentoItem span={activeTickets.length > 0 ? 4 : 12} spanXs={2}>
+                {doneGroup}
+              </BentoItem>
+            )}
+          </>
         )}
-      </Box>
+      </Bento>
     </Box>
   )
 }

@@ -36,7 +36,7 @@ export default async function RumahTamuPage() {
     }),
   ])
 
-  const isMember = session.user.role === "ahli" || session.user.role === "staf"
+  const isMember = session.user.role === "ahli" || session.user.role === "staf" || session.user.role === "fellow"
 
   return (
     <Box sx={{ maxWidth: 760, mx: "auto" }}>

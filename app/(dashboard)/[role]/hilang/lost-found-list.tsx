@@ -9,6 +9,7 @@ import { markClaimed } from "./actions"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { lostFoundWhenLabel } from "@/lib/lost-found-meta"
 import { radius } from "@/lib/theme"
 
 interface Item {
@@ -18,6 +19,8 @@ interface Item {
   photoUrl: string | null
   status: string
   locationFound: string | null
+  happenedDate: Date | null
+  happenedTime: string | null
   createdAt: Date
   reportedBy: string
   reporter: { name: string }
@@ -40,7 +43,7 @@ export function LostFoundList({ items, userId }: Props) {
     <Box
       sx={{
         display: "grid",
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" },
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", md: "repeat(3, minmax(0,1fr))" },
         gap: { xs: 1.25, sm: 1.5 },
       }}
     >
@@ -69,7 +72,7 @@ export function LostFoundList({ items, userId }: Props) {
                 component="img"
                 src={item.photoUrl}
                 alt={item.itemName}
-                sx={{ width: "100%", aspectRatio: "16/10", objectFit: "cover" }}
+                sx={{ width: "100%", aspectRatio: "16/9", objectFit: "cover" }}
               />
             )}
 
@@ -77,8 +80,8 @@ export function LostFoundList({ items, userId }: Props) {
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
                 <StatusChip status={item.status} />
                 <Box sx={{ flex: 1 }} />
-                <Typography variant="caption" sx={{ color: "text.disabled" }}>
-                  {item.createdAt.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+                <Typography variant="caption" sx={{ color: "text.disabled", whiteSpace: "nowrap" }}>
+                  Reported {new Date(item.createdAt).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
                 </Typography>
               </Box>
 
@@ -89,17 +92,40 @@ export function LostFoundList({ items, userId }: Props) {
                 {item.description}
               </Typography>
 
-              {item.locationFound && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 1, color: "text.disabled" }}>
-                  <KIcon icon="location_on" size={14} />
-                  <Typography variant="caption">{item.locationFound}</Typography>
-                </Box>
-              )}
-
               <Box sx={{ flex: 1 }} />
 
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mt: 1.5 }}>
-                <Typography variant="caption" sx={{ color: "text.disabled" }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mt: 1.25 }}>
+                {item.happenedDate && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.625, color: "text.secondary", minWidth: 0 }}>
+                    <KIcon icon="schedule" size={14} sx={{ flexShrink: 0 }} />
+                    <Typography variant="caption" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {lostFoundWhenLabel(item.status, item.happenedDate, item.happenedTime)}
+                    </Typography>
+                  </Box>
+                )}
+                {item.locationFound && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.625, color: "text.secondary", minWidth: 0 }}>
+                    <KIcon icon="location_on" size={14} sx={{ flexShrink: 0 }} />
+                    <Typography variant="caption" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.locationFound}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1,
+                  mt: 1.5,
+                  pt: 1.25,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Typography variant="caption" sx={{ color: "text.disabled", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                   {item.reporter.name}
                 </Typography>
                 {item.status === "found" && item.reportedBy === userId && (

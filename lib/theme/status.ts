@@ -20,8 +20,11 @@ const toneByStatus: Record<string, StatusTone> = {
   unpaid: "warning",
   paid_manual: "success",
   // helpdesk
-  open: "info",
+  submitted: "neutral",
+  under_review: "info",
   in_progress: "warning",
+  more_info_required: "danger",
+  resolved: "success",
   closed: "neutral",
   // lost & found
   lost: "info",
@@ -34,11 +37,16 @@ const toneByStatus: Record<string, StatusTone> = {
   superadmin: "danger",
   admin_kiz: "warning",
   pengetua: "info",
+  fellow: "info",
   ahli: "neutral",
   staf: "info",
   // account status (urus-pengguna)
   unverified: "warning",
   active: "success",
+  // facility directory
+  coming_soon: "warning",
+  bookable: "info",
+  shared: "neutral",
 }
 
 const labelByStatus: Record<string, string> = {
@@ -51,7 +59,11 @@ const labelByStatus: Record<string, string> = {
   unpaid: "Unpaid",
   paid_manual: "Paid (manual)",
   open: "Open",
-  in_progress: "In progress",
+  submitted: "Submitted",
+  under_review: "Under Review",
+  in_progress: "In Progress",
+  more_info_required: "More Information Required",
+  resolved: "Resolved",
   closed: "Closed",
   lost: "Lost",
   found: "Found",
@@ -62,11 +74,16 @@ const labelByStatus: Record<string, string> = {
   superadmin: "Super Admin",
   admin_kiz: "Admin KIZ",
   pengetua: "Principal",
+  fellow: "Fellow",
   ahli: "Student",
   staf: "Staff",
   // account status (urus-pengguna)
   unverified: "Unverified",
   active: "Active",
+  // facility directory
+  coming_soon: "Coming soon",
+  bookable: "Bookable",
+  shared: "Shared",
 }
 
 export function statusTone(status: string): StatusTone {

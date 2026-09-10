@@ -24,11 +24,11 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Guest House Booking | Admins configure the guest houses (name, description, photos, price, capacity, max stay). Students pick a guest house and book it daily/weekly/monthly; admin approves, then check-in/check-out. Payment marked manually. |
 | Helpdesk | Per-student support tickets with a chat thread. Auto-reply outside office hours. |
 | Announcements | Admin-posted feed. Tags, pinning, scheduling, expiry, file attachments. |
-| Community Chat | One shared room for all residents. Admins can soft-delete messages. |
+| Community Chat | One shared room for all residents, staff & fellows. Reactions, replies, reports to the KIZ team, presence (members/online), image & PDF attachments, and a community info rail (guidelines, team, Helpdesk route). |
 | Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
 | Lost & Found | Community-reported lost/found items with a photo. |
 | Accommodation Applications | Accepted students (imported from eKolej via CSV) request a single room, a same-gender double-room roommate by matric ID, or flexible placement during an admin-defined window. Students never choose or see physical rooms; admins allocate final rooms after review. See `ROOM-SELECTION.md`. |
-| Directory | Block and facility listing with navigation notes. |
+| Directory | AR Directory — pick a destination and a camera-compass arrow + live distance guide you to it (outdoor GPS/compass; indoor rooms are pinned by lat/lng inside the single-floor admin building). Admin manages the destination pins. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
 
 ### Explicitly out of scope
@@ -41,27 +41,32 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 
 ## 3. Roles & access
 
-Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `ahli`, `staf`.
+Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
 
-| Capability | superadmin | admin_kiz | pengetua | ahli | staf |
-|---|---|---|---|---|---|
-| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — |
-| Answer & close helpdesk tickets | ✓ | ✓ | — | — | — |
-| Post / edit announcements | ✓ | ✓ | — | — | — |
-| Soft-delete chat messages | ✓ | ✓ | — | — | — |
-| Manage facilities, parcels | ✓ | ✓ | — | — | — |
-| App settings (logo) | ✓ | ✓ | — | — | — |
-| View-only reporting | ✓ | ✓ | ✓ | — | — |
-| Submit an accommodation application (`bilik`) | — | — | — | ✓ | — |
-| Configure guest houses | ✓ | ✓ | — | — | — |
+| Capability | superadmin | admin_kiz | pengetua | fellow | ahli | staf |
+|---|---|---|---|---|---|---|
+| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — | — |
+| Answer & close helpdesk tickets | ✓ | ✓ | — | — | — | — |
+| Post / edit announcements | ✓ | ✓ | — | — | — | — |
+| Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — |
+| Manage facilities, parcels | ✓ | ✓ | — | — | — | — |
+| App settings (logo) | ✓ | ✓ | — | — | — | — |
+| View-only reporting | ✓ | ✓ | ✓ | — | — | — |
+| Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — |
 
 `pengetua` (principal) is read-only by design — no approval rights.
 
+`fellow` (residential college fellow) is a member role with the same experience as
+`staf` — resident-style home with a visible "Fellow" tag, community chat/helpdesk/
+bookings/eCard — **except** `bilik` (student-only) and with no access to any
+`urus-*` route. Fellows are created by an admin via user management
+(`urus-pengguna`); they never self-register.
+
 `staf` (staff) is a self-registered UKM staff account (`@ukm.edu.my`). Member
-experience is identical to `ahli` (resident home, bookings, helpdesk, chat,
+experience is identical to `fellow` (resident home, bookings, helpdesk, chat,
 eCard) **except** `bilik` (accommodation application is student-only) and with no
 access to any `urus-*` route — until a superadmin promotes them to `admin_kiz`
 or `superadmin` via user management. The role carries a visible "Staff" tag.
@@ -101,13 +106,14 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 
 | Enum | Values |
 |---|---|
-| `Role` | superadmin, admin_kiz, pengetua, ahli, staf |
+| `Role` | superadmin, admin_kiz, pengetua, fellow, ahli, staf |
 | `AccountStatus` | unverified, pending, active |
 | `BookingStatus` | pending, approved, rejected, cancelled |
 | `GuestHouseBookingStatus` | pending, approved, rejected, checked_in, checked_out, cancelled |
 | `PeriodType` | daily, weekly, monthly |
 | `PaymentStatus` | unpaid, paid_manual |
-| `HelpdeskStatus` | open, in_progress, closed |
+| `HelpdeskCategory` | accommodation_room, maintenance_repair, facilities_booking, cleanliness_waste, internet_technology, safety_security, payment_charges, student_welfare, general_enquiry |
+| `HelpdeskStatus` | submitted, under_review, in_progress, more_info_required, resolved, closed |
 | `LostFoundStatus` | lost, found, claimed |
 
 ### Models
@@ -116,14 +122,19 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 |---|---|---|
 | `User` | users | `matricId` unique (login ID), `email` unique, `emailVerifiedAt`, `accountStatus` (enum), `passwordHash`, `role`, `block`, `roomNumber`, `residentCardQr`, `phone`, `avatarUrl` |
 | `Block` | blocks | `name` unique, `description`, `navigationNotes` |
+| `Destination` | destinations | AR Directory pin — `name`, `type` (enum), `latitude`/`longitude`, `indoor` (bool, for rooms in the single-floor admin building), `building`, `sortOrder`. Admin CRUD at `urus-direktori`. |
+| `Office` | offices | `name`, `description`, `featuredImage`, `gallery`, `sortOrder` |
 | `GuestHouse` | guest_houses | `name` unique, `description`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `maxDays`, `requiresApproval` |
 | `Facility` | facilities | `blockId`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `timeSlotDuration`, `maxPerDay` (default 3), `requiresApproval` |
 | `FacilityBooking` | facility_bookings | `timeSlotStart/End`, `purpose`, `status`, `approvedById`, `bookingRef` unique, `pdfUrl`, `adminNotes` |
 | `GuestHouseBooking` | guest_house_bookings | `guestHouseId`, `guestName`, `periodType`, `startDate`/`endDate` (`@db.Date`), `status`, `approvedById`, `paymentStatus` |
-| `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `status`, `assignedTo` |
+| `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `category` (enum, default general_enquiry), `status`, `locationBlock` (e.g. K18A), `locationDetail` (room number or facility), `assignedTo` |
 | `HelpdeskMessage` | helpdesk_messages | `ticketId`, `senderId`, `message`, `isAutoReply` |
 | `Announcement` | announcements | `title`, `content`, `tag` (default `umum`), `attachmentUrl/Type`, `isPinned`, `scheduledAt`, `expiresAt`, `postedBy` |
-| `CommunityChatMessage` | community_chat_messages | `userId`, `message`, `deletedBy` (admin who removed it) |
+| `CommunityChatMessage` | community_chat_messages | `userId`, `message`, `replyToId` (inline quote thread), `attachmentUrl/Type/Name`, `deletedBy` (admin who removed it) |
+| `ChatMessageReaction` | chat_message_reactions | `userId`, `messageId`, `emoji` — unique (user×message×emoji), soft delete |
+| `ChatMessageReport` | chat_message_reports | `messageId`, `reporterId`, `reason` (preset), `note`, soft delete; admins delete the message / dismiss |
+| `User` | users | + `lastSeenAt` — presence heartbeat for the community-chat online count |
 | `Parcel` | parcels | `userId`, `description`, `status` (plain String: `arrived`/`collected`), `notifiedAt`, `collectedAt` |
 | `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
 | `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
@@ -139,7 +150,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 New enums: `Gender` (male/female), `RoomType` (single/double), `RoomApplicationType`
 (single/double/flexible), `RoomApplicationStatus`, `RoomStatus`
 (available/maintenance/closed), `BedPosition` (single/left/right), `IntakeStatus`
-(draft/imported/active/archived).
+(draft/imported/active/archived), `DestinationType`
+(block/facility/office/room/hall/seminar/meeting/admin).
 
 Not implemented (post-MVP candidates): `audit_logs`, `notifications`.
 
@@ -165,7 +177,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 |---|---|
 | `/` | Dashboard. `ahli`/`staf` render the member home (`ahli-home`, hero tag Resident/Staff); everyone else `admin-home` (pending-count cards). |
 | `pengumuman` | Announcement feed — tag filter, pinned first, "Baru" badge for 24h. |
-| `chat` | Community chat, one shared room, polls every 3s. |
+| `chat` | Community chat — wide two-pane room (chat + community info rail), polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
 | `rumah-tamu` | Guest house booking + own bookings + cancel. |
 | `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. |
@@ -173,7 +185,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `bilik` | Room selection — eligibility gate, window status, visual block/floor/room/bed picker. Desktop grid + detail panel; mobile bottom-sheet + sticky confirm bar. |
 | `parcel` | My parcels. Currently behind a hardcoded "coming soon" banner. |
 | `kad-maya` | Digital resident card, QR generated server-side from matric ID. |
-| `direktori` | Blocks & facilities with navigation notes. |
+| `direktori` | AR Directory — camera viewfinder with a destination selector, a compass-relative arrow, and live distance. Falls back to a directions list/map on devices without a camera or motion sensors. |
 | `profile` | View / edit own profile. |
 | `lagi` | "More" menu for the mobile shell. |
 | `tempahan`, `tempahan/[facilityId]` | **Legacy** facility booking. Superseded — see `STATUS.md`. |
@@ -183,6 +195,8 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | Route | Feature |
 |---|---|
 | `urus-pengumuman` | Announcement CRUD + soft delete. |
+| `urus-pejabat` | Administrative-office CRUD (name/function, featured + gallery photos) and the block panorama image + label positions. |
+| `urus-direktori` | AR Directory destination pins — add/edit/soft-delete a place (name, kind, lat/lng, indoor flag, building) with a live map preview of the pin. |
 | `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |
 | `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). |
 | `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. |

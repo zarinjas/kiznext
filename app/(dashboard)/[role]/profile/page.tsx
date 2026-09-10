@@ -4,24 +4,26 @@ import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { ProfileForm } from "./profile-form"
+import { getResidentRoomLabel } from "@/lib/bilik"
 
 export default async function ProfilePage() {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      name: true,
-      email: true,
-      matricId: true,
-      block: true,
-      roomNumber: true,
-      phone: true,
-      role: true,
-      avatarUrl: true,
-    },
-  })
+  const [user, roomLabel] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        name: true,
+        email: true,
+        matricId: true,
+        phone: true,
+        role: true,
+        avatarUrl: true,
+      },
+    }),
+    session.user.role === "ahli" ? getResidentRoomLabel(session.user.id) : Promise.resolve(null),
+  ])
 
   if (!user) redirect("/login")
 
@@ -37,7 +39,7 @@ export default async function ProfilePage() {
   return (
     <Box sx={{ maxWidth: 640, mx: "auto" }}>
       <PageHeader overline="Account" title="Profile" subtitle="Update your personal information." />
-      <ProfileForm user={{ ...user, gender: eligible?.gender ?? null }} />
+      <ProfileForm user={{ ...user, gender: eligible?.gender ?? null }} roomLabel={roomLabel} />
     </Box>
   )
 }

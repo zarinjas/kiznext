@@ -30,7 +30,7 @@ export function SmartTable<T extends GridRowModel>({
   emptyIcon = "inbox",
   emptyTitle,
   emptyBody,
-  density = "compact",
+  density = "standard",
   hideFooter = true,
   onRowClick,
 }: Props<T>) {
@@ -105,8 +105,8 @@ export function SmartTable<T extends GridRowModel>({
             letterSpacing: "0.06em",
             textTransform: "uppercase",
           },
-          "& .MuiDataGrid-columnHeader": { paddingInline: "14px" },
-          "& .MuiDataGrid-cell": { borderBottom: "1px solid", borderColor: "divider", fontSize: "0.8125rem", paddingInline: "14px", display: "flex", alignItems: "center" },
+          "& .MuiDataGrid-columnHeader": { paddingInline: "16px" },
+          "& .MuiDataGrid-cell": { borderBottom: "1px solid", borderColor: "divider", fontSize: "0.875rem", paddingInline: "16px", display: "flex", alignItems: "center" },
           "& .MuiDataGrid-row:hover": { backgroundColor: "action.hover" },
           "& .MuiDataGrid-row.Mui-selected, & .MuiDataGrid-row.Mui-selected:hover": {
             backgroundColor: color.brand[50],

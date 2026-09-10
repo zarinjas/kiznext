@@ -6,6 +6,7 @@ import Button from "@mui/material/Button"
 import Alert from "@mui/material/Alert"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
+import Typography from "@mui/material/Typography"
 import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { activateUser } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
@@ -67,10 +68,10 @@ export function ActivateUserButton({ userId, userName, userMatricId }: Props) {
           </>
         }
       >
-        <p style={{ fontSize: 14, color: "text.secondary", margin: 0 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary", m: 0 }}>
           Give <strong>{userName}</strong> ({userMatricId}) full access now? Use this only for
           accounts you have verified manually — e.g. a resident missing from the uploaded list.
-        </p>
+        </Typography>
         {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
       </KDialog>
     </>

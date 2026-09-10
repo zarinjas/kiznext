@@ -4,11 +4,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Box from "@mui/material/Box"
 import Drawer from "@mui/material/Drawer"
+import Typography from "@mui/material/Typography"
 import { navForRole, isRoomSelectionItem } from "./nav-config"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { signOut } from "next-auth/react"
 import type { Role } from "@/lib/rbac"
-import { color } from "@/lib/theme"
+import { color, radius } from "@/lib/theme"
 
 /** MoreSheet — mobile "More" drawer listing all remaining nav. */
 export function MoreSheet({
@@ -34,8 +35,8 @@ export function MoreSheet({
       slotProps={{
         paper: {
           sx: {
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
+            borderTopLeftRadius: `${radius.sheet}px`,
+            borderTopRightRadius: `${radius.sheet}px`,
             maxHeight: "86dvh",
             pb: "calc(env(safe-area-inset-bottom) + 8px)",
           },
@@ -47,9 +48,7 @@ export function MoreSheet({
         <Box sx={{ width: 40, height: 5, borderRadius: 999, backgroundColor: "divider" }} />
       </Box>
       <Box sx={{ px: 2, pb: 1 }}>
-        <Box sx={{ fontSize: 19, fontWeight: 640, letterSpacing: "-0.026em", mb: 2, px: 0.5 }}>
-          Menu
-        </Box>
+        <Typography variant="h3" sx={{ mb: 1.25, px: 0.5 }}>Menu</Typography>
         {groups.map((g) => (
           <Box key={g.label} sx={{ mb: 2 }}>
             <Box sx={{ px: 0.5, pb: 0.5, fontSize: 11.5, fontWeight: 500, color: "text.disabled" }}>

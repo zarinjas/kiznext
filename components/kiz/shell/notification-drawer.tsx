@@ -36,9 +36,7 @@ export function NotificationDrawer({
       slotProps={{ paper: { sx: { width: "min(380px, 92vw)" } } }}
     >
       <Box sx={{ p: 2.5, borderBottom: "1px solid", borderColor: "divider" }}>
-        <Typography variant="h3" sx={{ fontWeight: 560 }}>
-          Notifications
-        </Typography>
+        <Typography variant="h3">Notifications</Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           Recent updates from KIZ
         </Typography>

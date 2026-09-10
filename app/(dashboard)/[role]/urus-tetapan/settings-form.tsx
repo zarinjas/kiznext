@@ -6,16 +6,18 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
 import Alert from "@mui/material/Alert"
-import { uploadAppLogo, removeAppLogo, uploadLoginBackground, removeLoginBackground } from "@/lib/settings"
+import { uploadAppLogo, removeAppLogo, uploadLoginBackground, removeLoginBackground, uploadDashboardHeroBackground, removeDashboardHeroBackground, uploadDashboardPoster, removeDashboardPoster } from "@/lib/settings"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KIcon } from "@/components/kiz/primitives/icon"
 
 interface Props {
   currentLogoUrl: string | null
   currentLoginBackgroundUrl: string | null
+  currentDashboardHeroBackgroundUrl: string | null
+  currentDashboardPosterUrl: string | null
 }
 
-export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl }: Props) {
+export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl, currentDashboardHeroBackgroundUrl, currentDashboardPosterUrl }: Props) {
   const router = useRouter()
   const [preview, setPreview] = useState<string | null>(currentLogoUrl)
   const [uploading, setUploading] = useState(false)
@@ -25,6 +27,16 @@ export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl }: Prop
   const [backgroundRemoving, setBackgroundRemoving] = useState(false)
   const [backgroundError, setBackgroundError] = useState("")
   const [backgroundSuccess, setBackgroundSuccess] = useState("")
+  const [heroPreview, setHeroPreview] = useState<string | null>(currentDashboardHeroBackgroundUrl)
+  const [heroUploading, setHeroUploading] = useState(false)
+  const [heroRemoving, setHeroRemoving] = useState(false)
+  const [heroError, setHeroError] = useState("")
+  const [heroSuccess, setHeroSuccess] = useState("")
+  const [posterPreview, setPosterPreview] = useState<string | null>(currentDashboardPosterUrl)
+  const [posterUploading, setPosterUploading] = useState(false)
+  const [posterRemoving, setPosterRemoving] = useState(false)
+  const [posterError, setPosterError] = useState("")
+  const [posterSuccess, setPosterSuccess] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -134,6 +146,110 @@ export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl }: Prop
     }
   }
 
+  async function handleHeroUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setHeroError("")
+    setHeroSuccess("")
+    const formData = new FormData(e.currentTarget)
+    const file = formData.get("background") as File
+    if (!file || file.size === 0) {
+      setHeroError("Pick a photo first.")
+      return
+    }
+
+    setHeroUploading(true)
+    let result
+    try {
+      result = await uploadDashboardHeroBackground(formData)
+    } catch {
+      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } finally {
+      setHeroUploading(false)
+    }
+
+    if (result.success) {
+      setHeroPreview(result.url ?? null)
+      setHeroSuccess("Dashboard banner updated — it's now live on member dashboards.")
+      router.refresh()
+    } else {
+      setHeroError(result.error ?? "Upload didn't go through — give it another shot.")
+    }
+  }
+
+  async function handleHeroRemove() {
+    setHeroError("")
+    setHeroSuccess("")
+    setHeroRemoving(true)
+    let result
+    try {
+      result = await removeDashboardHeroBackground()
+    } catch {
+      result = { success: false, error: "Couldn't remove it — try again." }
+    } finally {
+      setHeroRemoving(false)
+    }
+
+    if (result.success) {
+      setHeroPreview(null)
+      setHeroSuccess("Dashboard banner removed. The default gradient is back.")
+      router.refresh()
+    } else {
+      setHeroError(result.error ?? "Couldn't remove it — try again.")
+    }
+  }
+
+  async function handlePosterUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setPosterError("")
+    setPosterSuccess("")
+    const formData = new FormData(e.currentTarget)
+    const file = formData.get("poster") as File
+    if (!file || file.size === 0) {
+      setPosterError("Pick an image first.")
+      return
+    }
+
+    setPosterUploading(true)
+    let result
+    try {
+      result = await uploadDashboardPoster(formData)
+    } catch {
+      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } finally {
+      setPosterUploading(false)
+    }
+
+    if (result.success) {
+      setPosterPreview(result.url ?? null)
+      setPosterSuccess("Poster live on the dashboard — nice and visible.")
+      router.refresh()
+    } else {
+      setPosterError(result.error ?? "Upload didn't go through — give it another shot.")
+    }
+  }
+
+  async function handlePosterRemove() {
+    setPosterError("")
+    setPosterSuccess("")
+    setPosterRemoving(true)
+    let result
+    try {
+      result = await removeDashboardPoster()
+    } catch {
+      result = { success: false, error: "Couldn't remove it — try again." }
+    } finally {
+      setPosterRemoving(false)
+    }
+
+    if (result.success) {
+      setPosterPreview(null)
+      setPosterSuccess("Poster removed. The dashboard slot hides itself.")
+      router.refresh()
+    } else {
+      setPosterError(result.error ?? "Couldn't remove it — try again.")
+    }
+  }
+
   return (
     <>
     <FormSection title="App Logo" subtitle="PNG, JPEG, WebP, or SVG. Max 2MB. Shows on the login page and sidebar." icon="image">
@@ -208,6 +324,66 @@ export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl }: Prop
       </form>
       {backgroundError && <Alert severity="error" sx={{ mt: 2 }}>{backgroundError}</Alert>}
       {backgroundSuccess && <Alert severity="success" sx={{ mt: 2 }}>{backgroundSuccess}</Alert>}
+    </FormSection>
+    <FormSection title="Dashboard Banner" subtitle="Full-width background image behind the member dashboard hero card. Designed as a wide banner (approx. 1600 × 400). Falls back to the default gradient when empty. PNG, JPEG, or WebP. Max 12MB." icon="dashboard">
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+        {heroPreview ? (
+          <Box component="img" src={heroPreview} alt="Dashboard banner preview" sx={{ width: 160, height: 40, borderRadius: 2, border: "1px solid", borderColor: "divider", objectFit: "cover" }} />
+        ) : (
+          <Box sx={{ width: 160, height: 40, borderRadius: 2, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled", fontSize: 12 }}>
+            Default gradient
+          </Box>
+        )}
+        {heroPreview && (
+          <Button size="small" onClick={handleHeroRemove} disabled={heroRemoving} startIcon={<KIcon icon="delete" size={15} />} sx={{ color: "error.main" }}>
+            {heroRemoving ? "Removing…" : "Remove banner"}
+          </Button>
+        )}
+      </Box>
+      <form onSubmit={handleHeroUpload} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <Button component="label" variant="outlined" startIcon={<KIcon icon="upload" size={16} />}>
+          Choose image
+          <input type="file" name="background" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) setHeroPreview(URL.createObjectURL(file))
+          }} />
+        </Button>
+        <Button type="submit" variant="contained" disabled={heroUploading} startIcon={heroUploading ? undefined : <KIcon icon="save" size={16} />}>
+          {heroUploading ? "Uploading…" : "Upload banner"}
+        </Button>
+      </form>
+      {heroError && <Alert severity="error" sx={{ mt: 2 }}>{heroError}</Alert>}
+      {heroSuccess && <Alert severity="success" sx={{ mt: 2 }}>{heroSuccess}</Alert>}
+    </FormSection>
+    <FormSection title="Dashboard Poster" subtitle="Optional portrait poster beside the Things-to-do card (e.g. an Instagram post). Best at 1080 × 1350 (4:5 portrait). Hidden when empty. PNG, JPEG, or WebP. Max 12MB." icon="photo">
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+        {posterPreview ? (
+          <Box component="img" src={posterPreview} alt="Dashboard poster preview" sx={{ width: 80, height: 100, borderRadius: 2, border: "1px solid", borderColor: "divider", objectFit: "cover" }} />
+        ) : (
+          <Box sx={{ width: 80, height: 100, borderRadius: 2, border: "1px dashed", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center", color: "text.disabled", fontSize: 12 }}>
+            Empty
+          </Box>
+        )}
+        {posterPreview && (
+          <Button size="small" onClick={handlePosterRemove} disabled={posterRemoving} startIcon={<KIcon icon="delete" size={15} />} sx={{ color: "error.main" }}>
+            {posterRemoving ? "Removing…" : "Remove poster"}
+          </Button>
+        )}
+      </Box>
+      <form onSubmit={handlePosterUpload} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <Button component="label" variant="outlined" startIcon={<KIcon icon="upload" size={16} />}>
+          Choose image
+          <input type="file" name="poster" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) setPosterPreview(URL.createObjectURL(file))
+          }} />
+        </Button>
+        <Button type="submit" variant="contained" disabled={posterUploading} startIcon={posterUploading ? undefined : <KIcon icon="save" size={16} />}>
+          {posterUploading ? "Uploading…" : "Upload poster"}
+        </Button>
+      </form>
+      {posterError && <Alert severity="error" sx={{ mt: 2 }}>{posterError}</Alert>}
+      {posterSuccess && <Alert severity="success" sx={{ mt: 2 }}>{posterSuccess}</Alert>}
     </FormSection>
     </>
   )

@@ -9,6 +9,7 @@
 
 import { nowMalaysia } from "./timezone"
 export { nowMalaysia } from "./timezone"
+import { roomCode } from "./bilik-format"
 
 // ── Selection window ────────────────────────────────────────────────────────
 
@@ -118,6 +119,8 @@ export interface MappedStudent {
   isOku: boolean
   isUniform: boolean
   merit: number | null
+  /** Room code from the CSV, e.g. "K18A-101". Optional column. */
+  roomNumber: string | null
 }
 
 export type RowIssue =
@@ -150,6 +153,7 @@ const HEADER_ALIASES: Record<keyof MappedStudent | "bil", string[]> = {
   isOku: ["OKU"],
   isUniform: ["Uniform", "Unit Beruniform"],
   merit: ["Markah", "Merit", "Skor"],
+  roomNumber: ["No. Bilik", "No Bilik", "Nombor Bilik", "Bilik", "Room", "No. Bilik (K18A-101)"],
 }
 
 function pick(row: Record<string, string>, key: keyof typeof HEADER_ALIASES): string {
@@ -187,6 +191,54 @@ function parseDate(v: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
+export interface SplitRoom {
+  /** Block tag, e.g. "K18A". */
+  block: string
+  /** Numeric room tail, e.g. "101" (floor + 2-digit room). */
+  number: string
+}
+
+/**
+ * Split a room string from the CSV into block + numeric room. Accepts the
+ * canonical code ("K18A-101"), a space or nothing as the separator ("K18A 101",
+ * "K18A101"), and drops parenthetical bed hints ("K18A-101 (Bed A)"). Returns
+ * null when there is no block or the tail isn't numeric — a bare "101" has no
+ * block and is rejected so the importer can't guess the building.
+ */
+export function splitRoomCode(raw: string): SplitRoom | null {
+  let s = (raw ?? "").trim().toUpperCase()
+  if (!s) return null
+  s = s.replace(/\s*\(.*\)\s*$/, "").trim()
+
+  let block = ""
+  let num = ""
+  const dash = s.indexOf("-")
+  const space = s.indexOf(" ")
+  const sep =
+    dash >= 0 && (space < 0 || dash < space)
+      ? dash
+      : space >= 0
+        ? space
+        : -1
+
+  if (sep >= 0) {
+    block = s.slice(0, sep).trim()
+    num = s.slice(sep + 1).trim()
+  } else {
+    // No separator — the trailing run of ≥3 digits is the room number.
+    const m = s.match(/^(.*?)(\d{3,})$/)
+    if (m && m[1]) {
+      block = m[1]
+      num = m[2]
+    } else {
+      num = s
+    }
+  }
+
+  if (!block || !/^[A-Z]/.test(block) || !/^\d{3,}$/.test(num)) return null
+  return { block, number: num }
+}
+
 /**
  * Map + validate parsed CSV rows. Flags invalid rows (missing matric / bad
  * gender) and duplicate matric numbers (within the file). Duplicates against an
@@ -212,6 +264,15 @@ export function mapEkolejRows(rows: Record<string, string>[]): MappedRow[] {
         raw,
         mapped: null,
         issue: { kind: "invalid", reason: `Unrecognised gender "${genderRaw}"` },
+      }
+    }
+    const roomRaw = pick(raw, "roomNumber")
+    const split = roomRaw ? splitRoomCode(roomRaw) : null
+    if (roomRaw && !split) {
+      return {
+        raw,
+        mapped: null,
+        issue: { kind: "invalid", reason: `Unrecognised room "${roomRaw}" — use the block code, e.g. K18A-101` },
       }
     }
     if (seen.has(matricId)) {
@@ -240,6 +301,7 @@ export function mapEkolejRows(rows: Record<string, string>[]): MappedRow[] {
       isOku: parseBool(pick(raw, "isOku")),
       isUniform: parseBool(pick(raw, "isUniform")),
       merit: merit != null && !isNaN(merit) ? merit : null,
+      roomNumber: split ? roomCode(split.block, split.number) : null,
     }
 
     return { raw, mapped, issue: { kind: "ok" } }

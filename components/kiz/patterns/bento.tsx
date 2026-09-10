@@ -229,10 +229,6 @@ export function HeroTile({
         border: "1px solid",
         borderColor: "divider",
         backgroundImage: gradient.hero,
-        "[data-mui-color-scheme='dark'] &": {
-          backgroundImage: "none",
-          backgroundColor: "background.paper",
-        },
         p: { xs: 2.5, sm: 3.5 },
         display: "flex",
         flexDirection: "column",

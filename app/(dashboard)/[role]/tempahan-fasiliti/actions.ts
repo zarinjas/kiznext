@@ -39,7 +39,18 @@ export async function createFacilityBooking(formData: FormData) {
 
   // Check max per day
   const facility = await prisma.facility.findUnique({ where: { id: facilityId } })
-  if (facility?.maxPerDay) {
+  if (!facility) throw new Error("Facility not found")
+
+  // Only open, bookable facilities can be reserved — shared facilities
+  // ("kemudahan umum") and coming-soon spaces never accept bookings.
+  if (!facility.bookable) {
+    throw new Error("This is a shared facility — no advance booking needed.")
+  }
+  if (facility.status !== "open") {
+    throw new Error("This facility isn't open for booking yet.")
+  }
+
+  if (facility.maxPerDay) {
     const todayBookings = await prisma.facilityBooking.count({
       where: {
         userId: session.user.id,

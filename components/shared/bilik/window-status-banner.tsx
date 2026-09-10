@@ -58,7 +58,7 @@ export function WindowStatusBanner({
   if (state === "not_open") {
     return (
       <HeroTile
-        eyebrow={windowName ?? "Accommodation application"}
+        eyebrow={windowName ?? "Room selection"}
         title="Applications open soon"
         body={
           <>
@@ -84,7 +84,7 @@ export function WindowStatusBanner({
   if (state === "closed") {
     return (
       <HeroTile
-        eyebrow={windowName ?? "Accommodation application"}
+        eyebrow={windowName ?? "Room selection"}
         title="Applications are closed"
         body="The KIZ office is arranging accommodation. Your assigned block and room will appear here after allocations are published."
       />

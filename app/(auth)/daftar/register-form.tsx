@@ -228,7 +228,6 @@ export function RegisterForm({ logoUrl }: Props) {
           border: "1px solid",
           borderColor: "divider",
           backgroundImage: gradient.panel,
-          "[data-mui-color-scheme='dark'] &": { backgroundImage: "none", backgroundColor: "background.paper" },
         }}
       >
         <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />

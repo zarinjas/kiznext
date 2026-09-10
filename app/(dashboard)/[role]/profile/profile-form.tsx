@@ -16,15 +16,13 @@ interface ProfileUser {
   name: string
   email: string | null
   matricId: string
-  block: string | null
-  roomNumber: string | null
   phone: string | null
   role: string
   avatarUrl: string | null
   gender: "male" | "female" | null
 }
 
-export function ProfileForm({ user }: { user: ProfileUser }) {
+export function ProfileForm({ user, roomLabel }: { user: ProfileUser; roomLabel: string | null }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
@@ -42,8 +40,6 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
       await updateProfile({
         name: form.get("name") as string,
         email: (form.get("email") as string) ?? "",
-        block: (form.get("block") as string) ?? "",
-        roomNumber: (form.get("roomNumber") as string) ?? "",
         phone: (form.get("phone") as string) ?? "",
         avatarUrl,
       })
@@ -152,10 +148,14 @@ export function ProfileForm({ user }: { user: ProfileUser }) {
           />
           <TextField id="name" name="name" label="Name" defaultValue={user.name} required />
           <TextField id="email" name="email" label="Email" type="email" defaultValue={user.email ?? ""} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-            <TextField id="block" name="block" label="Block" defaultValue={user.block ?? ""} />
-            <TextField id="roomNumber" name="roomNumber" label="Room No." defaultValue={user.roomNumber ?? ""} />
-          </Box>
+          {roomLabel ? (
+            <TextField
+              label="Assigned room"
+              value={roomLabel}
+              disabled
+              helperText="Assigned by the KIZ office. Contact them if this looks wrong."
+            />
+          ) : null}
           <TextField id="phone" name="phone" label="Phone No." type="tel" defaultValue={user.phone ?? ""} />
         </Box>
       </FormSection>

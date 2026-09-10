@@ -5,6 +5,7 @@ import { requireRole, type Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { UsersClient } from "./users-client"
+import { getResidentRoomLabels } from "@/lib/bilik"
 
 export default async function UrusPenggunaPage() {
   const session = await auth()
@@ -15,6 +16,8 @@ export default async function UrusPenggunaPage() {
     where: { deletedAt: null },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   })
+
+  const roomLabels = await getResidentRoomLabels(users.map((u) => u.id))
 
   const needsReview = users.filter((u) => u.accountStatus !== "active").length
 
@@ -41,8 +44,7 @@ export default async function UrusPenggunaPage() {
           role: u.role,
           accountStatus: u.accountStatus,
           emailVerifiedAt: u.emailVerifiedAt?.toISOString() ?? null,
-          block: u.block,
-          roomNumber: u.roomNumber,
+          roomLabel: roomLabels.get(u.id) ?? null,
           createdAt: u.createdAt.toISOString(),
         }))}
       />
