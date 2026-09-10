@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
     return [{ source: "/uploads/:path*", destination: "/api/uploads/:path*" }]
   },
   experimental: {
+    // Next 16 clones every request body that passes through `proxy.ts`
+    // (middleware) so it can hand a readable stream to the proxy. That clone is
+    // capped by `proxyClientMaxBodySize`, which defaults to 10 MB. App Settings
+    // uploads go through Server Actions (page POSTs, so they hit the proxy) and
+    // advertise up to 12 MB — anything over 10 MB was silently truncated to the
+    // first 10 MB before the action ran, so the upload failed with a generic
+    // error. Keep this above `serverActions.bodySizeLimit` below.
+    proxyClientMaxBodySize: "20mb",
     serverActions: {
       bodySizeLimit: "16mb",
       // Behind OpenLiteSpeed the upstream Host is 127.0.0.1:3010, so Next's

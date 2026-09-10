@@ -109,8 +109,8 @@ export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl, curren
     let result
     try {
       result = await uploadLoginBackground(formData)
-    } catch {
-      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Upload didn't go through — give it another shot." }
     } finally {
       setBackgroundUploading(false)
     }
@@ -161,8 +161,8 @@ export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl, curren
     let result
     try {
       result = await uploadDashboardHeroBackground(formData)
-    } catch {
-      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Upload didn't go through — give it another shot." }
     } finally {
       setHeroUploading(false)
     }
@@ -213,8 +213,8 @@ export function SettingsForm({ currentLogoUrl, currentLoginBackgroundUrl, curren
     let result
     try {
       result = await uploadDashboardPoster(formData)
-    } catch {
-      result = { success: false, error: "Upload didn't go through — give it another shot." }
+    } catch (err) {
+      result = { success: false, error: err instanceof Error ? err.message : "Upload didn't go through — give it another shot." }
     } finally {
       setPosterUploading(false)
     }
