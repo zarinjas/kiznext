@@ -5,9 +5,10 @@ import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { nowMalaysia } from "@/lib/timezone"
-import { CHAT_REACTION_EMOJIS, CHAT_REPORT_REASONS } from "@/lib/chat-meta"
+import { CHAT_REACTION_EMOJIS, CHAT_REPORT_REASONS, ONLINE_WINDOW_MS } from "@/lib/chat-meta"
+import { getResidentRoomLabel } from "@/lib/bilik"
 import { getChatSnapshot } from "./chat-data"
-import type { ChatSnapshotView } from "./chat-types"
+import type { ChatSnapshotView, ChatUserProfileView } from "./chat-types"
 
 /**
  * Community-chat server actions: send (with optional reply + attachment),
@@ -175,4 +176,50 @@ export async function getChatMessages(): Promise<ChatSnapshotView> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
   return getChatSnapshot(session.user.id, session.user.role as string)
+}
+
+/**
+ * Admin-only profile peek for a message sender. Gate lives here (server-side)
+ * so students can never pull another resident's details, even by guessing ids.
+ */
+export async function getChatUserProfile(userId: string): Promise<ChatUserProfileView> {
+  const session = await requireUser()
+  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      avatarUrl: true,
+      matricId: true,
+      email: true,
+      phone: true,
+      accountStatus: true,
+      lastSeenAt: true,
+      createdAt: true,
+    },
+  })
+  if (!user) throw new Error("User not found.")
+
+  const roomLabel = user.role === "ahli"
+    ? await getResidentRoomLabel(user.id, { requirePublished: false })
+    : null
+
+  const online = !!user.lastSeenAt && Date.now() - user.lastSeenAt.getTime() < ONLINE_WINDOW_MS
+
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    avatarUrl: user.avatarUrl,
+    matricId: user.matricId,
+    email: user.email,
+    phone: user.phone,
+    roomLabel,
+    accountStatus: user.accountStatus,
+    online,
+    createdAt: user.createdAt.toISOString(),
+  }
 }

@@ -44,6 +44,20 @@ export interface ChatTeamMemberView {
   online: boolean
 }
 
+export interface ChatUserProfileView {
+  id: string
+  name: string
+  role: string
+  avatarUrl: string | null
+  matricId: string
+  email: string | null
+  phone: string | null
+  roomLabel: string | null
+  accountStatus: string
+  online: boolean
+  createdAt: string
+}
+
 export interface ChatReportView {
   id: string
   messageId: string

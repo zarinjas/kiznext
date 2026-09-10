@@ -141,9 +141,10 @@ interface Props {
   onReply: () => void
   onReport: () => void
   onDelete: () => void
+  onViewSender?: () => void
 }
 
-export function MessageRow({ msg, mine, canModerate, onReact, onReply, onReport, onDelete }: Props) {
+export function MessageRow({ msg, mine, canModerate, onReact, onReply, onReport, onDelete, onViewSender }: Props) {
   const badge = chatRoleBadge(msg.sender.role)
   const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
@@ -153,7 +154,31 @@ export function MessageRow({ msg, mine, canModerate, onReact, onReply, onReport,
 
   return (
     <Box ref={rowRef} className="chat-row" sx={{ display: "flex", gap: 1.25, alignItems: "flex-end" }}>
-      {!mine && <MessageAvatar name={msg.sender.name} url={msg.sender.avatarUrl} />}
+      {!mine &&
+        (onViewSender ? (
+          <Tooltip title="View profile">
+            <Box
+              component="button"
+              type="button"
+              onClick={onViewSender}
+              aria-label={`View ${msg.sender.name}'s profile`}
+              sx={{
+                border: "none",
+                background: "none",
+                padding: 0,
+                cursor: "pointer",
+                lineHeight: 0,
+                borderRadius: "50%",
+                WebkitTapHighlightColor: "transparent",
+                "&:active": { opacity: 0.75 },
+              }}
+            >
+              <MessageAvatar name={msg.sender.name} url={msg.sender.avatarUrl} />
+            </Box>
+          </Tooltip>
+        ) : (
+          <MessageAvatar name={msg.sender.name} url={msg.sender.avatarUrl} />
+        ))}
 
       <Box sx={{ maxWidth: { xs: "82%", sm: "76%" }, minWidth: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
         {/* Sender + time + quick actions */}
@@ -172,6 +197,27 @@ export function MessageRow({ msg, mine, canModerate, onReact, onReply, onReport,
             <Typography variant="caption" sx={{ fontWeight: 600, color: "text.disabled" }}>
               You
             </Typography>
+          ) : onViewSender ? (
+            <Tooltip title="View profile">
+              <Box
+                component="button"
+                type="button"
+                onClick={onViewSender}
+                sx={{
+                  border: "none",
+                  background: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  color: "text.primary",
+                  WebkitTapHighlightColor: "transparent",
+                  "&:hover": { textDecoration: "underline", textUnderlineOffset: 2 },
+                }}
+              >
+                <Typography variant="caption" sx={{ fontWeight: 650, color: "inherit" }}>
+                  {msg.sender.name}
+                </Typography>
+              </Box>
+            </Tooltip>
           ) : (
             <Typography variant="caption" sx={{ fontWeight: 650, color: "text.primary" }}>
               {msg.sender.name}

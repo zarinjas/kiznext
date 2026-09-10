@@ -1,0 +1,34 @@
+name: Sync AR Directory destinations
+
+# One-off, manual-only. Streams scripts/sync-destinations.sql from the runner
+# into psql on the VPS (DB_URL read from the server .env). Delete this workflow
+# together with the SQL file once the sync is verified.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p 22 "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Apply destinations snapshot
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            'set -e
+             DB_URL=$(sudo grep "^DATABASE_URL=" /home/mykiz.my/kiznext/.env | head -1 | cut -d= -f2- | cut -d"?" -f1)
+             echo "before:   $(psql "$DB_URL" -t -A -c "SELECT count(*) FROM destinations WHERE deleted_at IS NULL") active"
+             psql "$DB_URL" -v ON_ERROR_STOP=1
+             echo "after:    $(psql "$DB_URL" -t -A -c "SELECT count(*) FROM destinations WHERE deleted_at IS NULL") active"
+             echo "soft-del: $(psql "$DB_URL" -t -A -c "SELECT count(*) FROM destinations WHERE deleted_at IS NOT NULL")"
+             echo "checksum: $(psql "$DB_URL" -t -A -c "SELECT md5(string_agg(id||$q$|$q$||name||$q$|$q$||type::text||$q$|$q$||latitude||$q$|$q$||longitude||$q$|$q$||indoor||$q$|$q$||coalesce(building,$q$$q$)||$q$|$q$||coalesce(description,$q$$q$)||$q$|$q$||sort_order, $q$,$q$ ORDER BY id)) FROM destinations WHERE deleted_at IS NULL")"' \
+            < scripts/sync-destinations.sql

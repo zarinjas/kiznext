@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { MessageRow } from "./message-row"
 import { Composer } from "./composer"
 import { CommunityPanel } from "./community-panel"
+import { UserProfileDialog } from "./user-profile-dialog"
 import {
   getChatMessages,
   sendChatMessage,
@@ -66,6 +67,7 @@ export function ChatRoom({ role, userId, initialSnapshot }: Props) {
   const [deleteMsg, setDeleteMsg] = useState<ChatMessageView | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const [modOpen, setModOpen] = useState(false)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const nearBottomRef = useRef(true)
 
@@ -387,6 +389,7 @@ export function ChatRoom({ role, userId, initialSnapshot }: Props) {
                   onReply={() => armReply(row.msg!)}
                   onReport={() => setReportMsg(row.msg!)}
                   onDelete={() => setDeleteMsg(row.msg!)}
+                  onViewSender={canModerate ? () => setProfileUserId(row.msg!.sender.id) : undefined}
                 />
               )
             )}
@@ -434,6 +437,9 @@ export function ChatRoom({ role, userId, initialSnapshot }: Props) {
 
       {/* Report dialog */}
       <ReportDialog msg={reportMsg} onClose={() => setReportMsg(null)} onSubmit={handleReport} />
+
+      {/* Sender profile (admin only) */}
+      <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />
 
       {/* Delete confirm */}
       <KDialog open={Boolean(deleteMsg)} onClose={() => setDeleteMsg(null)} title="Delete this message?" icon="delete" maxWidth="xs">
