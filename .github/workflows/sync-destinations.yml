@@ -30,5 +30,5 @@ jobs:
              psql "$DB_URL" -v ON_ERROR_STOP=1
              echo "after:    $(psql "$DB_URL" -t -A -c "SELECT count(*) FROM destinations WHERE deleted_at IS NULL") active"
              echo "soft-del: $(psql "$DB_URL" -t -A -c "SELECT count(*) FROM destinations WHERE deleted_at IS NOT NULL")"
-             echo "checksum: $(psql "$DB_URL" -t -A -c "SELECT md5(string_agg(id||$q$|$q$||name||$q$|$q$||type::text||$q$|$q$||latitude||$q$|$q$||longitude||$q$|$q$||indoor||$q$|$q$||coalesce(building,$q$$q$)||$q$|$q$||coalesce(description,$q$$q$)||$q$|$q$||sort_order, $q$,$q$ ORDER BY id)) FROM destinations WHERE deleted_at IS NULL")"' \
+             echo "checksum: $(psql "$DB_URL" -t -A -c "SELECT md5(string_agg(destinations::text, chr(44) ORDER BY id)) FROM destinations WHERE deleted_at IS NULL")"' \
             < scripts/sync-destinations.sql
