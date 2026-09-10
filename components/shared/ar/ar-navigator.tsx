@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
+import Drawer from "@mui/material/Drawer"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
@@ -35,8 +36,30 @@ interface Position {
   accuracy: number | null
 }
 
+/**
+ * AR overlay colours are the one deliberate exception to the token rule: they
+ * must stay legible over *arbitrary* live camera footage, not the white surface
+ * palette, so they use recognisable navigation hues (Google Maps blue, etc).
+ */
+const NAV_BLUE = "#1A73E8" // Google Maps navigation arrow blue
+const ARRIVE_M = 15 // metres at which we consider the user "arrived"
+
 function mapsDirectionsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+}
+
+function turnHint(turn: number): string {
+  const a = Math.abs(turn)
+  if (a < 12) return "Straight ahead"
+  if (a < 45) return turn > 0 ? "Slightly right" : "Slightly left"
+  if (a < 135) return turn > 0 ? "Turn right" : "Turn left"
+  return "Turn around"
+}
+
+function walkMins(meters: number): string {
+  const mins = Math.round(meters / 83) // ~5 km/h walking pace
+  if (mins < 1) return "<1 min walk"
+  return `~${mins} min walk`
 }
 
 function isCompassEvent(e: DeviceOrientationEvent): number | null {
@@ -54,19 +77,21 @@ export function ArNavigator({ destinations }: Props) {
   const [camStatus, setCamStatus] = useState<SensorStatus>("idle")
   const [camError, setCamError] = useState<string | null>(null)
   const [compass, setCompass] = useState<SensorStatus>("idle")
+  const [hint, setHint] = useState("Straight ahead")
+  const [arView, setArView] = useState(true)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const compassReady = compass === "on"
 
   const videoRef = useRef<HTMLVideoElement>(null)
-  const viewRef = useRef<HTMLDivElement>(null)
-  const pinOuterRef = useRef<HTMLDivElement>(null)
-  const pinBodyRef = useRef<HTMLDivElement>(null)
-  const glyphRef = useRef<HTMLDivElement>(null)
+  const scaleRef = useRef<HTMLDivElement>(null)
+  const arrowRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const headingRef = useRef<number>(0)
   const smoothRef = useRef<number>(0)
   const seededRef = useRef(false)
   const targetRef = useRef<Destination | null>(destinations.find((d) => d.id === selectedId) ?? null)
   const positionRef = useRef<Position | null>(null)
+  const hintRef = useRef("Straight ahead")
   const rafRef = useRef<number>(0)
 
   const selected = destinations.find((d) => d.id === selectedId) ?? null
@@ -98,7 +123,8 @@ export function ArNavigator({ destinations }: Props) {
           videoRef.current.srcObject = stream
           await videoRef.current.play().catch(() => {})
         }
-        setCamStatus("on")      } catch {
+        setCamStatus("on")
+      } catch {
         if (!cancelled) {
           setCamError("Camera permission was declined — use the list below instead.")
           setCamStatus("off")
@@ -123,8 +149,6 @@ export function ArNavigator({ destinations }: Props) {
   }, [camStatus, showAr])
 
   // ── Compass / orientation ─────────────────────────────────────────────────
-  // First heading that's north-referenced flips the compass to "on" (React
-  // bails out on the same string, so the per-event call is cheap).
   useEffect(() => {
     function onOrientation(e: DeviceOrientationEvent) {
       const h = isCompassEvent(e)
@@ -207,29 +231,24 @@ export function ArNavigator({ destinations }: Props) {
   }, [selectedId, destinations])
 
   // ── Arrow loop (no React re-render per frame) ─────────────────────────────
-  // A Google-Street-View-style "standing marker": the arrow is projected to the
-  // horizontal screen position of its bearing (a pinhole guess over the camera
-  // FOV), slides as you turn, and grows + drops toward the bottom as you get
-  // closer — implying it stands on the ground ahead of you. It is NOT a true
-  // world-anchored 3D pin (that needs camera pose tracking, which a compass
-  // alone cannot give), but it reads far more like AR than a fixed centre arrow.
+  // A Google-Live-View-style marker: a large ground-anchored chevron arrow
+  // (three blue-outlined white chevrons) rotates to point at the destination
+  // bearing and grows as you get closer. All per-frame transforms go through
+  // refs, so React never re-renders.
   useEffect(() => {
-    const HALF_FOV = 34 // deg; typical rear-camera horizontal FOV assumption
-    const ARRIVE_M = 500 // distance at which the pin stops growing
+    const ARRIVE_SCALE_M = 500
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
     function tick() {
-      const outer = pinOuterRef.current
-      const body = pinBodyRef.current
-      const glyph = glyphRef.current
-      const view = viewRef.current
-      if (!outer || !body || !glyph || !view) {
+      const scale = scaleRef.current
+      const arrow = arrowRef.current
+      if (!scale || !arrow) {
         rafRef.current = requestAnimationFrame(tick)
         return
       }
 
       const heading = headingRef.current
-      // Wrap-aware low-pass so the pin glides instead of shaking to the
+      // Wrap-aware low-pass so the arrow glides instead of shaking to the
       // compass's ±few-degree noise.
       let diff = heading - smoothRef.current
       while (diff > 180) diff -= 360
@@ -238,12 +257,9 @@ export function ArNavigator({ destinations }: Props) {
 
       const target = targetRef.current
       const pos = positionRef.current
-      const rect = view.getBoundingClientRect()
-      const w = rect.width || 1
-      const h = rect.height || 1
 
       if (!target || !pos) {
-        outer.style.opacity = "0"
+        scale.style.opacity = "0"
         rafRef.current = requestAnimationFrame(tick)
         return
       }
@@ -258,25 +274,19 @@ export function ArNavigator({ destinations }: Props) {
       )
       const turn = headingDelta(bearing, smoothRef.current) // + = to the right
 
-      // Project bearing onto the screen width via the FOV, then clamp to the
-      // edges so the pin never leaves the viewfinder.
-      const rad = (turn * Math.PI) / 180
-      let xRatio = Math.tan(rad) / Math.tan((HALF_FOV * Math.PI) / 180)
-      xRatio = clamp(xRatio, -1.35, 1.35)
-      const x = clamp(w / 2 + xRatio * (w * 0.42), 60, w - 60)
+      // Depth cue: closer → the marker grows upward from its ground point.
+      const closeness = clamp(1 - meters / ARRIVE_SCALE_M, 0, 1)
+      const s = 0.85 + 0.35 * closeness
 
-      // Depth cue: closer → pin sits lower on screen and is bigger, like a
-      // marker standing on the ground ahead of you.
-      const closeness = clamp(1 - meters / ARRIVE_M, 0, 1)
-      const y = h * (0.8 - 0.34 * closeness)
-      const scale = 0.7 + 0.6 * closeness
-      const lean = clamp(turn * 0.3, -24, 24) // arrowhead tips toward the target
-      const fade = clamp(1.1 - Math.abs(turn) / 160, 0.3, 1)
+      arrow.style.transform = `rotate(${turn.toFixed(1)}deg)`
+      scale.style.transform = `scale(${s.toFixed(3)})`
+      scale.style.opacity = "1"
 
-      outer.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
-      outer.style.opacity = fade.toFixed(2)
-      body.style.transform = `scale(${scale.toFixed(3)})`
-      glyph.style.transform = `rotate(${lean.toFixed(1)}deg)`
+      const nextHint = turnHint(turn)
+      if (nextHint !== hintRef.current) {
+        hintRef.current = nextHint
+        setHint(nextHint)
+      }
 
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -290,10 +300,38 @@ export function ArNavigator({ destinations }: Props) {
       { latitude: position.lat, longitude: position.lng },
       { latitude: selected.latitude, longitude: selected.longitude },
     )
-    return { meters, label: formatDistanceMeters(meters) }
+    return { meters, label: formatDistanceMeters(meters), arrived: meters < ARRIVE_M }
   }, [selected, position])
 
-  if (destinations.length === 0) {    return (
+  const arrived = live?.arrived ?? false
+
+  // Haptic confirmation the moment we cross into "arrived".
+  const prevArrivedRef = useRef(false)
+  useEffect(() => {
+    if (arrived && !prevArrivedRef.current && typeof navigator.vibrate === "function") {
+      navigator.vibrate([60, 40, 60])
+    }
+    prevArrivedRef.current = arrived
+  }, [arrived])
+
+  let statusMessage: string
+  if (camStatus === "on" && !compassReady) {
+    statusMessage =
+      compass === "waiting"
+        ? "Waiting for permission…"
+        : compass === "off"
+          ? "Motion & orientation are off — the arrow needs them."
+          : "Enable your motion sensors to unlock the camera arrow."
+  } else if (camStatus !== "on") {
+    statusMessage =
+      camError ??
+      "Point-to-navigate needs a phone camera. On desktop, use the directions link instead."
+  } else {
+    statusMessage = "Open this on your phone for the live camera arrow."
+  }
+
+  if (destinations.length === 0) {
+    return (
       <KEmpty
         icon="view_in_ar"
         title="Nothing to navigate to yet"
@@ -302,65 +340,27 @@ export function ArNavigator({ destinations }: Props) {
     )
   }
 
+  const choose = (id: string) => {
+    setSelectedId(id)
+    setPickerOpen(false)
+  }
+
   return (
     <Box sx={{ maxWidth: 720, mx: "auto" }}>
-      {/* Destination chips */}
-      <Box
-        sx={{
-          display: "flex",
-          gap: 1,
-          overflowX: "auto",
-          pb: 1,
-          mb: 2,
-          WebkitOverflowScrolling: "touch",
-          "&::-webkit-scrollbar": { display: "none" },
-          scrollbarWidth: "none",
-        }}
-      >
-        {destinations.map((d) => {
-          const active = d.id === selectedId
-          return (
-            <Box
-              key={d.id}
-              component="button"
-              type="button"
-              onClick={() => setSelectedId(d.id)}
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.625,
-                flexShrink: 0,
-                px: 1.25,
-                py: 0.625,
-                borderRadius: 999,
-                border: "1px solid",
-                borderColor: active ? color.brand[500] : "divider",
-                backgroundColor: active ? color.brand[50] : "background.paper",
-                color: active ? color.brand[800] : "text.secondary",
-                fontSize: 13,
-                fontWeight: active ? 600 : 500,
-                cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              <KIcon icon={d.icon} size={16} />
-              {d.name}
-              {d.indoor && <KIcon icon="meeting_room" size={13} sx={{ opacity: 0.6 }} />}
-            </Box>
-          )
-        })}
-      </Box>
-
-      {showAr ? (
+      {showAr && arView ? (
         <Box
-          ref={viewRef}
           sx={{
-            position: "relative",
+            position: { xs: "fixed", sm: "relative" },
+            top: { xs: 0, sm: "auto" },
+            left: { xs: 0, sm: "auto" },
+            right: { xs: 0, sm: "auto" },
+            bottom: { xs: 0, sm: "auto" },
+            zIndex: { xs: 1150, sm: "auto" },
             overflow: "hidden",
-            borderRadius: `${radius.cardLg}px`,
-            border: "1px solid",
+            borderRadius: { xs: 0, sm: `${radius.cardLg}px` },
+            border: { xs: "none", sm: "1px solid" },
             borderColor: "divider",
-            height: { xs: "62dvh", sm: 560 },
+            height: { xs: "100dvh", sm: 560 },
             backgroundColor: color.ink[900],
           }}
         >
@@ -372,141 +372,220 @@ export function ArNavigator({ destinations }: Props) {
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
           />
 
-          {/* Top destination tag */}
+          {/* Top bar: exit + destination picker */}
           <Box
             sx={{
               position: "absolute",
-              top: 16,
-              left: 16,
-              right: 16,
+              top: 0,
+              left: 0,
+              right: 0,
               display: "flex",
-              justifyContent: "center",
-              pointerEvents: "none",
+              alignItems: "center",
+              gap: 1.25,
+              px: 1.5,
+              pt: "calc(env(safe-area-inset-top) + 12px)",
             }}
           >
             <Box
+              component="button"
+              type="button"
+              aria-label="Exit camera view"
+              onClick={() => setArView(false)}
               sx={{
-                display: "inline-flex",
+                width: 42,
+                height: 42,
+                flexShrink: 0,
+                borderRadius: 999,
+                display: "flex",
                 alignItems: "center",
-                gap: 1,
+                justifyContent: "center",
+                backgroundColor: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.16)",
+                color: "#fff",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <KIcon icon="close" size={20} />
+            </Box>
+
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 1.25,
                 px: 1.5,
-                py: 0.875,
+                py: 1,
                 borderRadius: 999,
                 backgroundColor: "rgba(0,0,0,0.55)",
                 backdropFilter: "blur(12px)",
                 WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.16)",
                 color: "#fff",
-                fontSize: 14,
-                fontWeight: 600,
-                letterSpacing: "-0.011em",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
               }}
             >
-              <KIcon icon={selected!.icon} size={17} sx={{ color: color.brand[300] }} />
-              {selected!.name}
-              {selected!.indoor && selected!.building && (
-                <Box component="span" sx={{ fontSize: 12, fontWeight: 450, opacity: 0.75 }}>
-                  · {selected!.building}
-                </Box>
-              )}
+              <KIcon icon={selected!.icon} size={18} sx={{ color: color.brand[300], flexShrink: 0 }} />
+              <Box
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  textAlign: "left",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  letterSpacing: "-0.011em",
+                }}
+              >
+                {selected!.name}
+                {selected!.indoor && selected!.building && (
+                  <Box component="span" sx={{ fontSize: 12, fontWeight: 450, opacity: 0.7 }}>
+                    {" "}
+                    · {selected!.building}
+                  </Box>
+                )}
+              </Box>
+              <KIcon icon="expand_more" size={18} sx={{ opacity: 0.7, flexShrink: 0 }} />
             </Box>
           </Box>
 
-          {/* World-locked style marker (moves/scales per frame in the rAF loop) */}
-          <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          {/* Ground-anchored Live View arrow + distance */}
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+            }}
+          >
             {!position && (
               <Box
                 sx={{
                   position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  top: "16%",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  px: 1.5,
+                  py: 0.625,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  color: "#fff",
+                  fontSize: 12.5,
+                  fontWeight: 500,
                 }}
               >
-                <Box
-                  sx={{
-                    px: 1.5,
-                    py: 0.625,
-                    borderRadius: 999,
-                    backgroundColor: "rgba(0,0,0,0.55)",
-                    color: "#fff",
-                    fontSize: 12.5,
-                    fontWeight: 500,
-                  }}
-                >
-                  Locating you…
-                </Box>
+                Locating you…
               </Box>
             )}
 
-            {/* Standing pin — bottom-centre anchored to the projected ground point. */}
             <Box
-              ref={pinOuterRef}
               sx={{
                 position: "absolute",
-                left: 0,
-                top: 0,
-                opacity: 0,
-                willChange: "transform",
+                left: "50%",
+                bottom: "20%",
+                transform: "translateX(-50%)",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
               }}
             >
               <Box
-                ref={pinBodyRef}
-                sx={{ display: "flex", flexDirection: "column", alignItems: "center", willChange: "transform" }}
+                ref={scaleRef}
+                sx={{
+                  transformOrigin: "50% 100%",
+                  willChange: "transform",
+                  opacity: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
               >
-                <Box ref={glyphRef} sx={{ willChange: "transform" }}>
-                  <KIcon
-                    icon="navigation"
-                    size={46}
-                    filled
-                    color="#fff"
-                    sx={{
-                      filter: "drop-shadow(0 3px 10px rgba(0,0,0,0.55)) drop-shadow(0 0 24px rgba(255,255,255,0.25))",
-                    }}
-                  />
-                </Box>
-
                 <Box
+                  ref={arrowRef}
                   sx={{
-                    mt: 0.5,
-                    px: 1.25,
-                    py: 0.5,
-                    borderRadius: 999,
-                    backgroundColor: "rgba(0,0,0,0.62)",
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
-                    color: "#fff",
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    fontFamily: font.mono,
-                    whiteSpace: "nowrap",
+                    transformOrigin: "50% 100%",
+                    willChange: "transform",
+                    display: "flex",
                   }}
                 >
-                  {live?.label ?? "—"}
-                  {live && live.meters < 30 && (
-                    <Box component="span" sx={{ color: "rgba(255,255,255,0.7)", fontFamily: font.body, fontWeight: 450, marginLeft: 0.5 }}>
-                      · here
-                    </Box>
-                  )}
+                  <svg
+                    width="150"
+                    height="180"
+                    viewBox="0 0 120 150"
+                    fill="none"
+                    style={{ overflow: "visible", display: "block" }}
+                  >
+                    <defs>
+                      <filter id="kiz-nav-glow" x="-60%" y="-60%" width="220%" height="220%">
+                        <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
+                      </filter>
+                    </defs>
+                    <g filter="url(#kiz-nav-glow)" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 140 L60 102 L98 140" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
+                      <path d="M22 104 L60 66 L98 104" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
+                      <path d="M22 68 L60 30 L98 68" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
+                      <path d="M22 140 L60 102 L98 140" stroke="#FFFFFF" strokeWidth="8" />
+                      <path d="M22 104 L60 66 L98 104" stroke="#FFFFFF" strokeWidth="8" />
+                      <path d="M22 68 L60 30 L98 68" stroke="#FFFFFF" strokeWidth="8" />
+                    </g>
+                  </svg>
                 </Box>
+
+                {/* Ground shadow — anchors the arrow to the floor ahead. */}
+                <Box
+                  sx={{
+                    width: 92,
+                    height: 16,
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(0,0,0,0.38)",
+                    filter: "blur(4px)",
+                    mt: -1,
+                  }}
+                />
               </Box>
 
-              {/* Ground shadow — makes the pin read as standing on the floor ahead. */}
               <Box
                 sx={{
-                  mt: 0.75,
-                  width: 58,
-                  height: 12,
-                  borderRadius: "50%",
-                  backgroundColor: "rgba(0,0,0,0.45)",
-                  filter: "blur(3px)",
-                  flexShrink: 0,
+                  mt: 1.25,
+                  px: 1.75,
+                  py: 0.625,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(0,0,0,0.62)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  color: "#fff",
+                  fontSize: 15,
+                  fontWeight: 650,
+                  fontFamily: font.mono,
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
                 }}
-              />
+              >
+                {live?.label ?? "—"}
+                {live && (
+                  <Box
+                    component="span"
+                    sx={{
+                      color: "rgba(255,255,255,0.72)",
+                      fontFamily: font.body,
+                      fontWeight: 500,
+                      marginLeft: 0.625,
+                    }}
+                  >
+                    · {arrived ? "arrived" : walkMins(live.meters)}
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
 
@@ -514,12 +593,13 @@ export function ArNavigator({ destinations }: Props) {
           <Box
             sx={{
               position: "absolute",
-              bottom: 14,
+              bottom: 0,
               left: 0,
               right: 0,
               display: "flex",
               justifyContent: "center",
               px: 2,
+              pb: "calc(env(safe-area-inset-bottom) + 18px)",
             }}
           >
             <Box
@@ -531,18 +611,18 @@ export function ArNavigator({ destinations }: Props) {
                 py: 0.625,
                 borderRadius: 999,
                 backgroundColor: "rgba(0,0,0,0.55)",
-                color: "rgba(255,255,255,0.85)",
-                fontSize: 12,
-                fontWeight: 500,
+                color: "rgba(255,255,255,0.9)",
+                fontSize: 12.5,
+                fontWeight: 550,
               }}
             >
-              <KIcon icon="screen_rotation" size={15} />
-              Turn until the marker lines up with where you&apos;re heading
+              <KIcon icon={arrived ? "celebration" : "near_me"} size={15} />
+              {arrived ? "You've arrived" : hint}
             </Box>
           </Box>
         </Box>
       ) : (
-        /* Fallback — desktop, no camera, or no compass yet */
+        /* Fallback — desktop, no camera, no compass, or user exited the view */
         <Box
           sx={{
             borderRadius: `${radius.cardLg}px`,
@@ -581,15 +661,7 @@ export function ArNavigator({ destinations }: Props) {
             <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontWeight: 640, letterSpacing: "-0.02em" }}>Camera compass</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {camStatus === "on" && !compassReady
-                  ? compass === "waiting"
-                    ? "Waiting for permission…"
-                    : compass === "off"
-                      ? "Motion & orientation are off — the arrow needs them."
-                      : "Enable your motion sensors to unlock the camera arrow."
-                  : camStatus !== "on"
-                    ? (camError ?? "Point-to-navigate needs a phone camera. On desktop, use the directions link instead.")
-                    : "Open this on your phone for the live camera arrow."}
+                {statusMessage}
               </Typography>
             </Box>
           </Box>
@@ -607,6 +679,18 @@ export function ArNavigator({ destinations }: Props) {
             </Box>
           )}
 
+          {cameraOn && compassReady && !arView && (
+            <Box sx={{ p: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+              <Button
+                variant="contained"
+                onClick={() => setArView(true)}
+                startIcon={<KIcon icon="view_in_ar" size={17} />}
+              >
+                Open camera view
+              </Button>
+            </Box>
+          )}
+
           <ListGroup>
             {destinations.map((d) => {
               const dist = position
@@ -616,6 +700,7 @@ export function ArNavigator({ destinations }: Props) {
                   )
                 : null
               const tone = TYPE_TONES[d.type]
+              const active = d.id === selectedId
               return (
                 <ListRow
                   key={d.id}
@@ -646,10 +731,10 @@ export function ArNavigator({ destinations }: Props) {
                       >
                         {d.indoor ? "Indoor" : "Outdoor"}
                       </Box>
+                      {active && <KIcon icon="check_circle" size={18} filled sx={{ color: color.brand[600] }} />}
                     </Box>
                   }
                   onClick={() => setSelectedId(d.id)}
-                  chevron
                 />
               )
             })}
@@ -671,6 +756,80 @@ export function ArNavigator({ destinations }: Props) {
           )}
         </Box>
       )}
+
+      {/* Destination picker — bottom sheet */}
+      <Drawer
+        anchor="bottom"
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderTopLeftRadius: `${radius.sheet}px`,
+              borderTopRightRadius: `${radius.sheet}px`,
+              maxHeight: "86dvh",
+              pb: "calc(env(safe-area-inset-bottom) + 8px)",
+            },
+          },
+        }}
+      >
+        <Box sx={{ display: "flex", justifyContent: "center", pt: 1.25, pb: 0.5 }}>
+          <Box sx={{ width: 40, height: 5, borderRadius: 999, backgroundColor: "divider" }} />
+        </Box>
+        <Box sx={{ px: 2, pb: 1.5 }}>
+          <Typography variant="h3" sx={{ mb: 1.25, px: 0.5 }}>
+            Choose a destination
+          </Typography>
+          <ListGroup>
+            {destinations.map((d) => {
+              const dist = position
+                ? haversineMeters(
+                    { latitude: position.lat, longitude: position.lng },
+                    { latitude: d.latitude, longitude: d.longitude },
+                  )
+                : null
+              const tone = TYPE_TONES[d.type]
+              const active = d.id === selectedId
+              return (
+                <ListRow
+                  key={d.id}
+                  icon={d.icon}
+                  title={d.name}
+                  subtitle={
+                    <Box component="span">
+                      {d.indoor && d.building ? `${d.building} · ` : ""}
+                      {dist != null ? formatDistanceMeters(dist) : "distance unknown"}
+                    </Box>
+                  }
+                  trailing={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                      <Box
+                        component="span"
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          px: 1,
+                          py: 0.375,
+                          borderRadius: 999,
+                          backgroundColor: tone.soft,
+                          color: tone.ink,
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {d.indoor ? "Indoor" : "Outdoor"}
+                      </Box>
+                      {active && <KIcon icon="check_circle" size={18} filled sx={{ color: color.brand[600] }} />}
+                    </Box>
+                  }
+                  onClick={() => choose(d.id)}
+                />
+              )
+            })}
+          </ListGroup>
+        </Box>
+      </Drawer>
     </Box>
   )
 }
