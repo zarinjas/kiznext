@@ -155,7 +155,7 @@ export async function previewImport(csvText: string): Promise<ImportPreview> {
 export async function confirmImport(
   csvText: string,
   intakeName: string,
-): Promise<{ ok: boolean; imported: number; roomsCreated?: number; flaggedRooms?: number; error?: string }> {
+): Promise<{ ok: boolean; imported: number; roomsCreated?: number; flaggedRooms?: number; releasedAllocations?: number; error?: string }> {
   const session = await requireAdmin()
   try {
     if (!intakeName.trim()) return { ok: false, imported: 0, error: "Give the intake a name" }
@@ -181,6 +181,7 @@ export async function confirmImport(
     let imported = 0
     let roomsCreated = 0
     let flaggedRooms = 0
+    let releasedAllocations = 0
 
     await prisma.$transaction(async (tx) => {
       const intake = await tx.intake.create({
@@ -206,6 +207,24 @@ export async function confirmImport(
             : "available"
 
         const block = await ensureBlock(tx, room.block, gender, parsed.floor)
+
+        // The file is authoritative for the rooms it lists: release any stale
+        // occupants (demo data / a previous intake) and clear old reserve flags
+        // before placing the imported students, so re-imports never get stuck on
+        // "already occupied" or a type mismatch.
+        const existingRoom = await tx.residenceRoom.findFirst({
+          where: { blockId: block.id, number: room.code, deletedAt: null },
+          select: { id: true },
+        })
+        if (existingRoom) {
+          const released = await tx.bed.updateMany({
+            where: { roomId: existingRoom.id, occupantId: { not: null } },
+            data: { occupantId: null },
+          })
+          releasedAllocations += released.count
+          await tx.bed.updateMany({ where: { roomId: existingRoom.id }, data: { reserved: false } })
+        }
+
         const roomId = await ensureRoom(tx, block.id, { code: room.code, type: room.type, status }, parsed.floor)
         roomsCreated++
         if (room.flagged) flaggedRooms++
@@ -242,7 +261,7 @@ export async function confirmImport(
 
     revalidatePath(`/${session.user.role}/urus-bilik`)
     revalidatePath("/ahli")
-    return { ok: true, imported, roomsCreated, flaggedRooms }
+    return { ok: true, imported, roomsCreated, flaggedRooms, releasedAllocations }
   } catch (e) {
     return { ok: false, imported: 0, error: e instanceof Error ? e.message : "Import failed" }
   }

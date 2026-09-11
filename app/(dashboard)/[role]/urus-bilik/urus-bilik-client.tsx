@@ -266,7 +266,8 @@ function IntakeTab({
         const roomNote = res.roomsCreated
           ? ` ${res.roomsCreated} rooms created${res.flaggedRooms ? ` (${res.flaggedRooms} flagged)` : ""}.`
           : ""
-        notify(`Nice! ${res.imported} students imported.${roomNote} Activate the intake to open selection.`)
+        const releaseNote = res.releasedAllocations ? ` ${res.releasedAllocations} old allocation(s) released.` : ""
+        notify(`Nice! ${res.imported} students imported.${roomNote}${releaseNote} Activate the intake to open selection.`)
         setPreview(null)
         setCsv("")
         setFileName("")
