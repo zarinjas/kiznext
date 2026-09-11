@@ -40,6 +40,7 @@ import {
   generateFloor,
   setRoomStatus,
   setRoomsStatus,
+  updateRoomType,
   adminAssign,
   setAllocationsPublished,
   type ImportPreview,
@@ -64,7 +65,7 @@ interface BlockData {
     status: RoomStatus
     totalBeds: number
     occupiedBeds: number
-    beds: { id: string; position: string; occupant: { id: string; name: string; matricId: string } | null }[]
+    beds: { id: string; position: string; reserved: boolean; occupant: { id: string; name: string; matricId: string } | null }[]
   }[]
 }
 interface StudentData {
@@ -192,12 +193,15 @@ export function UrusBilikClient({
 // ── Tab 1: Intake / import ──────────────────────────────────────────────────
 
 /** Small dot-chip for an import row's disposition. */
-function ImportStatusChip({ status }: { status: "ok" | "duplicate" | "invalid" | "existing" }) {
+function ImportStatusChip({ status }: { status: "ok" | "duplicate" | "invalid" | "existing" | "room" | "occupant" | "empty" }) {
   const map = {
     ok: { tone: color.success, label: "OK" },
+    room: { tone: color.info, label: "Room" },
+    occupant: { tone: color.warning, label: "Occupant" },
     duplicate: { tone: color.warning, label: "Dup" },
     invalid: { tone: color.danger, label: "Invalid" },
-    existing: { tone: color.info, label: "Listed" },
+    existing: { tone: color.neutral, label: "Listed" },
+    empty: { tone: color.neutral, label: "Empty" },
   } as const
   const { tone, label } = map[status]
   return (
@@ -237,6 +241,10 @@ function IntakeTab({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const onFile = async (file: File) => {
+    if (/\.xlsx?$/i.test(file.name)) {
+      notify("That's an Excel file — export it as CSV first (File → Save As → CSV UTF-8), then upload the .csv.", "error")
+      return
+    }
     const text = await file.text()
     setCsv(text)
     setFileName(file.name)
@@ -255,7 +263,9 @@ function IntakeTab({
     start(async () => {
       const res = await confirmImport(csv, intakeName)
       if (res.ok) {
-        const roomNote = res.roomsAssigned ? ` ${res.roomsAssigned} rooms created & beds assigned.` : ""
+        const roomNote = res.roomsCreated
+          ? ` ${res.roomsCreated} rooms created${res.flaggedRooms ? ` (${res.flaggedRooms} flagged)` : ""}.`
+          : ""
         notify(`Nice! ${res.imported} students imported.${roomNote} Activate the intake to open selection.`)
         setPreview(null)
         setCsv("")
@@ -270,14 +280,14 @@ function IntakeTab({
     <Box>
       <FormSection
         title="Upload accepted list (CSV)"
-        subtitle="Export the eKolej sheet to CSV. Expected columns: Bil, No. Matrik, Nama, Fakulti, Tahun Pengajian, Jantina, Agama, Bangsa, Kolej Semasa, Pilihan 1, Tarikh Permohonan, Status Permohonan, B40, OKU, Uniform, Markah."
+        subtitle="Export the KIZ / eKolej sheet to CSV. Columns: BLOCK, ROOM, NO.MATRIK, NAME, COUNTRY, FAC, RELIGION. Gender is derived from the block; single vs twin rooms and damaged / reserved rooms are detected automatically."
         icon="upload_file"
       >
         <Alert severity="info" icon={<KIcon icon="meeting_room" size={18} />} sx={{ mb: 2, borderRadius: 2 }}>
-          <b>Rooms in one go:</b> add a <b>No. Bilik</b> column (e.g.{" "}
-          <b>K18A-101</b>) and each student&apos;s block, room and bed are created
-          and assigned automatically — twin rooms fill Bed A then Bed B in file order.
-          Every row needs a room number.
+          <b>Rooms included:</b> each room is read from the <b>BLOCK</b> + <b>ROOM</b> columns
+          (e.g. K18A + 101 → K18A-101). One bed row = single room, two = twin. A row whose
+          name starts with <b>ROSAK</b>, <b>BILIK GANTIAN</b> or <b>KEGUNAAN LAIN</b> creates
+          that room as maintenance / closed. Blank bed rows are skipped.
         </Alert>
         <input
           ref={inputRef}
@@ -312,17 +322,23 @@ function IntakeTab({
       {preview && (
         <FormSection title="Preview & validation" subtitle="Review before importing — only valid new rows are created." icon="fact_check">
           <Bento sx={{ mb: 2 }}>
-            <BentoItem span={3} spanXs={1}><MetricTile label="Will import" value={preview.okCount} icon="check_circle" /></BentoItem>
-            <BentoItem span={3} spanXs={1}><MetricTile label="Duplicate" value={preview.duplicateCount + preview.existingDuplicateCount} icon="content_copy" /></BentoItem>
+            <BentoItem span={3} spanXs={1}><MetricTile label="Students" value={preview.studentCount} icon="check_circle" /></BentoItem>
+            <BentoItem span={3} spanXs={1}><MetricTile label="Rooms" value={preview.roomCount} icon="meeting_room" /></BentoItem>
+            <BentoItem span={3} spanXs={1}><MetricTile label="Flagged rooms" value={preview.flaggedCount} icon="build" /></BentoItem>
             <BentoItem span={3} spanXs={1}><MetricTile label="Invalid" value={preview.invalidCount} icon="error" /></BentoItem>
-            <BentoItem span={3} spanXs={1}><MetricTile label="Total rows" value={preview.totalRows} icon="table_rows" /></BentoItem>
           </Bento>
 
           <Alert severity="info" icon={<KIcon icon="rule" size={18} />} sx={{ mb: 2, borderRadius: 2 }}>
-            Only the <b>{preview.okCount}</b> valid new{" "}
-            {preview.okCount === 1 ? "row" : "rows"} will be imported. Invalid rows,
-            in-file duplicates, and matric numbers already in the active intake are
-            skipped automatically.
+            <b>{preview.studentCount}</b> students and <b>{preview.roomCount}</b> rooms
+            will be created
+            {preview.flaggedCount > 0
+              ? ` (${preview.flaggedCount} damaged / reserved / staff ${preview.flaggedCount === 1 ? "room" : "rooms"} get a non-available status)`
+              : ""}
+            . Invalid rows, in-file duplicates, blank beds, and matric numbers already
+            in the active intake are skipped automatically.
+            {preview.occupantCount > 0
+              ? ` ${preview.occupantCount} bed rows held by non-student residents (Pengetua / mobility / staff) are created as reserved beds — never assigned to a student.`
+              : ""}
           </Alert>
 
           <TextField
@@ -343,6 +359,7 @@ function IntakeTab({
                   <TableCell>Name</TableCell>
                   <TableCell>Gender</TableCell>
                   <TableCell>Room</TableCell>
+                  <TableCell>Type</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
@@ -354,7 +371,10 @@ function IntakeTab({
                     <TableCell>{r.name}</TableCell>
                     <TableCell>{r.gender}</TableCell>
                     <TableCell>{r.room ?? "—"}</TableCell>
-                    <TableCell sx={{ maxWidth: 220 }}>
+                    <TableCell>
+                      {r.roomType === "single" ? "Single" : r.roomType === "double" ? "Twin" : "—"}
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 240 }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
                         <ImportStatusChip status={r.status} />
                         <Typography
@@ -370,7 +390,13 @@ function IntakeTab({
                         >
                           {r.status === "ok"
                             ? "Will import"
-                            : r.reason ?? (r.status === "existing" ? "Already listed" : "Skipped")}
+                            : r.status === "room"
+                              ? r.reason ?? "Flagged room"
+                              : r.status === "occupant"
+                                ? r.reason ?? "Non-student resident"
+                                : r.status === "empty"
+                                  ? "Blank bed"
+                                  : r.reason ?? (r.status === "existing" ? "Already listed" : "Skipped")}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -381,8 +407,8 @@ function IntakeTab({
           </Box>
 
           <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
-            <KButton onClick={onConfirm} loading={pending} icon="download_done" disabled={preview.okCount === 0}>
-              Import {preview.okCount} {preview.okCount === 1 ? "student" : "students"}
+            <KButton onClick={onConfirm} loading={pending} icon="download_done" disabled={preview.studentCount === 0 && preview.flaggedCount === 0}>
+              Import {preview.studentCount} {preview.studentCount === 1 ? "student" : "students"}
             </KButton>
             <KButton variant="outlined" onClick={() => setPreview(null)}>
               Cancel
@@ -705,7 +731,7 @@ function BuildingTab({
           <TextField select size="small" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as RoomStatus)} sx={{ minWidth: 150, flex: "0 0 auto", "& .MuiInputBase-input": { py: 0.55, fontSize: 13 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField>
           <KButton size="small" loading={pending} onClick={applyBulkStatus}>Apply</KButton>
         </Box>}
-        {activeRooms.length === 0 ? <KEmpty compact icon="meeting_room" title="No rooms in this block" body="Use Add rooms to create the first room or generate a whole floor." /> : <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(3,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" } }}>{activeRooms.map((room) => <RoomInventoryCard key={room.id} room={room} selected={selectedRoomIds.includes(room.id)} onToggle={() => toggleRoom(room.id)} onStatus={(status) => start(async () => { await setRoomStatus(room.id, status); notify(`${room.number} is now ${status}.`) })} onDelete={() => onDeleteRoom(activeBlock, room)} onManage={() => setManageRoom(room)} />)}</Box>}
+        {activeRooms.length === 0 ? <KEmpty compact icon="meeting_room" title="No rooms in this block" body="Use Add rooms to create the first room or generate a whole floor." /> : <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(3,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" } }}>{activeRooms.map((room) => <RoomInventoryCard key={room.id} room={room} selected={selectedRoomIds.includes(room.id)} onToggle={() => toggleRoom(room.id)} onStatus={(status) => start(async () => { await setRoomStatus(room.id, status); notify(`${room.number} is now ${status}.`) })} onType={(type) => start(async () => { try { await updateRoomType(room.id, type); notify(`${room.number} is now a ${type === "single" ? "single" : "twin"} room.`) } catch (e) { notify(e instanceof Error ? e.message : "Could not change room type", "error") } })} onDelete={() => onDeleteRoom(activeBlock, room)} onManage={() => setManageRoom(room)} />)}</Box>}
       </FormSection>}
       {showAdd && <Box>
       <FormSection title="Add a block" subtitle="Only use this when a new residence block is opened." icon="add_home">
@@ -801,12 +827,13 @@ function BuildingTab({
   )
 }
 
-function RoomInventoryCard({ room, selected, onToggle, onStatus, onDelete, onManage }: { room: BlockData["rooms"][number]; selected: boolean; onToggle: () => void; onStatus: (status: RoomStatus) => void; onDelete: () => void; onManage: () => void }) {
+function RoomInventoryCard({ room, selected, onToggle, onStatus, onType, onDelete, onManage }: { room: BlockData["rooms"][number]; selected: boolean; onToggle: () => void; onStatus: (status: RoomStatus) => void; onType: (type: RoomType) => void; onDelete: () => void; onManage: () => void }) {
   const tone = room.status === "available" ? "success" : room.status === "maintenance" ? "warning" : "danger"
+  const typeLabel = room.type === "single" ? "Single" : "Twin"
   return <Box sx={{ p: 1.5, border: "1px solid", borderColor: selected ? "primary.main" : "divider", borderRadius: 2, backgroundColor: selected ? "action.selected" : "background.paper" }}>
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}><Checkbox size="small" checked={selected} onChange={onToggle} /><Box sx={{ minWidth: 0, flex: 1 }}><Typography sx={{ fontWeight: 700 }} noWrap>{room.number}</Typography><Typography variant="caption" sx={{ color: "text.secondary" }}>Floor {room.floor} · {room.type} · {room.occupiedBeds}/{room.totalBeds} filled</Typography></Box><IconButtonSmall title={`Delete ${room.number}`} icon="delete" danger onClick={onDelete} /></Box>
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}><StatusChip tone={tone} /><TextField select size="small" value={room.status} onChange={(event) => onStatus(event.target.value as RoomStatus)} sx={{ flex: 1, "& .MuiInputBase-input": { py: 0.45, fontSize: 12 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField></Box>
-    <Box sx={{ mt: 1.25, pt: 1, borderTop: "1px solid", borderColor: "divider" }}>{room.beds.map((bed) => <Typography key={bed.id} variant="caption" sx={{ display: "block", color: bed.occupant ? "text.primary" : "text.disabled", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bedWord(bed.position)}: {bed.occupant ? bed.occupant.name : "Empty"}</Typography>)}<KButton size="small" variant="text" sx={{ mt: 0.5, px: 0 }} onClick={onManage}>Manage occupants</KButton></Box>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}><Checkbox size="small" checked={selected} onChange={onToggle} /><Box sx={{ minWidth: 0, flex: 1 }}><Typography sx={{ fontWeight: 700 }} noWrap>{room.number}</Typography><Typography variant="caption" sx={{ color: "text.secondary" }}>Floor {room.floor} · {typeLabel} · {room.occupiedBeds}/{room.totalBeds} filled</Typography></Box><IconButtonSmall title={`Delete ${room.number}`} icon="delete" danger onClick={onDelete} /></Box>
+    <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr) minmax(0,1fr)", alignItems: "center", gap: 0.75, mt: 1 }}><StatusChip tone={tone} /><TextField select size="small" value={room.status} onChange={(event) => onStatus(event.target.value as RoomStatus)} sx={{ "& .MuiInputBase-input": { py: 0.45, fontSize: 12 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField><TextField select size="small" value={room.type} onChange={(event) => onType(event.target.value as RoomType)} title="Room type" sx={{ "& .MuiInputBase-input": { py: 0.45, fontSize: 12 } }}><MenuItem value="single">Single</MenuItem><MenuItem value="double">Twin</MenuItem></TextField></Box>
+    <Box sx={{ mt: 1.25, pt: 1, borderTop: "1px solid", borderColor: "divider" }}>{room.beds.map((bed) => <Typography key={bed.id} variant="caption" sx={{ display: "block", color: bed.occupant ? "text.primary" : bed.reserved ? "warning.main" : "text.disabled", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bedWord(bed.position)}: {bed.occupant ? bed.occupant.name : bed.reserved ? "Reserved" : "Empty"}</Typography>)}<KButton size="small" variant="text" sx={{ mt: 0.5, px: 0 }} onClick={onManage}>Manage occupants</KButton></Box>
   </Box>
 }
 
@@ -820,13 +847,13 @@ function RoomOccupantsDialog({ room, students, notify, onClose }: {
   const [bedId, setBedId] = useState("")
   const [pending, start] = useTransition()
   if (!room) return null
-  const emptyBeds = room.beds.filter((bed) => !bed.occupant)
+  const emptyBeds = room.beds.filter((bed) => !bed.occupant && !bed.reserved)
   const candidates = students
   return <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: `${radius.cardLg}px`, m: 2 } } }}>
     <DialogTitle sx={{ fontWeight: 650 }}>Manage occupants: {room.number}</DialogTitle>
     <DialogContent>
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>Assign an unallocated student to an empty bed here. Moving a student releases their previous room automatically. Students won&apos;t see the assignment until you publish the results.</Alert>
-      <Box sx={{ display: "grid", gap: 1, mb: 2 }}>{room.beds.map((bed) => <Box key={bed.id} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}><Typography sx={{ fontWeight: 650 }}>{bedWord(bed.position)}</Typography>{bed.occupant ? <Typography variant="body2">{bed.occupant.name} <Typography component="span" variant="caption" sx={{ color: "text.secondary" }}>({bed.occupant.matricId})</Typography></Typography> : <Typography variant="body2" sx={{ color: "text.disabled" }}>Empty</Typography>}</Box>)}</Box>
+      <Box sx={{ display: "grid", gap: 1, mb: 2 }}>{room.beds.map((bed) => <Box key={bed.id} sx={{ p: 1.5, border: "1px solid", borderColor: "divider", borderRadius: 2 }}><Typography sx={{ fontWeight: 650 }}>{bedWord(bed.position)}</Typography>{bed.occupant ? <Typography variant="body2">{bed.occupant.name} <Typography component="span" variant="caption" sx={{ color: "text.secondary" }}>({bed.occupant.matricId})</Typography></Typography> : bed.reserved ? <Typography variant="body2" sx={{ color: "warning.main" }}>Reserved (emergency / quota)</Typography> : <Typography variant="body2" sx={{ color: "text.disabled" }}>Empty</Typography>}</Box>)}</Box>
       {emptyBeds.length > 0 && <Box sx={{ display: "grid", gap: 1.5 }}><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Add or move a student</Typography><TextField select fullWidth label="Student" value={studentId} onChange={(event) => setStudentId(event.target.value)} helperText="Choosing someone with a current room will move them here and release their old room."><MenuItem value="">Choose a student</MenuItem>{candidates.map((student) => <MenuItem key={student.id} value={student.id}>{student.name} · {student.matricId}{student.room ? ` · currently ${student.room}` : " · no room yet"}</MenuItem>)}</TextField><TextField select fullWidth label="Empty bed" value={bedId} onChange={(event) => setBedId(event.target.value)}><MenuItem value="">Choose an empty bed</MenuItem>{emptyBeds.map((bed) => <MenuItem key={bed.id} value={bed.id}>{bedWord(bed.position)}</MenuItem>)}</TextField><KButton loading={pending} disabled={!studentId || !bedId} onClick={() => start(async () => { const result = await adminAssign(studentId, bedId); notify(result.ok ? "Student assigned to this room." : result.error ?? "Could not assign student.", result.ok ? "success" : "error"); if (result.ok) onClose() })}>Save room assignment</KButton></Box>}
       {emptyBeds.length === 0 && <Alert severity="info" sx={{ borderRadius: 2 }}>This room is full. Use another room or move an occupant first.</Alert>}
     </DialogContent>
@@ -922,12 +949,13 @@ function OccupancyTab({ blocks, occupancy }: { blocks: BlockData[]; occupancy: O
   return (
     <Box>
       <Bento sx={{ mb: 3 }}>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Occupancy" value={`${occupancy.occupancyPct}%`} icon="donut_large" /></BentoItem>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Filled" value={occupancy.filled} icon="bed" /></BentoItem>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Free" value={occupancy.free} icon="chair" /></BentoItem>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Maintenance" value={occupancy.maintenance} icon="build" /></BentoItem>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Total beds" value={occupancy.totalBeds} icon="king_bed" /></BentoItem>
-        <BentoItem span={2} spanXs={1}><MetricTile label="Awaiting allocation" value={occupancy.notSelected} icon="person_off" emphasis /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Occupancy" value={`${occupancy.occupancyPct}%`} icon="donut_large" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Filled" value={occupancy.filled} icon="bed" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Free" value={occupancy.free} icon="chair" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Reserved" value={occupancy.reserved} icon="lock" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Maintenance" value={occupancy.maintenance} icon="build" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Total beds" value={occupancy.totalBeds} icon="king_bed" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Awaiting allocation" value={occupancy.notSelected} icon="person_off" emphasis /></BentoItem>
       </Bento>
 
       {blocks.map((b) => (

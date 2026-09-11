@@ -38,6 +38,17 @@ else
   printf 'AUTH_URL=https://mykiz.my\n' >> "$ENV_FILE"
   echo "   -> set AUTH_URL=https://mykiz.my"
 fi
+
+# Public origin for check-in QR links + Open Graph images. Must be a real
+# absolute URL at build time; an empty value would make QRs encode a relative
+# path. Pin it to the live host, replacing any blank/incorrect value.
+if grep -qE '^NEXT_PUBLIC_SITE_URL=https?://[^, ]+$' "$ENV_FILE"; then
+  echo "   -> NEXT_PUBLIC_SITE_URL already set correctly"
+else
+  sed -i '/^NEXT_PUBLIC_SITE_URL=/d' "$ENV_FILE"
+  printf 'NEXT_PUBLIC_SITE_URL=https://mykiz.my\n' >> "$ENV_FILE"
+  echo "   -> set NEXT_PUBLIC_SITE_URL=https://mykiz.my"
+fi
 chown "$RUNUSER:$RUNUSER" "$ENV_FILE"
 
 echo "==> [3/7] npm ci"

@@ -26,6 +26,8 @@ export interface OccupantView {
 export interface BedView {
   id: string
   position: BedPosition
+  /** Held back from allocation (emergency / pengetua quota / staff). */
+  reserved: boolean
   occupant: OccupantView | null
 }
 
@@ -83,6 +85,8 @@ export interface OccupancySummary {
   filled: number
   free: number
   maintenance: number
+  /** Beds held back for emergency / pengetua quota / staff. */
+  reserved: number
   notSelected: number
   occupancyPct: number
 }

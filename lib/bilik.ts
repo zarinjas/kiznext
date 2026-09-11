@@ -66,17 +66,20 @@ export async function getBilikReminder(userId: string, matricId: string): Promis
     where: { intakeId: intake.id, matricId: matricId.toUpperCase(), deletedAt: null },
     select: {
       id: true,
+      bed: { select: { id: true } },
       roomApplication: { where: { deletedAt: null }, select: { id: true } },
       roommateApplications: { where: { deletedAt: null, status: "roommate_confirmed" }, select: { id: true } },
     },
   })
   if (!student) return base
 
+  // Once a bed is assigned, room selection is closed — never remind them to pick.
+  const hasRoom = Boolean(student.bed)
   return {
     ...base,
     eligible: true,
-    hasPick: Boolean(student.roomApplication || student.roommateApplications.length),
-    show: !student.roomApplication && student.roommateApplications.length === 0,
+    hasPick: hasRoom || Boolean(student.roomApplication || student.roommateApplications.length),
+    show: !hasRoom && !student.roomApplication && student.roommateApplications.length === 0,
   }
 }
 
@@ -271,7 +274,9 @@ export async function getOccupancySummary(): Promise<OccupancySummary> {
     where: { deletedAt: null, room: { deletedAt: null } },
     include: { room: true },
   })
-  const totalBeds = beds.filter((b) => b.room.status !== "closed").length
+  const reserved = beds.filter((b) => b.reserved).length
+  // Assignable beds exclude closed rooms and beds held back for reserve quota.
+  const totalBeds = beds.filter((b) => b.room.status !== "closed" && !b.reserved).length
   const filled = beds.filter((b) => b.occupantId).length
   const maintenance = beds.filter((b) => b.room.status === "maintenance").length
 
@@ -283,10 +288,10 @@ export async function getOccupancySummary(): Promise<OccupancySummary> {
     })
   }
 
-  const free = Math.max(0, totalBeds - filled - maintenance)
+  const free = Math.max(0, totalBeds - filled)
   const occupancyPct = totalBeds > 0 ? Math.round((filled / totalBeds) * 100) : 0
 
-  return { totalBeds, filled, free, maintenance, notSelected, occupancyPct }
+  return { totalBeds, filled, free, maintenance, reserved, notSelected, occupancyPct }
 }
 
 /**
@@ -316,6 +321,8 @@ export async function resolveEligibleStudent(userId: string, matricId: string) {
 
 export type RoomApplicationState = {
   eligible: boolean
+  /** True once the KIZ office has assigned this student a bed — selection is then closed. */
+  hasRoom: boolean
   windowState: WindowState
   window: { name: string; opensAt: string; closesAt: string; closingSoonHours: number } | null
   /** Monthly room fees (RM, per student) for the room-type cards. */
@@ -337,7 +344,7 @@ export async function getApplicationState(userId: string, matricId: string): Pro
   const window = win ? { name: win.name, opensAt: win.opensAt.toISOString(), closesAt: win.closesAt.toISOString(), closingSoonHours: win.closingSoonHours } : null
   const ws = win ? windowState({ opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours }, nowMalaysia()) : "not_open"
   const student = await resolveEligibleStudent(userId, matricId)
-  if (!student) return { eligible: false, windowState: ws, window, fees, application: null, incomingRequest: null, allocation: null, reason: "Your matric number is not on the current accommodation offer list. Contact the KIZ office if this is incorrect." }
+  if (!student) return { eligible: false, hasRoom: false, windowState: ws, window, fees, application: null, incomingRequest: null, allocation: null, reason: "Your matric number is not on the current accommodation offer list. Contact the KIZ office if this is incorrect." }
 
   const [application, incoming, confirmedPair, allocationsPublished] = await Promise.all([
     prisma.roomApplication.findFirst({ where: { applicantId: student.id, deletedAt: null }, include: { roommate: true } }),
@@ -345,17 +352,18 @@ export async function getApplicationState(userId: string, matricId: string): Pro
     prisma.roomApplication.findFirst({ where: { roommateId: student.id, status: "roommate_confirmed", deletedAt: null }, include: { applicant: true } }),
     areAllocationsPublished(),
   ])
+  const allocation = student.bed
+    ? roomAssignmentLabel({
+        blockName: student.bed.room.block.name,
+        number: student.bed.room.number,
+        position: student.bed.position,
+      })
+    : null
   return {
-    eligible: true, windowState: ws, window, fees,
+    eligible: true, hasRoom: Boolean(student.bed), windowState: ws, window, fees,
     application: application ? { type: application.type, status: application.status, submittedAt: application.submittedAt.toISOString(), roommate: application.roommate ? { race: application.roommate.race, religion: application.roommate.religion } : null } : confirmedPair ? { type: "double", status: "roommate_confirmed", submittedAt: confirmedPair.submittedAt.toISOString(), roommate: { race: confirmedPair.applicant.race, religion: confirmedPair.applicant.religion } } : null,
     incomingRequest: incoming ? { applicantRace: incoming.applicant.race, applicantReligion: incoming.applicant.religion } : null,
-    allocation: allocationsPublished && student.bed
-      ? roomAssignmentLabel({
-          blockName: student.bed.room.block.name,
-          number: student.bed.room.number,
-          position: student.bed.position,
-        })
-      : null,
+    allocation: allocationsPublished ? allocation : null,
   }
 }
 
@@ -430,7 +438,7 @@ export async function buildPickerState(
     const floorMap = new Map<number, RoomView[]>()
 
     for (const room of block.rooms) {
-      const total = room.beds.length
+      const total = room.beds.filter((b) => !b.reserved).length
       const occupied = room.beds.filter((b) => b.occupantId).length
       const mineHere = room.beds.some((b) => b.occupantId === student.id)
 
@@ -451,6 +459,7 @@ export async function buildPickerState(
         return {
           id: bed.id,
           position: bed.position,
+          reserved: bed.reserved,
           occupant: bed.occupant
             ? {
                 shortName: shortName(bed.occupant.name),

@@ -34,6 +34,7 @@ async function studentContext() {
     getActiveWindow(),
   ])
   if (!student) throw new Error("You are not on the current accepted-student list")
+  if (student.bed) throw new Error("Room selection is closed — you already have a room assigned.")
   if (!win) throw new Error("The accommodation application window is not configured")
   const state = windowState({ opensAt: win.opensAt, closesAt: win.closesAt, closingSoonHours: win.closingSoonHours }, nowMalaysia())
   if (!canSelect(state)) throw new Error("The accommodation application window is closed")

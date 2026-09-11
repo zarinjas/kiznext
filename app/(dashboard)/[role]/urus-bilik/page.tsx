@@ -78,6 +78,7 @@ export default async function UrusBilikPage() {
       beds: r.beds.map((bed) => ({
         id: bed.id,
         position: bed.position,
+        reserved: bed.reserved,
         occupant: bed.occupant ? { id: bed.occupant.id, name: bed.occupant.name, matricId: bed.occupant.matricId } : null,
       })),
     })),
@@ -117,6 +118,7 @@ export default async function UrusBilikPage() {
     ? await prisma.bed.findMany({
         where: {
           occupantId: null,
+          reserved: false,
           deletedAt: null,
           room: { deletedAt: null, status: "available" },
         },

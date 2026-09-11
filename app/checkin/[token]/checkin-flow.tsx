@@ -36,6 +36,9 @@ const ACTION_LABEL: Record<"check_in" | "check_out", string> = {
   check_out: "Check-out",
 }
 
+/** KIZ college green (matches lib/pdf.ts). */
+const KIZ_GREEN = { deep: "#004B23", mid: "#0B6B33", soft: "#EAF7EE" }
+
 export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
   const [step, setStep] = useState<Step>({ name: "matric" })
   const [matric, setMatric] = useState("")
@@ -130,7 +133,7 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: color.brand[900],
+                backgroundColor: KIZ_GREEN.deep,
                 color: "#fff",
                 fontSize: 18,
                 fontWeight: 650,
@@ -148,8 +151,8 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
               px: 1.25,
               py: 0.375,
               borderRadius: 999,
-              backgroundColor: color.brand[50],
-              color: color.brand[800],
+              backgroundColor: KIZ_GREEN.soft,
+              color: KIZ_GREEN.mid,
               fontSize: 12,
               fontWeight: 700,
               mb: 0.75,
@@ -349,7 +352,7 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
                   p: 3,
                   borderRadius: `${radius.cardLg}px`,
                   textAlign: "center",
-                  background: "linear-gradient(135deg, #ECFEFF 0%, #F0FDFA 55%, #F5F3FF 100%)",
+                  background: "linear-gradient(135deg, #EAF7EE 0%, #F1FAF2 55%, #F7FBF3 100%)",
                   border: "1px solid",
                   borderColor: "divider",
                 }}
@@ -369,39 +372,71 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
                 <Box
                   sx={{
                     mt: 2,
-                    p: 2,
-                    borderRadius: `${radius.card}px`,
+                    p: 2.5,
+                    borderRadius: `${radius.cardLg}px`,
                     border: "1px solid",
-                    borderColor: "divider",
+                    borderColor: KIZ_GREEN.mid,
+                    background: "linear-gradient(180deg, #EAF7EE, #FFFFFF)",
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 1.5 }}>
                     <Box
                       sx={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: color.brand[50],
-                        color: color.brand[700],
+                        backgroundColor: KIZ_GREEN.mid,
+                        color: "#fff",
+                        flexShrink: 0,
                       }}
                     >
-                      <KIcon icon="person_add" size={20} />
+                      <KIcon icon="apps" size={22} />
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
-                        Create your KIZ account
+                      <Typography sx={{ fontWeight: 700, fontSize: 16, color: KIZ_GREEN.deep }}>
+                        Get the KIZ app
                       </Typography>
                       <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        Booking facilities, helpdesk, eCard &amp; more.
+                        One app for everything at Kolej Ibu Zain.
                       </Typography>
                     </Box>
                   </Box>
-                  <Button component={Link} href="/daftar" variant="contained" size="large" fullWidth sx={{ mt: 1.5 }}>
+
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, mb: 2 }}>
+                    {[
+                      { icon: "meeting_room", text: "Book facilities & the guest house" },
+                      { icon: "support_agent", text: "Helpdesk, announcements & community chat" },
+                      { icon: "qr_code_2", text: "Your digital eCard for the gate" },
+                    ].map((b) => (
+                      <Box key={b.text} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <KIcon icon={b.icon} size={18} sx={{ color: KIZ_GREEN.mid }} />
+                        <Typography variant="body2" sx={{ color: "text.primary" }}>
+                          {b.text}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+
+                  <Button
+                    component={Link}
+                    href={`/daftar?matric=${encodeURIComponent(lookup?.matricId ?? "")}&name=${encodeURIComponent(lookup?.name ?? "")}`}
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    sx={{
+                      backgroundColor: KIZ_GREEN.deep,
+                      "&:hover": { backgroundColor: KIZ_GREEN.mid },
+                    }}
+                    startIcon={<KIcon icon="person_add" size={18} />}
+                  >
                     Register now
                   </Button>
+                  <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 0.75 }}>
+                    Takes about a minute — just add your UKM email.
+                  </Typography>
                   <Button component={Link} href="/login" size="small" color="inherit" fullWidth sx={{ mt: 0.5 }}>
                     Already have an account? Sign in
                   </Button>

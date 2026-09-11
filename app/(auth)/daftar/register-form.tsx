@@ -13,6 +13,8 @@ import { register } from "./actions"
 
 interface Props {
   logoUrl: string | null
+  defaultMatric?: string
+  defaultName?: string
 }
 
 type Outcome =
@@ -28,7 +30,7 @@ function accountHint(email: string): string | null {
   return null
 }
 
-export function RegisterForm({ logoUrl }: Props) {
+export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
   const [outcome, setOutcome] = useState<Outcome>({ kind: "form" })
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState("")
@@ -163,9 +165,10 @@ export function RegisterForm({ logoUrl }: Props) {
                   autoCorrect="off"
                   required
                   fullWidth
+                  defaultValue={defaultMatric}
                   slotProps={{ htmlInput: { sx: { textTransform: "uppercase" } } }}
                 />
-                <TextField id="name" name="name" label="Full name" placeholder="As printed on your ID" autoComplete="name" required fullWidth />
+                <TextField id="name" name="name" label="Full name" placeholder="As printed on your ID" autoComplete="name" required fullWidth defaultValue={defaultName} />
                 <TextField
                   id="email"
                   name="email"

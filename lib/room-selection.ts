@@ -101,6 +101,30 @@ export function roomSeatState(args: {
 // ── eKolej CSV row mapping ──────────────────────────────────────────────────
 
 export type Gender = "male" | "female"
+export type RoomType = "single" | "double"
+export type RoomStatus = "available" | "maintenance" | "closed"
+
+/**
+ * Physical block → gender. The KIZ residence is single-gender per block, and the
+ * accepted-list export carries no gender column, so a student's gender is
+ * derived from the block they were placed in. Confirmed KIZ layout:
+ *   K18A male · K18B/C/D female · K19A/B male · K19C/D female
+ */
+export const BLOCK_GENDER_MAP: Record<string, Gender> = {
+  K18A: "male",
+  K18B: "female",
+  K18C: "female",
+  K18D: "female",
+  K19A: "male",
+  K19B: "male",
+  K19C: "female",
+  K19D: "female",
+}
+
+export function blockGender(block: string | null | undefined): Gender | null {
+  if (!block) return null
+  return BLOCK_GENDER_MAP[block.trim().toUpperCase()] ?? null
+}
 
 export interface MappedStudent {
   matricId: string
@@ -119,32 +143,49 @@ export interface MappedStudent {
   isOku: boolean
   isUniform: boolean
   merit: number | null
-  /** Room code from the CSV, e.g. "K18A-101". Optional column. */
-  roomNumber: string | null
 }
 
 export type RowIssue =
   | { kind: "invalid"; reason: string }
   | { kind: "duplicate"; reason: string }
   | { kind: "ok" }
+  /** Flagged room row (damaged / reserve / staff) — carries no occupant. */
+  | { kind: "room"; reason: string }
+  /** Named but no matric — a non-student resident (Pengetua, mobility, staff). */
+  | { kind: "occupant"; reason: string }
+  /** Blank bed row — nothing to import. */
+  | { kind: "empty" }
 
 export interface MappedRow {
   raw: Record<string, string>
   mapped: MappedStudent | null
   issue: RowIssue
+  /** Full canonical room code, e.g. "K18A-101". */
+  roomCode: string | null
+  /** Short room number within the block, e.g. "101". */
+  roomNumber: string | null
+  /** Block tag, e.g. "K18A". */
+  block: string | null
+  /** Single vs double, derived from the bed count in the file. */
+  roomType: RoomType | null
+  /** Room status, derived from a flagged row in the same room. */
+  roomStatus: RoomStatus
+  /** True when the room is damaged / reserved / staff. */
+  flagged: boolean
 }
 
 /** Column aliases — tolerant of small header variations in the export. */
-const HEADER_ALIASES: Record<keyof MappedStudent | "bil", string[]> = {
+const HEADER_ALIASES: Record<keyof MappedStudent | "bil" | "block" | "room", string[]> = {
   bil: ["Bil", "No", "#"],
+  block: ["BLOCK", "Blok", "Block"],
   matricId: ["No. Matrik", "No Matrik", "Matrik", "No.Matrik"],
   name: ["Nama", "Name"],
   gender: ["Jantina", "Gender"],
-  faculty: ["Fakulti", "Faculty"],
+  faculty: ["Fakulti", "Faculty", "FAC"],
   yearOfStudy: ["Tahun Pengajian", "Tahun", "Year"],
   religion: ["Agama", "Religion"],
   race: ["Bangsa", "Race"],
-  nationality: ["Warganegara", "Kewarganegaraan", "Nationality"],
+  nationality: ["Warganegara", "Kewarganegaraan", "Nationality", "Country"],
   currentCollege: ["Kolej Semasa", "Kolej", "Current College"],
   choice1: ["Pilihan 1", "Pilihan1", "Pilihan"],
   applicationDate: ["Tarikh Permohonan", "Tarikh"],
@@ -153,7 +194,7 @@ const HEADER_ALIASES: Record<keyof MappedStudent | "bil", string[]> = {
   isOku: ["OKU"],
   isUniform: ["Uniform", "Unit Beruniform"],
   merit: ["Markah", "Merit", "Skor"],
-  roomNumber: ["No. Bilik", "No Bilik", "Nombor Bilik", "Bilik", "Room", "No. Bilik (K18A-101)"],
+  room: ["No. Bilik", "No Bilik", "Nombor Bilik", "Bilik", "Room", "ROOM", "No. Bilik (K18A-101)"],
 }
 
 function pick(row: Record<string, string>, key: keyof typeof HEADER_ALIASES): string {
@@ -239,44 +280,85 @@ export function splitRoomCode(raw: string): SplitRoom | null {
   return { block, number: num }
 }
 
+/** Room flag prefixes found in the NAME column (damaged / reserve / staff). */
+function flagStatus(name: string): RoomStatus | null {
+  const n = (name ?? "").trim().toUpperCase()
+  if (!n) return null
+  if (n.startsWith("ROSAK")) return "maintenance"
+  if (n.startsWith("BILIK GANTIAN") || n.startsWith("KUARINTIN")) return "closed"
+  if (n.startsWith("KEGUNAAN LAIN")) return "closed"
+  return null
+}
+
 /**
- * Map + validate parsed CSV rows. Flags invalid rows (missing matric / bad
- * gender) and duplicate matric numbers (within the file). Duplicates against an
- * existing intake are detected by the caller, which knows the DB state.
+ * Map + validate parsed CSV rows into per-row records, then run a grouping pass
+ * that derives each room's type (single = 1 bed row, double = 2) and status
+ * (from any flagged row in that room).
+ *
+ * Rows are one of four kinds:
+ *  - `ok`        a student (has matric) → gets an EligibleStudent + a bed;
+ *  - `room`      a flagged room row (ROSAK / BILIK GANTIAN / KEGUNAAN LAIN) —
+ *                the room is created with a non-available status, no occupant;
+ *  - `empty`     a blank bed row — skipped;
+ *  - `invalid` / `duplicate` — skipped with a reason.
+ *
+ * Gender is read from a Jantina column when present, otherwise derived from the
+ * block (BLOCK_GENDER_MAP).
  */
 export function mapEkolejRows(rows: Record<string, string>[]): MappedRow[] {
   const seen = new Set<string>()
 
-  return rows.map((raw) => {
-    const matricId = pick(raw, "matricId").toUpperCase()
-    const name = pick(raw, "name")
-    const genderRaw = pick(raw, "gender")
-    const gender = parseGender(genderRaw)
+  const base: MappedRow[] = rows.map((raw) => {
+    const blockRaw = pick(raw, "block").trim().toUpperCase()
+    const roomRaw = pick(raw, "room").trim()
+    const matricId = pick(raw, "matricId").trim().toUpperCase()
+    const name = pick(raw, "name").trim()
 
+    // Resolve the room code from either a "BLOCK" + "ROOM" pair or one full
+    // "No. Bilik" column.
+    let block: string | null = null
+    let roomNumber: string | null = null
+    let roomCodeValue: string | null = null
+    let roomError: string | null = null
+    if (blockRaw || roomRaw) {
+      const combined = blockRaw && roomRaw ? `${blockRaw}-${roomRaw}` : roomRaw
+      const split = splitRoomCode(combined)
+      if (split) {
+        block = split.block
+        roomNumber = split.number
+        roomCodeValue = roomCode(split.block, split.number)
+      } else {
+        roomError = `Unrecognised room "${combined}" — use a block code + number, e.g. K18A-101`
+      }
+    }
+
+    const flag = flagStatus(name)
+
+    // Blank bed row — nothing to import.
+    if (!matricId && !name) {
+      return { raw, mapped: null, issue: { kind: "empty" }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
+    }
+    // Flagged room row (damaged / reserve / staff) — no occupant.
+    if (!matricId && flag) {
+      return { raw, mapped: null, issue: { kind: "room", reason: name }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: flag, flagged: true }
+    }
+    // Named but no matric — a non-student resident (Pengetua, mobility, staff).
     if (!matricId) {
-      return { raw, mapped: null, issue: { kind: "invalid", reason: "Missing matric number" } }
+      return { raw, mapped: null, issue: { kind: "occupant", reason: name }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
     }
     if (!name) {
-      return { raw, mapped: null, issue: { kind: "invalid", reason: "Missing name" } }
+      return { raw, mapped: null, issue: { kind: "invalid", reason: "Missing name" }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
     }
+    if (roomError) {
+      return { raw, mapped: null, issue: { kind: "invalid", reason: roomError }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
+    }
+
+    const gender = parseGender(pick(raw, "gender")) ?? blockGender(block)
     if (!gender) {
-      return {
-        raw,
-        mapped: null,
-        issue: { kind: "invalid", reason: `Unrecognised gender "${genderRaw}"` },
-      }
-    }
-    const roomRaw = pick(raw, "roomNumber")
-    const split = roomRaw ? splitRoomCode(roomRaw) : null
-    if (roomRaw && !split) {
-      return {
-        raw,
-        mapped: null,
-        issue: { kind: "invalid", reason: `Unrecognised room "${roomRaw}" — use the block code, e.g. K18A-101` },
-      }
+      return { raw, mapped: null, issue: { kind: "invalid", reason: `Unknown block "${blockRaw || roomRaw || "?"}" — cannot determine gender` }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
     }
     if (seen.has(matricId)) {
-      return { raw, mapped: null, issue: { kind: "duplicate", reason: "Duplicate matric in file" } }
+      return { raw, mapped: null, issue: { kind: "duplicate", reason: "Duplicate matric in file" }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
     }
     seen.add(matricId)
 
@@ -301,11 +383,73 @@ export function mapEkolejRows(rows: Record<string, string>[]): MappedRow[] {
       isOku: parseBool(pick(raw, "isOku")),
       isUniform: parseBool(pick(raw, "isUniform")),
       merit: merit != null && !isNaN(merit) ? merit : null,
-      roomNumber: split ? roomCode(split.block, split.number) : null,
     }
 
-    return { raw, mapped, issue: { kind: "ok" } }
+    return { raw, mapped, issue: { kind: "ok" }, roomCode: roomCodeValue, roomNumber, block, roomType: null, roomStatus: "available", flagged: false }
   })
+
+  // Grouping pass — bed count per room decides single/double; a flagged row in
+  // the room decides the status.
+  const bedsByRoom = new Map<string, number>()
+  const flagByRoom = new Map<string, RoomStatus>()
+  for (const r of base) {
+    if (!r.roomCode) continue
+    bedsByRoom.set(r.roomCode, (bedsByRoom.get(r.roomCode) ?? 0) + 1)
+    if (r.flagged && r.roomStatus !== "available") flagByRoom.set(r.roomCode, r.roomStatus)
+  }
+  for (const r of base) {
+    if (!r.roomCode) continue
+    r.roomType = (bedsByRoom.get(r.roomCode) ?? 0) <= 1 ? "single" : "double"
+    const roomFlag = flagByRoom.get(r.roomCode)
+    if (roomFlag) {
+      r.roomStatus = roomFlag
+      r.flagged = true
+    }
+  }
+  return base
+}
+
+export interface GroupedRoom {
+  code: string
+  block: string
+  number: string
+  type: RoomType
+  status: RoomStatus
+  flagged: boolean
+  /** Beds held by non-student residents (emergency / pengetua quota / staff). */
+  reservedBeds: number
+  students: MappedStudent[]
+}
+
+/**
+ * Group mapped rows into rooms for creation + bed assignment. `students` only
+ * holds valid, non-duplicate rows; flagged, occupant and empty rows still
+ * contribute to the room's bed count (and therefore its single/double type).
+ * `reservedBeds` counts rows held by non-student residents.
+ */
+export function groupMappedRooms(rows: MappedRow[]): GroupedRoom[] {
+  const map = new Map<string, GroupedRoom>()
+  for (const r of rows) {
+    if (!r.roomCode || !r.block || !r.roomNumber) continue
+    const existing = map.get(r.roomCode)
+    const room: GroupedRoom = existing ?? {
+      code: r.roomCode,
+      block: r.block,
+      number: r.roomNumber,
+      type: r.roomType ?? "double",
+      status: r.roomStatus,
+      flagged: r.flagged,
+      reservedBeds: 0,
+      students: [],
+    }
+    room.type = r.roomType ?? room.type
+    room.status = r.roomStatus
+    room.flagged = room.flagged || r.flagged
+    if (r.issue.kind === "ok" && r.mapped) room.students.push(r.mapped)
+    if (r.issue.kind === "occupant") room.reservedBeds++
+    map.set(r.roomCode, room)
+  }
+  return [...map.values()]
 }
 
 /** Short, privacy-safe display name: "Nurul Aisyah Rahman" → "Nurul A." */

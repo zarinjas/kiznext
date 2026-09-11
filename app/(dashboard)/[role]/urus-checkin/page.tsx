@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
 import { siteUrl } from "@/lib/site-url"
+import { getAppLogoUrl, getStudentCardLogos } from "@/lib/settings"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { CheckinAdminClient } from "./checkin-admin-client"
@@ -15,7 +16,7 @@ export default async function UrusCheckinPage() {
 
   const readOnly = session.user.role === "pengetua"
 
-  const [sessions, records] = await Promise.all([
+  const [sessions, records, appLogoUrl, cardLogos] = await Promise.all([
     prisma.checkInSession.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -27,6 +28,8 @@ export default async function UrusCheckinPage() {
       take: 2000,
       include: { session: { select: { name: true } } },
     }),
+    getAppLogoUrl(),
+    getStudentCardLogos(),
   ])
 
   const sessionsData = await Promise.all(
@@ -39,7 +42,7 @@ export default async function UrusCheckinPage() {
       createdAt: s.createdAt.toISOString(),
       recordCount: s._count.records,
       url: siteUrl(`/checkin/${s.token}`),
-      qrDataUrl: await QRCode.toDataURL(siteUrl(`/checkin/${s.token}`), { width: 280, margin: 1 }),
+      qrDataUrl: await QRCode.toDataURL(siteUrl(`/checkin/${s.token}`), { width: 720, margin: 2 }),
     })),
   )
 
@@ -62,7 +65,12 @@ export default async function UrusCheckinPage() {
         title="Check-in / Check-out"
         subtitle="Create a QR session for move-in or move-out, print the counter sheet, and keep the signed records for the admin file."
       />
-      <CheckinAdminClient readOnly={readOnly} sessions={sessionsData} records={recordsData} />
+      <CheckinAdminClient
+        readOnly={readOnly}
+        sessions={sessionsData}
+        records={recordsData}
+        logos={{ ukmLogoUrl: cardLogos.ukmLogoUrl, appLogoUrl }}
+      />
     </Box>
   )
 }

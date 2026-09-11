@@ -7,7 +7,7 @@ import { requireRole, type Role } from "@/lib/rbac"
 import { getOccupancySummary, getActiveWindow, ALLOCATIONS_PUBLISHED_KEY, ROOM_FEE_SINGLE_KEY, ROOM_FEE_DOUBLE_KEY } from "@/lib/bilik"
 import { revalidatePath } from "next/cache"
 import { parseCsvToObjects } from "@/lib/csv"
-import { mapEkolejRows, nowMalaysia, windowState, splitRoomCode, type MappedRow } from "@/lib/room-selection"
+import { mapEkolejRows, groupMappedRooms, blockGender, nowMalaysia, windowState, type MappedRow, type RoomStatus, type RoomType } from "@/lib/room-selection"
 import { roomCode, parseRoomNumber } from "@/lib/bilik-format"
 import { reconcileIntakeStudents } from "@/lib/registration"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
@@ -25,29 +25,33 @@ async function requireAdmin() {
 export interface ImportPreview {
   headers: string[]
   totalRows: number
-  okCount: number
+  /** Valid new students that will be created. */
+  studentCount: number
+  /** Rooms that will be created (occupied + flagged). */
+  roomCount: number
+  /** Damaged / reserved / staff rooms among them. */
+  flaggedCount: number
   duplicateCount: number
   invalidCount: number
   existingDuplicateCount: number
+  emptyCount: number
+  /** Beds held by non-student residents (Pengetua, mobility, staff). */
+  occupantCount: number
   rows: {
     index: number
     matricId: string
     name: string
     gender: string
     room: string | null
-    status: "ok" | "duplicate" | "invalid" | "existing"
+    roomType: RoomType | null
+    roomStatus: RoomStatus
+    status: "ok" | "duplicate" | "invalid" | "existing" | "room" | "occupant" | "empty"
     reason?: string
   }[]
 }
 
-/** Parse + validate a CSV without writing. Also flags matrics already in an active intake. */
-export async function previewImport(csvText: string): Promise<ImportPreview> {
-  await requireAdmin()
-
-  const { headers, rows } = parseCsvToObjects(csvText)
-  const mapped = mapEkolejRows(rows)
-
-  // Matrics already present in the active intake (cross-file duplicates).
+/** Matrics already present in the active intake (cross-file duplicates). */
+async function activeIntakeMatrics(): Promise<Set<string>> {
   const activeIntake = await prisma.intake.findFirst({
     where: { status: "active", deletedAt: null },
   })
@@ -59,14 +63,26 @@ export async function previewImport(csvText: string): Promise<ImportPreview> {
     })
     rows.forEach((r) => existing.add(r.matricId))
   }
+  return existing
+}
 
-  let okCount = 0
+/** Parse + validate a CSV without writing. Also flags matrics already in an active intake. */
+export async function previewImport(csvText: string): Promise<ImportPreview> {
+  await requireAdmin()
+
+  const { headers, rows } = parseCsvToObjects(csvText)
+  const mapped = mapEkolejRows(rows)
+  const existing = await activeIntakeMatrics()
+
+  let studentCount = 0
   let duplicateCount = 0
   let invalidCount = 0
   let existingDuplicateCount = 0
+  let emptyCount = 0
+  let occupantCount = 0
 
   const previewRows = mapped.map((m: MappedRow, index) => {
-    let status: "ok" | "duplicate" | "invalid" | "existing"
+    let status: ImportPreview["rows"][number]["status"]
     let reason: string | undefined
 
     if (m.issue.kind === "invalid") {
@@ -77,69 +93,84 @@ export async function previewImport(csvText: string): Promise<ImportPreview> {
       status = "duplicate"
       reason = m.issue.reason
       duplicateCount++
+    } else if (m.issue.kind === "room") {
+      status = "room"
+      reason = m.issue.reason
+    } else if (m.issue.kind === "occupant") {
+      status = "occupant"
+      reason = m.issue.reason
+      occupantCount++
+    } else if (m.issue.kind === "empty") {
+      status = "empty"
+      emptyCount++
     } else if (m.mapped && existing.has(m.mapped.matricId)) {
       status = "existing"
       reason = "Already in the active intake"
       existingDuplicateCount++
     } else {
       status = "ok"
-      okCount++
+      studentCount++
     }
 
     return {
       index: index + 1,
-      matricId: m.mapped?.matricId ?? m.raw["No. Matrik"] ?? "—",
-      name: m.mapped?.name ?? m.raw["Nama"] ?? "—",
+      matricId: m.mapped?.matricId ?? m.raw["NO.MATRIK"] ?? m.raw["No. Matrik"] ?? "—",
+      name: m.mapped?.name ?? m.raw["NAME"] ?? m.raw["Nama"] ?? "—",
       gender: m.mapped?.gender ?? "—",
-      room: m.mapped?.roomNumber ?? null,
+      room: m.roomCode,
+      roomType: m.roomType,
+      roomStatus: m.roomStatus,
       status,
       reason,
     }
   })
 
+  // Rooms that will actually be created: any room with a new student, plus every
+  // flagged (damaged / reserve / staff) room.
+  const rooms = groupMappedRooms(mapped)
+  let roomCount = 0
+  let flaggedCount = 0
+  for (const room of rooms) {
+    const hasNewStudent = room.students.some((s) => !existing.has(s.matricId))
+    if (room.flagged) flaggedCount++
+    if (room.flagged || hasNewStudent || room.reservedBeds > 0) roomCount++
+  }
+
   return {
     headers,
     totalRows: mapped.length,
-    okCount,
+    studentCount,
+    roomCount,
+    flaggedCount,
     duplicateCount,
     invalidCount,
     existingDuplicateCount,
+    emptyCount,
+    occupantCount,
     rows: previewRows,
   }
 }
 
-/** Commit an import: create an Intake + EligibleStudent rows for valid, non-duplicate rows. */
+/** Commit an import: create an Intake, rooms (with status), and assign beds. */
 export async function confirmImport(
   csvText: string,
   intakeName: string,
-): Promise<{ ok: boolean; imported: number; roomsAssigned?: number; error?: string }> {
+): Promise<{ ok: boolean; imported: number; roomsCreated?: number; flaggedRooms?: number; error?: string }> {
   const session = await requireAdmin()
   try {
     if (!intakeName.trim()) return { ok: false, imported: 0, error: "Give the intake a name" }
 
     const { rows } = parseCsvToObjects(csvText)
+    const mapped = mapEkolejRows(rows)
+    const existing = await activeIntakeMatrics()
 
-    // Same rule as the preview: only import rows flagged OK. Invalid and
-    // in-file duplicates are dropped by mapEkolejRows; here we additionally drop
-    // any matric that already exists in the current active intake so confirm can
-    // never silently re-import an "existing" row the preview warned about.
-    const activeIntake = await prisma.intake.findFirst({
-      where: { status: "active", deletedAt: null },
-    })
-    const existing = new Set<string>()
-    if (activeIntake) {
-      const current = await prisma.eligibleStudent.findMany({
-        where: { intakeId: activeIntake.id, deletedAt: null },
-        select: { matricId: true },
-      })
-      current.forEach((r) => existing.add(r.matricId))
-    }
+    // Group by room, drop students already in the active intake, and keep only
+    // rooms that have a new student or are flagged (damaged / reserve / staff).
+    const rooms = groupMappedRooms(mapped)
+      .map((room) => ({ ...room, students: room.students.filter((s) => !existing.has(s.matricId)) }))
+      .filter((room) => room.flagged || room.students.length > 0 || room.reservedBeds > 0)
 
-    const mapped = mapEkolejRows(rows).filter(
-      (m) => m.issue.kind === "ok" && m.mapped && !existing.has(m.mapped.matricId),
-    )
-
-    if (mapped.length === 0) {
+    if (rooms.length === 0) {
       return {
         ok: false,
         imported: 0,
@@ -147,7 +178,9 @@ export async function confirmImport(
       }
     }
 
-    let assignedRooms = 0
+    let imported = 0
+    let roomsCreated = 0
+    let flaggedRooms = 0
 
     await prisma.$transaction(async (tx) => {
       const intake = await tx.intake.create({
@@ -155,137 +188,248 @@ export async function confirmImport(
           name: intakeName.trim(),
           status: "imported",
           importedById: session.user.id,
-          rowCount: mapped.length,
+          rowCount: rooms.reduce((n, r) => n + r.students.length, 0),
         },
       })
 
-      for (const m of mapped) {
-        const s = m.mapped!
-        const student = await tx.eligibleStudent.create({
-          data: {
-            intakeId: intake.id,
-            matricId: s.matricId,
-            name: s.name,
-            gender: s.gender,
-            faculty: s.faculty,
-            yearOfStudy: s.yearOfStudy,
-            religion: s.religion,
-            race: s.race,
-            nationality: s.nationality,
-            currentCollege: s.currentCollege,
-            choice1: s.choice1,
-            applicationDate: s.applicationDate,
-            applicationStatus: s.applicationStatus,
-            isB40: s.isB40,
-            isOku: s.isOku,
-            isUniform: s.isUniform,
-            merit: s.merit,
-          },
-        })
+      for (const room of rooms) {
+        const parsed = parseRoomNumber(room.block, room.code)
+        if (!parsed) throw new Error(`Room "${room.code}" doesn't look like a room number (block · floor · 2-digit room)`)
+        const gender = blockGender(room.block)
+        if (!gender) throw new Error(`Unknown block "${room.block}" — add it to BLOCK_GENDER_MAP first`)
 
-        // Rows carrying a room ("No. Bilik") get a bed claimed as part of the
-        // same import — find-or-create the block/room/bed, then auto-assign.
-        // Beds in a twin room go A (left) then B (right) in file order.
-        if (s.roomNumber) {
-          await claimBedForImport(tx, student, s.roomNumber)
-          assignedRooms++
+        // A room with no students and only reserved beds is fully held back.
+        const status: RoomStatus = room.flagged
+          ? room.status
+          : room.students.length === 0 && room.reservedBeds > 0
+            ? "closed"
+            : "available"
+
+        const block = await ensureBlock(tx, room.block, gender, parsed.floor)
+        const roomId = await ensureRoom(tx, block.id, { code: room.code, type: room.type, status }, parsed.floor)
+        roomsCreated++
+        if (room.flagged) flaggedRooms++
+
+        for (const student of room.students) {
+          const created = await tx.eligibleStudent.create({
+            data: {
+              intakeId: intake.id,
+              matricId: student.matricId,
+              name: student.name,
+              gender: student.gender,
+              faculty: student.faculty,
+              yearOfStudy: student.yearOfStudy,
+              religion: student.religion,
+              race: student.race,
+              nationality: student.nationality,
+              currentCollege: student.currentCollege,
+              choice1: student.choice1,
+              applicationDate: student.applicationDate,
+              applicationStatus: student.applicationStatus,
+              isB40: student.isB40,
+              isOku: student.isOku,
+              isUniform: student.isUniform,
+              merit: student.merit,
+            },
+          })
+          await claimBed(tx, roomId, created.id, room.code)
+          imported++
         }
-      }
 
-      if (assignedRooms > 0 && assignedRooms !== mapped.length) {
-        const missing = mapped.filter((m) => !m.mapped!.roomNumber).map((m) => m.mapped!.matricId)
-        throw new Error(
-          `${missing.length} student${missing.length === 1 ? "" : "s"} (${missing.join(", ")}) have no room in the file — give every row a No. Bilik before importing.`,
-        )
+        if (room.reservedBeds > 0) await markReservedBeds(tx, roomId, room.reservedBeds)
       }
     })
 
     revalidatePath(`/${session.user.role}/urus-bilik`)
     revalidatePath("/ahli")
-    return { ok: true, imported: mapped.length, roomsAssigned: assignedRooms }
+    return { ok: true, imported, roomsCreated, flaggedRooms }
   } catch (e) {
     return { ok: false, imported: 0, error: e instanceof Error ? e.message : "Import failed" }
   }
 }
 
-/**
- * Claim a bed for a freshly-imported EligibleStudent against a room code from
- * the CSV (e.g. "K18A-101"). Finds or creates the block, room (double = 2 beds)
- * and claims the first free bed. Runs inside the import transaction.
- */
-async function claimBedForImport(
-  tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$use" | "$extends">,
-  student: { id: string; gender: "male" | "female" },
-  roomNumber: string,
-): Promise<void> {
-  const split = splitRoomCode(roomNumber)
-  if (!split) throw new Error(`Invalid room code "${roomNumber}" for ${student.id}`)
-  const code = roomCode(split.block, split.number)
-  const parsed = parseRoomNumber(split.block, code)
-  if (!parsed) throw new Error(`Room "${code}" doesn't look like a room number (block · floor · 2-digit room)`)
+type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$use" | "$extends">
 
-  const existingBlock = await tx.residenceBlock.findFirst({ where: { name: split.block, deletedAt: null } })
-  if (existingBlock && existingBlock.gender !== student.gender) {
-    throw new Error(
-      `Block ${existingBlock.name} is for ${existingBlock.gender} students — ${student.id} is ${student.gender}. Check the room list.`,
-    )
+/** Find-or-create a block with the given gender; grow its floor count to fit. */
+async function ensureBlock(tx: Tx, name: string, gender: "male" | "female", floor: number) {
+  const existing = await tx.residenceBlock.findFirst({ where: { name, deletedAt: null } })
+  if (existing) {
+    if (existing.gender !== gender) {
+      throw new Error(
+        `Block ${name} is set to ${existing.gender} in the system but the file places ${gender} students there. Fix the block gender first.`,
+      )
+    }
+    if (existing.floors < floor + 1) {
+      await tx.residenceBlock.update({ where: { id: existing.id }, data: { floors: floor + 1 } })
+    }
+    return existing
   }
-  const block = existingBlock ?? (await tx.residenceBlock.create({
-    data: { name: split.block, gender: student.gender, floors: Math.max(parsed.floor + 1, 2) },
-  }))
-
-  // Find or create the room, then re-read it WITH its beds so the free-bed
-  // scan below always sees the freshest set (new rooms get A/B created here).
-  const existingRoom = await tx.residenceRoom.findFirst({
-    where: { blockId: block.id, number: code, deletedAt: null },
-    select: { id: true },
+  return tx.residenceBlock.create({
+    data: { name, gender, floors: Math.max(floor + 1, 2) },
   })
-  const roomId = existingRoom?.id ?? (await tx.residenceRoom.create({
-    data: {
-      blockId: block.id,
-      floor: parsed.floor,
-      number: code,
-      type: "double",
-      status: "available",
-      sortOrder: 0,
-    },
-    select: { id: true },
-  })).id
-  if (!existingRoom) {
-    for (const position of ["left", "right"] as const) {
-      await tx.bed.create({ data: { roomId, position } })
+}
+
+/**
+ * Find-or-create a room with the file's type (single/double) and status, then
+ * make sure its beds match the type. Returns the room id.
+ */
+async function ensureRoom(
+  tx: Tx,
+  blockId: string,
+  room: { code: string; type: RoomType; status: RoomStatus },
+  floor: number,
+): Promise<string> {
+  const existing = await tx.residenceRoom.findFirst({
+    where: { blockId, number: room.code, deletedAt: null },
+    include: { beds: true },
+  })
+
+  if (existing) {
+    const occupied = existing.beds.filter((b) => !b.deletedAt && b.occupantId).length
+    if (existing.type !== room.type) {
+      if (occupied > 0) {
+        throw new Error(
+          `Room ${room.code} already has ${occupied} occupant(s) as a ${existing.type} room — the file says ${room.type}. Resolve the mismatch first.`,
+        )
+      }
+      await tx.residenceRoom.update({ where: { id: existing.id }, data: { type: room.type } })
+    }
+    await tx.residenceRoom.update({ where: { id: existing.id }, data: { status: room.status } })
+    await syncBeds(tx, existing.id, room.type, existing.beds)
+    return existing.id
+  }
+
+  const created = await tx.residenceRoom.create({
+    data: { blockId, floor, number: room.code, type: room.type, status: room.status, sortOrder: 0 },
+  })
+  await syncBeds(tx, created.id, room.type, [])
+  return created.id
+}
+
+/**
+ * Ensure a room has exactly the beds its type needs (single → 1, double → 2).
+ * `current` must include soft-deleted beds: the `(roomId, position)` unique
+ * constraint ignores `deletedAt`, so a bed is revived rather than re-created.
+ */
+async function syncBeds(
+  tx: Tx,
+  roomId: string,
+  type: RoomType,
+  current: { id: string; position: string; occupantId: string | null; reserved: boolean; deletedAt: Date | null }[],
+): Promise<void> {
+  const wanted = type === "single" ? ["single"] : ["left", "right"]
+  for (const position of wanted) {
+    const bed = current.find((b) => b.position === position)
+    if (!bed) {
+      await tx.bed.create({ data: { roomId, position: position as "single" | "left" | "right" } })
+    } else if (bed.deletedAt) {
+      await tx.bed.update({ where: { id: bed.id }, data: { deletedAt: null } })
     }
   }
-
-  const room = await tx.residenceRoom.findUnique({
-    where: { id: roomId },
-    include: { beds: { where: { deletedAt: null } } },
-  })
-  if (!room) throw new Error(`Room ${code} not found after create.`)
-  if (room.status !== "available") {
-    throw new Error(
-      `Room ${code} is ${room.status === "closed" ? "closed" : "under maintenance"} — set it available in Room inventory first.`,
-    )
+  // Soft-delete stray beds (e.g. a former twin) that have no occupant.
+  for (const bed of current) {
+    if (!wanted.includes(bed.position) && !bed.occupantId && !bed.reserved && !bed.deletedAt) {
+      await tx.bed.update({ where: { id: bed.id }, data: { deletedAt: nowMalaysia() } })
+    }
   }
+}
 
-  // Free beds, twins preferred left → right.
-  const free = room.beds
+/** Claim the first free, non-reserved bed in a room (twins left → right). */
+async function claimBed(tx: Tx, roomId: string, studentId: string, code: string): Promise<void> {
+  const beds = await tx.bed.findMany({ where: { roomId, deletedAt: null, reserved: false } })
+  const free = beds
     .filter((b) => !b.occupantId)
     .sort((a, b) => bedPriority(a.position) - bedPriority(b.position))
-  if (free.length === 0) {
-    throw new Error(`Room ${code} is already full — no free bed for ${student.id}.`)
-  }
+  if (free.length === 0) throw new Error(`Room ${code} is already full — no free bed.`)
 
   const claimed = await tx.bed.updateMany({
-    where: { id: free[0].id, occupantId: null, deletedAt: null },
-    data: { occupantId: student.id },
+    where: { id: free[0].id, occupantId: null, reserved: false, deletedAt: null },
+    data: { occupantId: studentId },
   })
   if (claimed.count === 0) throw new Error(`Bed in ${code} was just taken — try the import again.`)
 
   await tx.eligibleStudent.update({
-    where: { id: student.id },
+    where: { id: studentId },
     data: { selectedAt: nowMalaysia(), assignedByAdmin: true },
   })
+}
+
+/** Hold back the next free beds in a room (emergency / pengetua quota / staff). */
+async function markReservedBeds(tx: Tx, roomId: string, count: number): Promise<void> {
+  if (count <= 0) return
+  const beds = await tx.bed.findMany({
+    where: { roomId, deletedAt: null, occupantId: null, reserved: false },
+  })
+  const targets = beds
+    .sort((a, b) => bedPriority(a.position) - bedPriority(b.position))
+    .slice(0, count)
+  for (const bed of targets) {
+    await tx.bed.update({ where: { id: bed.id }, data: { reserved: true } })
+  }
+}
+
+/**
+ * Change a room's type (single ↔ twin) from the inventory. Occupants are kept:
+ * a single room with a student becomes a twin with that student in Bed A; a twin
+ * can only become single when at most one bed is occupied. Existing bed rows are
+ * revived/soft-deleted (never hard-deleted) so the `(roomId, position)` unique
+ * constraint is always satisfied.
+ */
+export async function updateRoomType(roomId: string, type: RoomType) {
+  const session = await requireAdmin()
+  await prisma.$transaction(async (tx) => {
+    const room = await tx.residenceRoom.findFirst({
+      where: { id: roomId, deletedAt: null },
+      include: { beds: true },
+    })
+    if (!room) throw new Error("Room not found")
+    if (room.type === type) return
+
+    const occupants = room.beds.filter((b) => b.occupantId)
+    if (type === "single" && occupants.length > 1) {
+      throw new Error("Both beds are occupied — move one student out before switching to a single room.")
+    }
+
+    const wanted = (type === "single" ? ["single"] : ["left", "right"]) as ("single" | "left" | "right")[]
+
+    // Ensure a bed row exists for each wanted position (revive a tombstone when
+    // one is already there, otherwise create).
+    const ensured = new Map<string, string>()
+    for (const position of wanted) {
+      const existing = room.beds.find((b) => b.position === position)
+      if (existing) {
+        if (existing.deletedAt) await tx.bed.update({ where: { id: existing.id }, data: { deletedAt: null } })
+        ensured.set(position, existing.id)
+      } else {
+        const created = await tx.bed.create({ data: { roomId, position } })
+        ensured.set(position, created.id)
+      }
+    }
+
+    // Clear every occupant in the room first, then re-place them (avoids the
+    // unique `occupantId` clashing while moving).
+    for (const bed of occupants) {
+      await tx.bed.update({ where: { id: bed.id }, data: { occupantId: null } })
+    }
+    let index = 0
+    for (const bed of occupants) {
+      const position = wanted[Math.min(index, wanted.length - 1)]
+      const targetBedId = ensured.get(position)!
+      await tx.bed.update({ where: { id: targetBedId }, data: { occupantId: bed.occupantId } })
+      index++
+    }
+
+    // Soft-delete any bed whose position is no longer wanted.
+    for (const bed of room.beds) {
+      if (!wanted.includes(bed.position) && !bed.deletedAt) {
+        await tx.bed.update({ where: { id: bed.id }, data: { deletedAt: nowMalaysia() } })
+      }
+    }
+
+    await tx.residenceRoom.update({ where: { id: roomId }, data: { type } })
+  })
+  revalidatePath(`/${session.user.role}/urus-bilik`)
+  revalidatePath("/ahli")
 }
 
 function bedPriority(position: string): number {
@@ -665,6 +809,7 @@ export async function adminAssign(
       include: { room: { include: { block: true, beds: { where: { deletedAt: null } } } } },
     })
     if (!bed) return { ok: false, error: "Bed not found" }
+    if (bed.reserved) return { ok: false, error: "That bed is reserved (emergency / quota) and can't be assigned." }
     if (bed.room.status !== "available") {
       return { ok: false, error: "That room is under maintenance or closed" }
     }
@@ -672,7 +817,7 @@ export async function adminAssign(
       return { ok: false, error: "Block gender doesn't match the student" }
     }
     const roommateBed = roommateId
-      ? bed.room.beds.find((candidate) => candidate.id !== bed.id && candidate.occupantId === null)
+      ? bed.room.beds.find((candidate) => candidate.id !== bed.id && candidate.occupantId === null && !candidate.reserved)
       : null
     if (roommateId && (bed.room.type !== "double" || !roommateBed)) {
       return { ok: false, error: "A confirmed pair must be assigned to a double room with two free beds" }
@@ -690,14 +835,14 @@ export async function adminAssign(
       // Free the student's current bed and claim the new one atomically.
       await tx.bed.updateMany({ where: { occupantId: student.id }, data: { occupantId: null } })
       const claimed = await tx.bed.updateMany({
-        where: { id: bedId, occupantId: null, deletedAt: null },
+        where: { id: bedId, occupantId: null, reserved: false, deletedAt: null },
         data: { occupantId: student.id },
       })
       if (claimed.count === 0) throw new Error("That bed is already taken")
       if (roommateId && roommateBed) {
         await tx.bed.updateMany({ where: { occupantId: roommateId }, data: { occupantId: null } })
         const roommateClaimed = await tx.bed.updateMany({
-          where: { id: roommateBed.id, occupantId: null, deletedAt: null },
+          where: { id: roommateBed.id, occupantId: null, reserved: false, deletedAt: null },
           data: { occupantId: roommateId },
         })
         if (roommateClaimed.count === 0) throw new Error("The second bed was just taken")

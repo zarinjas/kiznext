@@ -24,6 +24,7 @@ import { FormSection } from "@/components/kiz/patterns/form-section"
 import { color, radius } from "@/lib/theme"
 import { formatMalaysia } from "@/lib/timezone"
 import { toCsv } from "@/lib/csv"
+import { buildXlsx } from "@/lib/xlsx"
 import { createCheckInSession, setCheckInSessionActive } from "@/lib/checkin"
 import type { GridColDef } from "@mui/x-data-grid"
 
@@ -54,6 +55,69 @@ interface RecordRow {
   signedAt: string
 }
 
+/** One student, with their check-in and (later) check-out merged onto one row. */
+interface ConsolidatedRow {
+  id: string
+  matricId: string
+  name: string
+  roomLabel: string | null
+  checkInAt: string | null
+  checkOutAt: string | null
+  checkInSession: string | null
+  checkOutSession: string | null
+  checkInSignatureUrl: string | null
+  checkOutSignatureUrl: string | null
+  /** Session ids the student appears in (for the session filter). */
+  sessionIds: string[]
+}
+
+/**
+ * Merge per-record check-in / check-out rows into one row per student. A
+ * student who has only checked in gets an empty check-out — that's expected
+ * until the move-out session runs.
+ */
+function consolidate(records: RecordRow[]): ConsolidatedRow[] {
+  const map = new Map<string, ConsolidatedRow>()
+  for (const r of records) {
+    const key = r.matricId.toUpperCase()
+    let row = map.get(key)
+    if (!row) {
+      row = {
+        id: key,
+        matricId: r.matricId,
+        name: r.name,
+        roomLabel: r.roomLabel,
+        checkInAt: null,
+        checkOutAt: null,
+        checkInSession: null,
+        checkOutSession: null,
+        checkInSignatureUrl: null,
+        checkOutSignatureUrl: null,
+        sessionIds: [],
+      }
+      map.set(key, row)
+    }
+    if (!row.sessionIds.includes(r.sessionId)) row.sessionIds.push(r.sessionId)
+    if (r.name) row.name = r.name
+    if (r.type === "check_in") {
+      // Prefer the check-in record's room snapshot, and the latest time.
+      if (r.roomLabel) row.roomLabel = r.roomLabel
+      if (!row.checkInAt || new Date(r.signedAt) > new Date(row.checkInAt)) {
+        row.checkInAt = r.signedAt
+        row.checkInSession = r.sessionName
+        row.checkInSignatureUrl = r.signatureUrl
+      }
+    } else {
+      if (!row.checkOutAt || new Date(r.signedAt) > new Date(row.checkOutAt)) {
+        row.checkOutAt = r.signedAt
+        row.checkOutSession = r.sessionName
+        row.checkOutSignatureUrl = r.signatureUrl
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
 const TYPE_META: Record<TypeVal, { label: string; tone: PillTone }> = {
   check_in: { label: "Check-in", tone: "info" },
   check_out: { label: "Check-out", tone: "warning" },
@@ -61,6 +125,21 @@ const TYPE_META: Record<TypeVal, { label: string; tone: PillTone }> = {
 
 function typeLabel(t: TypeVal) {
   return TYPE_META[t].label
+}
+
+/** Block prefix from a room label ("K18A-101 (Bed A)" → "K18A"). */
+function blockOf(roomLabel: string | null): string {
+  const m = (roomLabel ?? "").match(/^([A-Za-z0-9]+)\s*-/)
+  return m ? m[1].toUpperCase() : "Unassigned"
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function Pill({ tone, children }: { tone: PillTone; children: React.ReactNode }) {
@@ -112,63 +191,162 @@ function escHtml(s: string): string {
     .replace(/"/g, "&quot;")
 }
 
-/** Open a print-ready report in a new window and print it. */
-function printHtml(title: string, body: string) {
-  const w = window.open("", "_blank", "width=900,height=1200")
-  if (!w) return
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111; padding: 32px; }
-    h1 { font-size: 22px; letter-spacing: -0.02em; }
-    h2 { font-size: 15px; font-weight: 600; margin: 18px 0 4px; }
-    .muted { color: #71717a; font-size: 12px; }
-    .brand { display:flex; align-items:center; gap:10px; margin-bottom: 20px; }
-    .brand .logo { width: 30px; height: 30px; border-radius: 8px; background: #164E63; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
-    th, td { border: 1px solid #d4d4d8; padding: 6px 8px; text-align: left; }
-    th { background: #f4f4f5; }
-    .badge { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge.check_in { background:#e0f2fe; color:#075985; }
-    .badge.check_out { background:#fef3c7; color:#92400e; }
-    .qr { margin: 16px 0; }
-    .steps { margin-top: 8px; padding-left: 18px; }
-    .steps li { margin: 4px 0; font-size: 14px; }
-    .sig img { height: 34px; object-fit: contain; }
-    @media print { body { padding: 12px; } }
-  </style></head><body>${body}</body></html>`)
-  w.document.close()
-  w.focus()
-  setTimeout(() => {
-    w.print()
-  }, 350)
+interface PrintLogos {
+  ukmLogoUrl: string | null
+  appLogoUrl: string | null
 }
 
-function buildPosterHtml(s: SessionRow) {
+const PRINT_STYLES = `
+  @page { size: A4 portrait; margin: 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0F172A; }
+  .muted { color: #64748B; font-size: 12px; }
+
+  /* ── Document header (shared) ── */
+  .doc-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 18px; border: 1px solid #C7E6CE; background: linear-gradient(120deg, #EAF7EE 0%, #F1FAF2 55%, #F7FBF3 100%); }
+  .doc-header .logos { display: flex; align-items: center; gap: 16px; }
+  .doc-header .logos img { height: 54px; width: auto; max-width: 150px; object-fit: contain; }
+  .doc-header .brandtext { text-align: right; }
+  .doc-header h1 { font-size: 19px; letter-spacing: -0.02em; color: #004B23; }
+  .rule { height: 3px; width: 100%; background: linear-gradient(90deg, #004B23, #91C953); border-radius: 999px; margin: 12px 0 20px; }
+
+  /* ── Badges ── */
+  .badge { display: inline-block; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 800; letter-spacing: 0.10em; }
+  .badge.check_in { background: linear-gradient(135deg, #0B6B33, #004B23); color: #fff; }
+  .badge.check_out { background: linear-gradient(135deg, #F59E0B, #D97706); color: #fff; }
+
+  /* ── Records report ── */
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+  th, td { border: 1px solid #E2E8F0; padding: 6px 8px; text-align: left; vertical-align: middle; }
+  th { background: #F1F5F9; }
+  .sig img { height: 34px; object-fit: contain; }
+
+  /* ── Poster ── */
+  .poster { text-align: center; }
+  .poster .poster-title { font-size: 38px; letter-spacing: -0.035em; line-height: 1.05; margin: 14px 0 8px; color: #0F172A; }
+  .poster .session { display: inline-block; font-size: 14px; font-weight: 700; color: #0B6B33; background: #EAF7EE; border: 1px solid #C7E6CE; border-radius: 999px; padding: 5px 14px; }
+  .poster .qr-wrap { margin: 20px auto 4px; width: 110mm; padding: 8mm; border-radius: 24px; background: #fff; border: 2px solid #A9D9B5; box-shadow: 0 0 0 7px #EAF7EE; }
+  .poster .qr-wrap img { display: block; width: 100%; height: auto; }
+  .poster .scan-hint { font-size: 15px; color: #475569; font-weight: 600; margin: 20px 0 22px; }
+  .poster .steps { text-align: left; max-width: 162mm; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 18px; padding: 20px 24px; background: linear-gradient(180deg, #F8FAFC, #FFFFFF); }
+  .poster .steps h3 { font-size: 15px; color: #004B23; margin-bottom: 12px; }
+  .poster .steps ol { list-style: none; counter-reset: step; padding: 0; }
+  .poster .steps li { position: relative; padding-left: 36px; margin: 11px 0; font-size: 14px; color: #334155; }
+  .poster .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 24px; height: 24px; border-radius: 999px; background: linear-gradient(135deg, #0B6B33, #004B23); color: #fff; font-size: 12px; font-weight: 800; line-height: 24px; text-align: center; }
+  .poster .steps li b { color: #0F172A; }
+  .poster .footer { margin-top: 18px; color: #94A3B8; font-size: 12px; }
+`
+
+/** Build the shared A4 document header with the UKM + myKIZ logos. */
+function docHeader(logos: PrintLogos, rightTitle: string, rightSub: string): string {
+  const logoImgs = [
+    logos.ukmLogoUrl ? `<img src="${escHtml(logos.ukmLogoUrl)}" alt="UKM" />` : "",
+    logos.appLogoUrl ? `<img src="${escHtml(logos.appLogoUrl)}" alt="myKIZ" />` : "",
+  ].join("")
+  return `<div class="doc-header">
+    <div class="logos">${logoImgs || '<span class="muted">KOLEJ IBU ZAIN</span>'}</div>
+    <div class="brandtext"><h1>${escHtml(rightTitle)}</h1><div class="muted">${escHtml(rightSub)}</div></div>
+  </div>
+  <div class="rule"></div>`
+}
+
+/**
+ * Print an HTML fragment at A4 using a hidden same-origin iframe. More reliable
+ * than window.open (no popup blocker) and waits for images before printing.
+ */
+function printHtml(title: string, body: string) {
+  const prev = document.getElementById("__kiz_print_frame")
+  if (prev) prev.remove()
+
+  const iframe = document.createElement("iframe")
+  iframe.id = "__kiz_print_frame"
+  iframe.setAttribute("aria-hidden", "true")
+  iframe.style.position = "fixed"
+  iframe.style.left = "-9999px"
+  iframe.style.top = "0"
+  iframe.style.width = "1px"
+  iframe.style.height = "1px"
+  iframe.style.border = "0"
+  document.body.appendChild(iframe)
+
+  const doc = iframe.contentWindow?.document
+  if (!doc) {
+    iframe.remove()
+    return
+  }
+
+  doc.open()
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>${PRINT_STYLES}</style></head><body>${body}</body></html>`)
+  doc.close()
+
+  const win = iframe.contentWindow
+  const trigger = () => {
+    try {
+      win?.focus()
+      win?.print()
+    } finally {
+      setTimeout(() => iframe.remove(), 1500)
+    }
+  }
+
+  const images = Array.from(doc.images)
+  if (images.length === 0) {
+    setTimeout(trigger, 200)
+    return
+  }
+  let remaining = images.length
+  const oneDone = () => {
+    remaining -= 1
+    if (remaining <= 0) trigger()
+  }
+  images.forEach((img) => {
+    if (img.complete) oneDone()
+    else {
+      img.onload = oneDone
+      img.onerror = oneDone
+    }
+  })
+  // Safety net in case an image never fires.
+  setTimeout(() => {
+    if (document.getElementById("__kiz_print_frame")) trigger()
+  }, 2500)
+}
+
+function buildPosterHtml(s: SessionRow, logos: PrintLogos) {
+  const isIn = s.type === "check_in"
+  const action = isIn ? "CHECK-IN" : "CHECK-OUT"
   return `
-  <div class="brand"><span class="logo">K</span><div><h1>KOLEJ IBU ZAIN — ${escHtml(typeLabel(s.type))}</h1>
-  <div class="muted">Kolej Ibu Zain · Universiti Kebangsaan Malaysia · ${escHtml(s.name)}</div></div></div>
-  <p>Students — scan this QR code with your phone camera to check ${s.type === "check_in" ? "in" : "out"}.</p>
-  <div class="qr"><img src="${s.qrDataUrl}" width="230" height="230" alt="QR code" /></div>
-  <h2>How it works</h2>
-  <ol class="steps">
-    <li>Open your phone camera and scan the QR code above.</li>
-    <li>Enter your <b>Matric No.</b>.</li>
-    <li>Confirm your name and <b>sign</b> on your phone.</li>
-    <li>Your <b>block &amp; room number</b> will appear — note it down.</li>
-    ${s.type === "check_in" ? '<li>Collect your room key at the <b>UKM Real Estate</b> counter.</li>' : "<li>Return your key at the <b>UKM Real Estate</b> counter.</li>"}
-  </ol>
-  <p class="muted" style="margin-top:18px">Need help? Ask the staff at the KIZ counter.</p>`
+  ${docHeader(logos, "KOLEJ IBU ZAIN", "Universiti Kebangsaan Malaysia")}
+  <div class="poster">
+    <span class="badge ${s.type}">${action}</span>
+    <h2 class="poster-title">Scan to check ${isIn ? "in" : "out"}</h2>
+    <div class="session">${escHtml(s.name)}</div>
+    <div class="qr-wrap"><img src="${s.qrDataUrl}" alt="Check-in QR code" /></div>
+    <div class="scan-hint">Open your phone camera and point it at the QR code</div>
+    <div class="steps">
+      <h3>How to check ${isIn ? "in" : "out"}</h3>
+      <ol>
+        <li>Scan the QR code with your phone camera.</li>
+        <li>Enter your <b>Matric No.</b></li>
+        <li>Confirm your name and <b>sign</b> on your phone.</li>
+        <li>Your <b>block &amp; room number</b> will appear — note it down.</li>
+        ${isIn ? "<li>Collect your room key at the <b>UKM Real Estate</b> counter.</li>" : "<li>Return your room key at the <b>UKM Real Estate</b> counter.</li>"}
+      </ol>
+    </div>
+    <p class="footer">Need help? Ask the staff at the KIZ counter.</p>
+  </div>`
 }
 
 export function CheckinAdminClient({
   readOnly,
   sessions,
   records,
+  logos,
 }: {
   readOnly: boolean
   sessions: SessionRow[]
   records: RecordRow[]
+  logos: PrintLogos
 }) {
   const router = useRouter()
   const [tab, setTab] = useState(readOnly ? 1 : 0)
@@ -181,10 +359,10 @@ export function CheckinAdminClient({
   const [creating, setCreating] = useState(false)
 
   // Records filters
-  const [typeFilter, setTypeFilter] = useState<"all" | TypeVal>("all")
   const [sessionFilter, setSessionFilter] = useState<string>("all")
+  const [blockFilter, setBlockFilter] = useState<string>("all")
   const [q, setQ] = useState("")
-  const [detail, setDetail] = useState<RecordRow | null>(null)
+  const [detail, setDetail] = useState<ConsolidatedRow | null>(null)
 
   async function onCreate() {
     setCreating(true)
@@ -209,85 +387,149 @@ export function CheckinAdminClient({
     }
   }
 
+  const students = useMemo(() => consolidate(records), [records])
+
+  const recordCheckInCount = records.filter((r) => r.type === "check_in").length
+  const recordCheckOutCount = records.filter((r) => r.type === "check_out").length
+
+  const blocks = useMemo(() => {
+    const set = new Set<string>()
+    students.forEach((s) => set.add(blockOf(s.roomLabel)))
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [students])
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return records.filter((r) => {
-      if (typeFilter !== "all" && r.type !== typeFilter) return false
-      if (sessionFilter !== "all" && r.sessionId !== sessionFilter) return false
+    return students.filter((s) => {
+      if (sessionFilter !== "all" && !s.sessionIds.includes(sessionFilter)) return false
+      if (blockFilter !== "all" && blockOf(s.roomLabel) !== blockFilter) return false
       if (needle) {
-        const hay = `${r.matricId} ${r.name} ${r.roomLabel ?? ""}`.toLowerCase()
+        const hay = `${s.matricId} ${s.name} ${s.roomLabel ?? ""}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
     })
-  }, [records, typeFilter, sessionFilter, q])
+  }, [students, sessionFilter, blockFilter, q])
 
-  const checkInCount = records.filter((r) => r.type === "check_in").length
-  const checkOutCount = records.filter((r) => r.type === "check_out").length
+  const checkedInCount = filtered.filter((s) => s.checkInAt).length
+  const checkedOutCount = filtered.filter((s) => s.checkOutAt).length
 
-  function onExport() {
-    const rows = filtered.map((r) => ({
-      "Matric No.": r.matricId,
-      Name: r.name,
-      Type: typeLabel(r.type),
-      "Block / Room": r.roomLabel ?? "",
-      Session: r.sessionName,
-      "Signed at (KL)": formatMalaysia(new Date(r.signedAt)),
+  const statusOf = (s: ConsolidatedRow) => (s.checkOutAt ? "Checked out" : "Checked in")
+  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block / Room", "Check-in (KL)", "Check-out (KL)", "Status"]
+  const toRows = (list: ConsolidatedRow[]) =>
+    list.map((s, i) => [
+      i + 1,
+      s.matricId,
+      s.name,
+      s.roomLabel ?? "",
+      s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
+      s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
+      statusOf(s),
+    ])
+
+  function onExportExcel() {
+    // One sheet per block (plus a summary + "All students") so the office can
+    // file each block separately without touching a spreadsheet library.
+    const byBlock = new Map<string, ConsolidatedRow[]>()
+    for (const s of filtered) {
+      const b = blockOf(s.roomLabel)
+      const list = byBlock.get(b) ?? []
+      list.push(s)
+      byBlock.set(b, list)
+    }
+    const sortedBlocks = [...byBlock.keys()].sort((a, b) => a.localeCompare(b))
+
+    const summaryRows = sortedBlocks.map((b) => {
+      const list = byBlock.get(b)!
+      return [b, list.length, list.filter((s) => s.checkInAt).length, list.filter((s) => s.checkOutAt).length]
+    })
+    summaryRows.push(["Total", filtered.length, checkedInCount, checkedOutCount])
+
+    const sheets = [
+      { name: "Summary", headers: ["Block", "Students", "Checked in", "Checked out"], rows: summaryRows },
+      { name: "All students", headers: EXPORT_HEADERS, rows: toRows(filtered) },
+      ...sortedBlocks.map((b) => ({ name: b, headers: EXPORT_HEADERS, rows: toRows(byBlock.get(b)!) })),
+    ]
+
+    downloadBlob(buildXlsx(sheets), `check-in-records-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+  function onExportCsv() {
+    const rows = filtered.map((s) => ({
+      "Matric No.": s.matricId,
+      Name: s.name,
+      "Block / Room": s.roomLabel ?? "",
+      "Check-in (KL)": s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
+      "Check-out (KL)": s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
+      Status: statusOf(s),
     }))
-    const csv = toCsv(["Matric No.", "Name", "Type", "Block / Room", "Session", "Signed at (KL)"], rows)
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `check-in-records-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const csv = toCsv(["Matric No.", "Name", "Block / Room", "Check-in (KL)", "Check-out (KL)", "Status"], rows)
+    downloadBlob(
+      new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" }),
+      `check-in-records-${new Date().toISOString().slice(0, 10)}.csv`,
+    )
   }
 
   function onPrintRecords() {
+    const sigCell = (urls: (string | null)[]) => {
+      const imgs = urls.filter(Boolean) as string[]
+      if (imgs.length === 0) return "—"
+      return imgs.map((u) => `<img src="${escHtml(u)}" alt="signature" />`).join("")
+    }
     const rowsHtml = filtered
       .map(
-        (r, i) => `<tr>
+        (s, i) => `<tr>
           <td>${i + 1}</td>
-          <td>${escHtml(r.matricId)}</td>
-          <td>${escHtml(r.name)}</td>
-          <td><span class="badge ${r.type}">${typeLabel(r.type)}</span></td>
-          <td>${escHtml(r.roomLabel ?? "—")}</td>
-          <td>${formatMalaysia(new Date(r.signedAt))}</td>
-          <td class="sig">${r.signatureUrl ? `<img src="${escHtml(r.signatureUrl)}" alt="signature" />` : "—"}</td>
+          <td>${escHtml(s.matricId)}</td>
+          <td>${escHtml(s.name)}</td>
+          <td>${escHtml(s.roomLabel ?? "—")}</td>
+          <td>${s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "—"}</td>
+          <td>${s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "—"}</td>
+          <td class="sig">${sigCell([s.checkInSignatureUrl, s.checkOutSignatureUrl])}</td>
         </tr>`,
       )
       .join("")
-    const typeLabelFilter = typeFilter === "all" ? "All records" : typeLabel(typeFilter)
+    const sub = `Fail Pentadbiran${sessionFilter !== "all" ? ` · ${sessions.find((s) => s.id === sessionFilter)?.name ?? ""}` : ""}${blockFilter !== "all" ? ` · ${blockFilter}` : ""}`
     printHtml(
-      "Check-in Records",
-      `<h1>KOLEJ IBU ZAIN — Check-in / Check-out Records</h1>
-       <div class="muted">Fail Pentadbiran · ${typeLabelFilter}${sessionFilter !== "all" ? ` · ${escHtml(sessions.find((s) => s.id === sessionFilter)?.name ?? "")}` : ""}</div>
-       <div class="muted">Generated ${formatMalaysia(new Date())} · Malaysia time (UTC+8)</div>
-       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Type</th><th>Block / Room</th><th>Signed at (KL)</th><th>Signature</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="7">No records.</td></tr>`}</tbody></table>`,
+      "Check-in / Check-out Records",
+      `${docHeader(logos, "Check-in / Check-out Records", sub)}
+       <div class="muted">Generated ${formatMalaysia(new Date())} · Malaysia time (UTC+8) · ${filtered.length} student(s)</div>
+       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block / Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="7">No records.</td></tr>`}</tbody></table>`,
     )
   }
 
   const columns: GridColDef[] = [
     { field: "matricId", headerName: "Matric", width: 120 },
-    { field: "name", headerName: "Name", width: 220 },
+    { field: "name", headerName: "Name", width: 210 },
+    { field: "roomLabel", headerName: "Block / Room", width: 160, valueFormatter: (v) => v ?? "—" },
     {
-      field: "type",
-      headerName: "Type",
-      width: 110,
-      renderCell: (p) => <Pill tone={TYPE_META[p.row.type as TypeVal].tone}>{typeLabel(p.row.type)}</Pill>,
+      field: "checkInAt",
+      headerName: "Check-in (KL)",
+      width: 185,
+      renderCell: (p) => <span>{p.row.checkInAt ? formatMalaysia(new Date(p.row.checkInAt)) : "—"}</span>,
     },
-    { field: "roomLabel", headerName: "Block / Room", width: 170, valueFormatter: (v) => v ?? "—" },
     {
-      field: "signedAt",
-      headerName: "Signed at (KL)",
-      width: 190,
-      renderCell: (p) => <span>{formatMalaysia(new Date(p.row.signedAt))}</span>,
+      field: "checkOutAt",
+      headerName: "Check-out (KL)",
+      width: 185,
+      renderCell: (p) => <span>{p.row.checkOutAt ? formatMalaysia(new Date(p.row.checkOutAt)) : "—"}</span>,
+    },
+    {
+      field: "status",
+      headerName: "Status",
+      width: 120,
+      valueGetter: (_value, row) => (row.checkOutAt ? "Checked out" : "Checked in"),
+      renderCell: (p) =>
+        p.row.checkOutAt ? (
+          <Pill tone="neutral">Checked out</Pill>
+        ) : (
+          <Pill tone="success">Checked in</Pill>
+        ),
     },
     {
       field: "signature",
       headerName: "Signature",
-      width: 120,
+      width: 110,
       renderCell: (p) => <Button size="small" onClick={() => setDetail(p.row)}>View</Button>,
     },
   ]
@@ -316,10 +558,10 @@ export function CheckinAdminClient({
               <MetricTile label="Active sessions" value={sessions.filter((s) => s.isActive).length} icon="qr_code_2" />
             </BentoItem>
             <BentoItem span={4} spanXs={2}>
-              <MetricTile label="Check-in records" value={checkInCount} icon="login" />
+              <MetricTile label="Check-in records" value={recordCheckInCount} icon="login" />
             </BentoItem>
             <BentoItem span={4} spanXs={2}>
-              <MetricTile label="Check-out records" value={checkOutCount} icon="logout" />
+              <MetricTile label="Check-out records" value={recordCheckOutCount} icon="logout" />
             </BentoItem>
           </Bento>
 
@@ -394,7 +636,7 @@ export function CheckinAdminClient({
                       <Button
                         variant="contained"
                         fullWidth
-                        onClick={() => printHtml(`${typeLabel(s.type)} — ${s.name}`, buildPosterHtml(s))}
+                        onClick={() => printHtml(`${typeLabel(s.type)} — ${s.name}`, buildPosterHtml(s, logos))}
                         startIcon={<KIcon icon="print" size={16} />}
                       >
                         Print QR sheet
@@ -421,29 +663,29 @@ export function CheckinAdminClient({
         <Box>
           <Bento sx={{ mb: 2 }}>
             <BentoItem span={4} spanXs={2}>
-              <MetricTile label="Total records" value={filtered.length} icon="receipt_long" />
+              <MetricTile label="Students" value={filtered.length} icon="group" />
             </BentoItem>
             <BentoItem span={4} spanXs={2}>
-              <MetricTile label="Check-in" value={checkInCount} icon="login" />
+              <MetricTile label="Checked in" value={checkedInCount} icon="login" />
             </BentoItem>
             <BentoItem span={4} spanXs={2}>
-              <MetricTile label="Check-out" value={checkOutCount} icon="logout" />
+              <MetricTile label="Checked out" value={checkedOutCount} icon="logout" />
             </BentoItem>
           </Bento>
 
-          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 2, alignItems: { sm: "center" } }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 2, alignItems: "center" }}>
             <TextField
               select
-              label="Type"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as "all" | TypeVal)}
+              label="Block"
+              value={blockFilter}
+              onChange={(e) => setBlockFilter(e.target.value)}
               size="small"
-              sx={{ minWidth: 140 }}
-              slotProps={{ select: { displayEmpty: true } }}
+              sx={{ minWidth: 130 }}
             >
-              <MenuItem value="all">All types</MenuItem>
-              <MenuItem value="check_in">Check-in</MenuItem>
-              <MenuItem value="check_out">Check-out</MenuItem>
+              <MenuItem value="all">All blocks</MenuItem>
+              {blocks.map((b) => (
+                <MenuItem key={b} value={b}>{b}</MenuItem>
+              ))}
             </TextField>
             <TextField
               select
@@ -451,7 +693,7 @@ export function CheckinAdminClient({
               value={sessionFilter}
               onChange={(e) => setSessionFilter(e.target.value)}
               size="small"
-              sx={{ minWidth: 200 }}
+              sx={{ minWidth: 190 }}
             >
               <MenuItem value="all">All sessions</MenuItem>
               {sessions.map((s) => (
@@ -463,7 +705,7 @@ export function CheckinAdminClient({
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search matric / name / room…"
               size="small"
-              sx={{ flex: 1 }}
+              sx={{ flex: 1, minWidth: 200 }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -474,9 +716,12 @@ export function CheckinAdminClient({
                 },
               }}
             />
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button variant="outlined" onClick={onExport} startIcon={<KIcon icon="download" size={16} />}>
-                Export CSV
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <Button variant="contained" onClick={onExportExcel} startIcon={<KIcon icon="table_view" size={16} />}>
+                Excel (.xlsx)
+              </Button>
+              <Button variant="outlined" onClick={onExportCsv} startIcon={<KIcon icon="download" size={16} />}>
+                CSV
               </Button>
               <Button variant="outlined" onClick={onPrintRecords} startIcon={<KIcon icon="print" size={16} />}>
                 Print
@@ -489,14 +734,14 @@ export function CheckinAdminClient({
             columns={columns}
             getRowId={(r) => r.id}
             emptyIcon="receipt_long"
-            emptyTitle="No records here yet"
-            emptyBody={records.length === 0 ? "Records appear when students scan the session QR at the counter." : "No records match these filters."}
+            emptyTitle="No students here yet"
+            emptyBody={records.length === 0 ? "Records appear when students scan the session QR at the counter." : "No students match these filters."}
             onRowClick={(r) => setDetail(r)}
           />
         </Box>
       )}
 
-      {/* Record detail — signature preview */}
+      {/* Student detail — check-in & check-out signatures */}
       <Dialog open={Boolean(detail)} onClose={() => setDetail(null)} maxWidth="sm" fullWidth>
         {detail && (
           <>
@@ -513,11 +758,11 @@ export function CheckinAdminClient({
                   color: color.brand[700],
                 }}
               >
-                <KIcon icon={detail.type === "check_in" ? "login" : "logout"} size={20} />
+                <KIcon icon="badge" size={20} />
               </span>
               {detail.name}
             </DialogTitle>
-            <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, fontSize: 14 }}>
                 <Box>
                   <Typography variant="caption" sx={{ color: "text.secondary" }}>Matric</Typography>
@@ -527,39 +772,45 @@ export function CheckinAdminClient({
                   <Typography variant="caption" sx={{ color: "text.secondary" }}>Room</Typography>
                   <Typography sx={{ fontWeight: 600 }}>{detail.roomLabel ?? "—"}</Typography>
                 </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>Signed at</Typography>
-                  <Typography sx={{ fontWeight: 600 }}>{formatMalaysia(new Date(detail.signedAt))}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>Session</Typography>
-                  <Typography sx={{ fontWeight: 600 }}>{detail.sessionName}</Typography>
-                </Box>
               </Box>
-              <Box>
-                <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 0.5 }}>
-                  Digital signature
-                </Typography>
-                {detail.signatureUrl ? (
-                  <Box
-                    component="img"
-                    src={detail.signatureUrl}
-                    alt={`Signature of ${detail.name}`}
-                    sx={{
-                      border: "1px solid",
-                      borderColor: "divider",
-                      borderRadius: `${radius.input}px`,
-                      backgroundColor: "#fff",
-                      p: 1.5,
-                      maxWidth: "100%",
-                    }}
-                  />
-                ) : (
-                  <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
-                    No signature was captured for this record.
-                  </Alert>
-                )}
-              </Box>
+
+              {([
+                { label: "Check-in", at: detail.checkInAt, session: detail.checkInSession, sig: detail.checkInSignatureUrl },
+                { label: "Check-out", at: detail.checkOutAt, session: detail.checkOutSession, sig: detail.checkOutSignatureUrl },
+              ] as const).map((block) => (
+                <Box key={block.label}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{block.label}</Typography>
+                    {block.at ? (
+                      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                        {formatMalaysia(new Date(block.at))}
+                        {block.session ? ` · ${block.session}` : ""}
+                      </Typography>
+                    ) : (
+                      <Pill tone="neutral">Not yet</Pill>
+                    )}
+                  </Box>
+                  {block.sig ? (
+                    <Box
+                      component="img"
+                      src={block.sig}
+                      alt={`${block.label} signature of ${detail.name}`}
+                      sx={{
+                        border: "1px solid",
+                        borderColor: "divider",
+                        borderRadius: `${radius.input}px`,
+                        backgroundColor: "#fff",
+                        p: 1.5,
+                        maxWidth: "100%",
+                      }}
+                    />
+                  ) : (
+                    <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
+                      {block.at ? "No signature was captured." : `No ${block.label.toLowerCase()} yet.`}
+                    </Alert>
+                  )}
+                </Box>
+              ))}
             </DialogContent>
           </>
         )}

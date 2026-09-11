@@ -41,6 +41,15 @@ export function RoomApplicationFlow({ initial, checkRoommate, submit, respond, w
   const [pending, start] = useTransition()
   const pageSubtitle = "Tell us your preferred room type. We\u2019ll do our best to accommodate your choice, subject to approval and availability."
   if (!initial.eligible) return <Box sx={{ maxWidth: 820, mx: "auto" }}><PageHeader overline="Residence" title="Choose Your Room Preference" subtitle={pageSubtitle} /><ApplicationResultBanner eligible={false} /></Box>
+  if (initial.hasRoom) return <Box sx={{ maxWidth: 820, mx: "auto" }}>
+    <PageHeader overline="Residence" title="Choose Your Room Preference" subtitle={pageSubtitle} />
+    <ApplicationResultBanner eligible />
+    <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+      <Typography sx={{ fontWeight: 650 }}>Room selection is closed</Typography>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>You already have a room assigned at KIZ, so there&apos;s nothing to choose here. Contact the KIZ office if this isn&apos;t right.</Typography>
+    </Alert>
+    {initial.allocation && <Alert severity="success" sx={{ borderRadius: 2 }}>Your room allocation: <b>{initial.allocation}</b></Alert>}
+  </Box>
   const actionable = canSelect(initial.windowState)
   const app = initial.application
   const submitChoice = () => start(async () => {
