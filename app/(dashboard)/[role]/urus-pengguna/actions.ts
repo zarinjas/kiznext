@@ -136,12 +136,23 @@ export async function deleteUser(id: string) {
     if (superAdmins <= 1) throw new Error("Can't delete the last Super Admin account")
   }
 
-  await prisma.user.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  })
+  // The bed is held by the official `eligible_students` record, not the account
+  // — release it and unlink so a deleted account stops occupying a room and a
+  // later re-registration can relink cleanly.
+  const linked = await prisma.eligibleStudent.findMany({ where: { userId: id }, select: { id: true } })
+  const studentIds = linked.map((student) => student.id)
+
+  await prisma.$transaction([
+    prisma.bed.updateMany({ where: { occupantId: { in: studentIds } }, data: { occupantId: null } }),
+    prisma.eligibleStudent.updateMany({ where: { userId: id }, data: { userId: null } }),
+    prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    }),
+  ])
 
   revalidatePath(`/${sessionRole}/urus-pengguna`)
+  revalidatePath(`/${sessionRole}/urus-bilik`)
 }
 
 export async function resetUserPassword(id: string, password: string) {
