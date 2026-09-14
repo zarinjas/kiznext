@@ -22,7 +22,7 @@ import {
   clearUnanswered,
   testAiConnection,
 } from "@/lib/ai/admin-actions"
-import { getFaqTemplateCsv } from "@/lib/ai/faq-actions"
+import { buildFaqTemplateXlsx } from "@/lib/ai/faq-template"
 import type { UnansweredRow, AiTestResult } from "@/lib/ai/types"
 import type { ConciergeFrames } from "@/lib/ai/config"
 
@@ -202,12 +202,11 @@ export function AiSettingsForm({
     setSuccess("")
     setTemplateBusy(true)
     try {
-      const csv = await getFaqTemplateCsv()
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+      const blob = buildFaqTemplateXlsx()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = "kiz-faq-template.csv"
+      a.download = "kiz-faq-template.xlsx"
       a.click()
       URL.revokeObjectURL(url)
     } catch {

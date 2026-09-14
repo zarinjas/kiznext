@@ -1,10 +1,11 @@
 /**
- * Starter FAQ questions for KIZ-AI, focused on Kolej Ibu Zain procedures and
- * residential-college life (not app how-tos). Answers are intentionally blank —
- * staff fill them in, then the rows are imported/indexed.
+ * Starter FAQ questions for KIZ-AI, in Bahasa Melayu (staff-facing), focused on
+ * Kolej Ibu Zain procedures and residential-college life. Answers are blank —
+ * staff fill them in. `keywords` carry English/Chinese terms so KIZ-AI can still
+ * match questions asked in other languages.
  *
- * Used for: the downloadable CSV template, and the "Add starter questions"
- * button in `urus-faq` (inserts them as unpublished drafts).
+ * Used for: the downloadable Excel template (instructions + examples + these
+ * questions) and the "Add starter questions" button in `urus-faq`.
  *
  * Note: these are procedural prompts, not answers. Do NOT bake in specifics
  * (fees, phone numbers, times) — those must come from the KIZ office.
@@ -12,7 +13,10 @@
 
 export interface FaqSeedItem {
   category: string
+  /** Question in Bahasa Melayu (the canonical wording stored + indexed). */
   question: string
+  /** English/Chinese terms to help cross-language matching. */
+  keywords: string
 }
 
 export const FAQ_CATEGORIES = [
@@ -30,113 +34,145 @@ export const FAQ_CATEGORIES = [
   "General & Contact",
 ] as const
 
+/** Malay gloss for each category, shown in the template instructions sheet. */
+export const FAQ_CATEGORY_LABELS: Record<string, string> = {
+  "Registration & Check-in": "Pendaftaran & Daftar Masuk",
+  "Room & Facilities": "Bilik & Kemudahan",
+  "Fees & Payments": "Yuran & Pembayaran",
+  "Rules & Discipline": "Peraturan & Disiplin",
+  "Visitors & Guests": "Pelawat & Tetamu",
+  "Cleanliness & Maintenance": "Kebersihan & Penyelenggaraan",
+  "Safety & Emergencies": "Keselamatan & Kecemasan",
+  "Welfare & Support": "Kebajikan & Sokongan",
+  "Food & Dining": "Makanan & Kafeteria",
+  "Activities & Community": "Aktiviti & Komuniti",
+  "Transport & Parking": "Pengangkutan & Parkir",
+  "General & Contact": "Umum & Hubungan",
+}
+
 export const FAQ_SEED: FaqSeedItem[] = [
   // Registration & Check-in
-  { category: "Registration & Check-in", question: "What is the check-in procedure when I first arrive at KIZ?" },
-  { category: "Registration & Check-in", question: "What documents do I need to bring for check-in?" },
-  { category: "Registration & Check-in", question: "Where is the KIZ counter and what are its opening hours?" },
-  { category: "Registration & Check-in", question: "What should I do if I arrive after the counter is closed?" },
-  { category: "Registration & Check-in", question: "How do I collect my room key?" },
-  { category: "Registration & Check-in", question: "What is the check-out procedure at the end of the semester?" },
-  { category: "Registration & Check-in", question: "What happens if I check out late?" },
-  { category: "Registration & Check-in", question: "Can I move in before the official check-in date?" },
+  { category: "Registration & Check-in", question: "Apakah prosedur daftar masuk (check-in) apabila saya tiba di KIZ?", keywords: "check-in procedure arrival registration" },
+  { category: "Registration & Check-in", question: "Dokumen apa yang perlu saya bawa untuk daftar masuk?", keywords: "documents required check in" },
+  { category: "Registration & Check-in", question: "Di mana kaunter KIZ dan bilakah waktu operasinya?", keywords: "counter location office hours" },
+  { category: "Registration & Check-in", question: "Apa perlu saya buat jika saya tiba selepas kaunter tutup?", keywords: "arrive after hours late counter closed" },
+  { category: "Registration & Check-in", question: "Bagaimana saya mengambil kunci bilik saya?", keywords: "collect room key" },
+  { category: "Registration & Check-in", question: "Apakah prosedur daftar keluar (check-out) pada hujung semester?", keywords: "check-out procedure end semester" },
+  { category: "Registration & Check-in", question: "Apa yang berlaku jika saya daftar keluar lewat?", keywords: "late check out penalty fine" },
+  { category: "Registration & Check-in", question: "Bolehkah saya masuk lebih awal daripada tarikh daftar masuk rasmi?", keywords: "move in early before check in date" },
 
   // Room & Facilities
-  { category: "Room & Facilities", question: "What types of rooms are available at KIZ?" },
-  { category: "Room & Facilities", question: "How are rooms allocated to students?" },
-  { category: "Room & Facilities", question: "Can I choose my own room or roommate?" },
-  { category: "Room & Facilities", question: "What furniture and facilities are provided in each room?" },
-  { category: "Room & Facilities", question: "Is there air-conditioning in the rooms?" },
-  { category: "Room & Facilities", question: "Can I bring my own electrical appliances such as a kettle, iron or fridge?" },
-  { category: "Room & Facilities", question: "Are there shared kitchens or pantries?" },
-  { category: "Room & Facilities", question: "Where is the laundry room and how much does it cost?" },
-  { category: "Room & Facilities", question: "Is there a surau or prayer room at KIZ?" },
-  { category: "Room & Facilities", question: "Are there study rooms or discussion areas?" },
+  { category: "Room & Facilities", question: "Apakah jenis bilik yang tersedia di KIZ?", keywords: "room types single twin sharing" },
+  { category: "Room & Facilities", question: "Bagaimana bilik diagihkan kepada pelajar?", keywords: "room allocation how assigned" },
+  { category: "Room & Facilities", question: "Bolehkah saya memilih bilik atau rakan sebilik sendiri?", keywords: "choose own room roommate" },
+  { category: "Room & Facilities", question: "Perabot dan kemudahan apa yang disediakan dalam setiap bilik?", keywords: "furniture facilities provided in room" },
+  { category: "Room & Facilities", question: "Adakah penghawa dingin disediakan di dalam bilik?", keywords: "air conditioner aircond" },
+  { category: "Room & Facilities", question: "Bolehkah saya membawa perkakas elektrik sendiri seperti cerek, seterika atau peti sejuk?", keywords: "electrical appliances kettle iron fridge allowed" },
+  { category: "Room & Facilities", question: "Adakah terdapat dapur atau pantri berkongsi?", keywords: "shared kitchen pantry" },
+  { category: "Room & Facilities", question: "Di mana bilik dobi dan berapakah kosnya?", keywords: "laundry room cost washing" },
+  { category: "Room & Facilities", question: "Adakah terdapat surau atau bilik solat di KIZ?", keywords: "surau prayer room musolla" },
+  { category: "Room & Facilities", question: "Adakah terdapat bilik belajar atau ruang perbincangan?", keywords: "study room discussion area" },
 
   // Fees & Payments
-  { category: "Fees & Payments", question: "How much are the residential college fees?" },
-  { category: "Fees & Payments", question: "When and how do I pay my college fees?" },
-  { category: "Fees & Payments", question: "Is there a deposit, and is it refundable?" },
-  { category: "Fees & Payments", question: "What happens if I pay late?" },
-  { category: "Fees & Payments", question: "Can I get a fee receipt for my records?" },
-  { category: "Fees & Payments", question: "Are there financial aids or exemptions available?" },
-  { category: "Fees & Payments", question: "What is the penalty for damaging college property?" },
+  { category: "Fees & Payments", question: "Berapakah yuran kolej kediaman?", keywords: "college fees amount room fee" },
+  { category: "Fees & Payments", question: "Bilakah dan bagaimana saya membayar yuran kolej?", keywords: "pay fees when how payment" },
+  { category: "Fees & Payments", question: "Adakah terdapat deposit, dan bolehkah ia dipulangkan?", keywords: "deposit refundable" },
+  { category: "Fees & Payments", question: "Apa yang berlaku jika saya membayar lewat?", keywords: "late payment penalty" },
+  { category: "Fees & Payments", question: "Bolehkah saya mendapatkan resit pembayaran?", keywords: "payment receipt" },
+  { category: "Fees & Payments", question: "Adakah bantuan kewangan atau pengecualian yuran disediakan?", keywords: "financial aid exemption assistance" },
+  { category: "Fees & Payments", question: "Apakah penalti kerana merosakkan harta kolej?", keywords: "damage property penalty" },
 
   // Rules & Discipline
-  { category: "Rules & Discipline", question: "What is the curfew or gate closing time at KIZ?" },
-  { category: "Rules & Discipline", question: "Is cooking allowed in the rooms?" },
-  { category: "Rules & Discipline", question: "What are the rules on smoking and vaping?" },
-  { category: "Rules & Discipline", question: "Are pets allowed in the college?" },
-  { category: "Rules & Discipline", question: "What is the policy on alcohol and prohibited items?" },
-  { category: "Rules & Discipline", question: "What happens if I break the college rules?" },
-  { category: "Rules & Discipline", question: "Is there a dress code at KIZ?" },
-  { category: "Rules & Discipline", question: "Can I keep a bicycle or motorcycle at KIZ?" },
-  { category: "Rules & Discipline", question: "What are the quiet hours?" },
+  { category: "Rules & Discipline", question: "Apakah waktu perintah berkurung atau waktu pintu pagar ditutup?", keywords: "curfew gate closing time" },
+  { category: "Rules & Discipline", question: "Bolehkah saya memasak di dalam bilik?", keywords: "cooking in room allowed" },
+  { category: "Rules & Discipline", question: "Apakah peraturan mengenai merokok dan vape?", keywords: "smoking vaping rules" },
+  { category: "Rules & Discipline", question: "Adakah haiwan peliharaan dibenarkan di kolej?", keywords: "pets allowed" },
+  { category: "Rules & Discipline", question: "Apakah dasar mengenai alkohol dan barang terlarang?", keywords: "alcohol prohibited items policy" },
+  { category: "Rules & Discipline", question: "Apa yang berlaku jika saya melanggar peraturan kolej?", keywords: "break rules consequences disciplinary" },
+  { category: "Rules & Discipline", question: "Adakah terdapat kod pakaian di KIZ?", keywords: "dress code attire" },
+  { category: "Rules & Discipline", question: "Bolehkah saya menyimpan basikal atau motosikal di KIZ?", keywords: "bicycle motorcycle storage" },
+  { category: "Rules & Discipline", question: "Apakah waktu senyap (quiet hours)?", keywords: "quiet hours noise" },
 
   // Visitors & Guests
-  { category: "Visitors & Guests", question: "What are the visiting hours at KIZ?" },
-  { category: "Visitors & Guests", question: "How do I register a visitor at the gate?" },
-  { category: "Visitors & Guests", question: "Can visitors stay overnight?" },
-  { category: "Visitors & Guests", question: "Can I book a guest house for my family?" },
-  { category: "Visitors & Guests", question: "Are male visitors allowed in female blocks, and vice versa?" },
-  { category: "Visitors & Guests", question: "What are the rules for delivery riders and food delivery?" },
-  { category: "Visitors & Guests", question: "What happens if my visitor breaks a rule?" },
+  { category: "Visitors & Guests", question: "Apakah waktu melawat di KIZ?", keywords: "visiting hours" },
+  { category: "Visitors & Guests", question: "Bagaimana saya mendaftarkan pelawat di pintu pagar?", keywords: "register visitor at gate" },
+  { category: "Visitors & Guests", question: "Bolehkah pelawat menginap semalaman?", keywords: "overnight visitors stay" },
+  { category: "Visitors & Guests", question: "Bolehkah saya menempah rumah tetamu untuk keluarga saya?", keywords: "guest house booking family" },
+  { category: "Visitors & Guests", question: "Adakah pelawat lelaki dibenarkan masuk blok wanita, dan sebaliknya?", keywords: "male visitors female block policy opposite gender" },
+  { category: "Visitors & Guests", question: "Apakah peraturan untuk penghantar makanan dan penghantaran?", keywords: "food delivery rider grab panda rules" },
+  { category: "Visitors & Guests", question: "Apa yang berlaku jika pelawat saya melanggar peraturan?", keywords: "visitor breaks rule" },
 
   // Cleanliness & Maintenance
-  { category: "Cleanliness & Maintenance", question: "How do I report a maintenance issue in my room?" },
-  { category: "Cleanliness & Maintenance", question: "Who cleans the common areas and toilets?" },
-  { category: "Cleanliness & Maintenance", question: "When is the garbage collected?" },
-  { category: "Cleanliness & Maintenance", question: "How do I report a pest problem?" },
-  { category: "Cleanliness & Maintenance", question: "What should I do if there is a water or electricity disruption?" },
-  { category: "Cleanliness & Maintenance", question: "How do I report a faulty air-conditioner or fan?" },
-  { category: "Cleanliness & Maintenance", question: "Can I request a room repair after office hours?" },
+  { category: "Cleanliness & Maintenance", question: "Bagaimana saya melaporkan masalah penyelenggaraan di bilik saya?", keywords: "report maintenance issue room repair" },
+  { category: "Cleanliness & Maintenance", question: "Siapa yang membersihkan kawasan umum dan tandas?", keywords: "who cleans common areas toilets" },
+  { category: "Cleanliness & Maintenance", question: "Bilakah sampah dikutip?", keywords: "garbage collection schedule waste" },
+  { category: "Cleanliness & Maintenance", question: "Bagaimana saya melaporkan masalah serangga atau perosak?", keywords: "pest problem cockroach rat report" },
+  { category: "Cleanliness & Maintenance", question: "Apa perlu saya buat jika berlaku gangguan air atau elektrik?", keywords: "water electricity disruption power outage" },
+  { category: "Cleanliness & Maintenance", question: "Bagaimana saya melaporkan penghawa dingin atau kipas yang rosak?", keywords: "faulty aircond fan report" },
+  { category: "Cleanliness & Maintenance", question: "Bolehkah saya meminta pembaikan bilik selepas waktu pejabat?", keywords: "repair after office hours emergency" },
 
   // Safety & Emergencies
-  { category: "Safety & Emergencies", question: "What number do I call in an emergency at KIZ?" },
-  { category: "Safety & Emergencies", question: "Where is the guard post or security office?" },
-  { category: "Safety & Emergencies", question: "What is the fire evacuation procedure?" },
-  { category: "Safety & Emergencies", question: "Where are the fire extinguishers and emergency exits?" },
-  { category: "Safety & Emergencies", question: "How do I report a security incident?" },
-  { category: "Safety & Emergencies", question: "What should I do if I lose my room key?" },
-  { category: "Safety & Emergencies", question: "Is there CCTV in the college?" },
-  { category: "Safety & Emergencies", question: "Who do I contact for a medical emergency?" },
+  { category: "Safety & Emergencies", question: "Nombor apa yang perlu saya hubungi dalam kecemasan di KIZ?", keywords: "emergency number call" },
+  { category: "Safety & Emergencies", question: "Di mana pos pengawal atau pejabat keselamatan?", keywords: "guard post security office" },
+  { category: "Safety & Emergencies", question: "Apakah prosedur pemindahan kebakaran?", keywords: "fire evacuation procedure" },
+  { category: "Safety & Emergencies", question: "Di mana alat pemadam api dan pintu kecemasan?", keywords: "fire extinguisher emergency exit" },
+  { category: "Safety & Emergencies", question: "Bagaimana saya melaporkan insiden keselamatan?", keywords: "report security incident" },
+  { category: "Safety & Emergencies", question: "Apa perlu saya buat jika saya hilang kunci bilik?", keywords: "lost room key replacement" },
+  { category: "Safety & Emergencies", question: "Adakah CCTV dipasang di kolej?", keywords: "cctv camera installed" },
+  { category: "Safety & Emergencies", question: "Siapa yang perlu saya hubungi untuk kecemasan perubatan?", keywords: "medical emergency contact ambulance" },
 
   // Welfare & Support
-  { category: "Welfare & Support", question: "Where is the sick bay or first aid room?" },
-  { category: "Welfare & Support", question: "Is there a counsellor or welfare officer at KIZ?" },
-  { category: "Welfare & Support", question: "Who do I talk to if I have personal problems?" },
-  { category: "Welfare & Support", question: "Are there study support or mentorship programmes?" },
-  { category: "Welfare & Support", question: "What support is available for international students?" },
-  { category: "Welfare & Support", question: "How do I report bullying or harassment?" },
-  { category: "Welfare & Support", question: "Is there a food bank or financial assistance?" },
+  { category: "Welfare & Support", question: "Di mana bilik rawatan (sick bay) atau bilik bantuan awal?", keywords: "sick bay first aid room" },
+  { category: "Welfare & Support", question: "Adakah kaunselor atau pegawai kebajikan di KIZ?", keywords: "counsellor welfare officer" },
+  { category: "Welfare & Support", question: "Siapa yang boleh saya hubungi jika saya ada masalah peribadi?", keywords: "personal problems who to talk counselling" },
+  { category: "Welfare & Support", question: "Adakah terdapat program sokongan pembelajaran atau mentor?", keywords: "study support mentorship programme" },
+  { category: "Welfare & Support", question: "Apakah sokongan untuk pelajar antarabangsa?", keywords: "international student support" },
+  { category: "Welfare & Support", question: "Bagaimana saya melaporkan buli atau gangguan?", keywords: "report bullying harassment" },
+  { category: "Welfare & Support", question: "Adakah terdapat bank makanan atau bantuan kewangan?", keywords: "food bank financial assistance" },
 
   // Food & Dining
-  { category: "Food & Dining", question: "Is there a cafeteria or cafe at KIZ?" },
-  { category: "Food & Dining", question: "What are the cafeteria opening hours?" },
-  { category: "Food & Dining", question: "Can I cook my own food?" },
-  { category: "Food & Dining", question: "Is there a convenience store nearby?" },
+  { category: "Food & Dining", question: "Adakah terdapat kafeteria atau kafe di KIZ?", keywords: "cafeteria cafe canteen" },
+  { category: "Food & Dining", question: "Bilakah waktu operasi kafeteria?", keywords: "cafeteria opening hours" },
+  { category: "Food & Dining", question: "Bolehkah saya memasak makanan sendiri?", keywords: "cook own food cooking" },
+  { category: "Food & Dining", question: "Adakah kedai serbaneka berdekatan?", keywords: "convenience store nearby shop" },
 
   // Activities & Community
-  { category: "Activities & Community", question: "What student activities are organised at KIZ?" },
-  { category: "Activities & Community", question: "How do I join the KIZ student committee (JKK)?" },
-  { category: "Activities & Community", question: "Are there sports facilities at KIZ?" },
-  { category: "Activities & Community", question: "How do I book the futsal court or sports facilities?" },
-  { category: "Activities & Community", question: "Where can I see announcements about KIZ events?" },
+  { category: "Activities & Community", question: "Apakah aktiviti pelajar yang dianjurkan di KIZ?", keywords: "student activities programme" },
+  { category: "Activities & Community", question: "Bagaimana saya menyertai jawatankuasa pelajar KIZ (JKK)?", keywords: "join JKK student committee" },
+  { category: "Activities & Community", question: "Adakah kemudahan sukan di KIZ?", keywords: "sports facilities" },
+  { category: "Activities & Community", question: "Bagaimana saya menempah gelanggang futsal atau kemudahan sukan?", keywords: "book futsal court sports facility" },
+  { category: "Activities & Community", question: "Di mana saya boleh melihat pengumuman tentang aktiviti KIZ?", keywords: "see announcements events" },
 
   // Transport & Parking
-  { category: "Transport & Parking", question: "Is there parking for students at KIZ?" },
-  { category: "Transport & Parking", question: "How do I get to KIZ from the UKM main campus?" },
-  { category: "Transport & Parking", question: "Is there a shuttle bus service?" },
-  { category: "Transport & Parking", question: "Where can I park my motorcycle?" },
+  { category: "Transport & Parking", question: "Adakah parkir untuk pelajar di KIZ?", keywords: "parking students car" },
+  { category: "Transport & Parking", question: "Bagaimana saya ke KIZ dari kampus utama UKM?", keywords: "how to get to KIZ from main campus directions" },
+  { category: "Transport & Parking", question: "Adakah perkhidmatan bas ulang-alik?", keywords: "shuttle bus service" },
+  { category: "Transport & Parking", question: "Di mana saya boleh meletakkan motosikal saya?", keywords: "motorcycle parking" },
 
   // General & Contact
-  { category: "General & Contact", question: "What is the full address of Kolej Ibu Zain?" },
-  { category: "General & Contact", question: "Who is the Principal (Pengetua) of KIZ?" },
-  { category: "General & Contact", question: "Who do I contact for general enquiries?" },
-  { category: "General & Contact", question: "What are the office hours of the KIZ administration?" },
-  { category: "General & Contact", question: "Where is the KIZ administrative office?" },
-  { category: "General & Contact", question: "How do I appeal a decision made by the college?" },
+  { category: "General & Contact", question: "Apakah alamat penuh Kolej Ibu Zain?", keywords: "full address location" },
+  { category: "General & Contact", question: "Siapa Pengetua KIZ?", keywords: "principal pengetua name" },
+  { category: "General & Contact", question: "Siapa yang perlu saya hubungi untuk pertanyaan umum?", keywords: "general enquiries contact" },
+  { category: "General & Contact", question: "Bilakah waktu pejabat pentadbiran KIZ?", keywords: "office hours administration" },
+  { category: "General & Contact", question: "Di mana pejabat pentadbiran KIZ?", keywords: "admin office location" },
+  { category: "General & Contact", question: "Bagaimana saya boleh merayu keputusan kolej?", keywords: "appeal decision" },
 ]
 
-/** CSV header used by the downloadable template and the importer. */
+/** Example Q&A shown in the template instructions sheet (Malay). */
+export const FAQ_EXAMPLES: { question: string; answer: string }[] = [
+  {
+    question: "Bilakah waktu melawat di KIZ?",
+    answer: "Waktu melawat ialah setiap hari dari 8:00 pagi hingga 10:00 malam. Pelawat mesti mendaftar di pos pengawal dan menyerahkan kad pengenalan sebelum masuk.",
+  },
+  {
+    question: "Bagaimana saya melaporkan paip bocor di bilik saya?",
+    answer: "Hantar permohonan melalui Helpdesk → Support Ticket, pilih kategori 'Maintenance & Repair', dan nyatakan blok serta nombor bilik anda. Pihak penyelenggaraan akan hadir pada hari bekerja berikutnya.",
+  },
+  {
+    question: "Berapakah yuran kolej kediaman?",
+    answer: "Tulis kadar yuran yang betul di sini (contoh: RM ___ sebulan). Rujuk pejabat KIZ untuk kadar terkini sebelum menerbitkan jawapan ini.",
+  },
+]
+
+/** Column headers used by the CSV/Excel template and the importer. */
 export const FAQ_CSV_HEADERS = ["category", "question", "answer", "keywords", "language", "published"] as const

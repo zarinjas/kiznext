@@ -19,13 +19,12 @@ import {
   createFaq,
   updateFaq,
   deleteFaq,
-  importFaqs,
-  getFaqTemplateCsv,
+  importFaqsFile,
   exportFaqsCsv,
   seedStarterFaqs,
 } from "@/lib/ai/faq-actions"
 import { FAQ_CATEGORIES } from "@/lib/ai/faq-seed"
-import { parseCsvToObjects } from "@/lib/csv"
+import { buildFaqTemplateXlsx } from "@/lib/ai/faq-template"
 import type { UnansweredRow } from "@/lib/ai/types"
 
 export interface FaqRow {
@@ -50,6 +49,10 @@ const EMPTY_DRAFT: Draft = { category: FAQ_CATEGORIES[0], question: "", answer: 
 
 function download(filename: string, text: string) {
   const blob = new Blob([text], { type: "text/csv;charset=utf-8" })
+  downloadBlob(filename, blob)
+}
+
+function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -69,7 +72,7 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<FaqRow | null>(null)
 
-  const [pendingImport, setPendingImport] = useState<{ name: string; text: string; count: number } | null>(null)
+  const [pendingImport, setPendingImport] = useState<{ name: string; file: File } | null>(null)
   const [importing, setImporting] = useState(false)
 
   const [busy, setBusy] = useState(false)
@@ -153,12 +156,10 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
     router.refresh()
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const text = await file.text()
-    const { rows } = parseCsvToObjects(text)
-    setPendingImport({ name: file.name, text, count: rows.length })
+    setPendingImport({ name: file.name, file })
     if (fileRef.current) fileRef.current.value = ""
   }
 
@@ -167,7 +168,9 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
     setImporting(true)
     setError("")
     try {
-      const result = await importFaqs(pendingImport.text)
+      const fd = new FormData()
+      fd.append("file", pendingImport.file)
+      const result = await importFaqsFile(fd)
       if (result.success) {
         setSuccess(`Imported: ${result.added} added, ${result.updated} updated, ${result.skipped} skipped. Re-index to make them live.`)
         setPendingImport(null)
@@ -181,9 +184,11 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
   }
 
   async function handleTemplate() {
+    setError("")
+    setSuccess("")
     setBusy(true)
     try {
-      download("kiz-faq-template.csv", await getFaqTemplateCsv())
+      downloadBlob("kiz-faq-template.xlsx", buildFaqTemplateXlsx())
     } finally {
       setBusy(false)
     }
@@ -258,7 +263,7 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
           Import CSV
         </Button>
         <Button size="small" variant="outlined" onClick={handleTemplate} disabled={busy} startIcon={<KIcon icon="download" size={15} />} sx={{ textTransform: "none" }}>
-          Download template
+          Download template (Excel)
         </Button>
         <Button size="small" variant="outlined" onClick={handleExport} disabled={busy} startIcon={<KIcon icon="description" size={15} />} sx={{ textTransform: "none" }}>
           Export
@@ -266,11 +271,17 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
         <Button size="small" onClick={handleSeed} disabled={busy} startIcon={<KIcon icon="auto_awesome" size={15} />} sx={{ textTransform: "none", color: color.brand[700] }}>
           Add starter questions
         </Button>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={handleFile} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          onChange={handleFile}
+        />
       </Box>
 
       <Typography variant="caption" sx={{ color: "text.disabled" }}>
-        The downloaded template has step-by-step instructions and the category list built into the file. Columns: category, question, answer, keywords, language, published. Rows match on the question text, so re-importing updates answers instead of duplicating.
+        Download the Excel template — it has a “Panduan” sheet (Malay instructions + examples) and a “FAQ” sheet to fill in. Add questions there, save, then upload the file (Excel or CSV). Rows match on the question text, so re-importing updates answers instead of duplicating.
       </Typography>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -478,7 +489,7 @@ export function FaqAdmin({ faqs, unanswered }: { faqs: FaqRow[]; unanswered: Una
         }
       >
         <Typography variant="body2" color="text.secondary">
-          {pendingImport?.name} · {pendingImport?.count} row{(pendingImport?.count ?? 0) === 1 ? "" : "s"}. Rows matching an existing question update it; new ones are added.
+          {pendingImport?.name}. Rows matching an existing question are updated; new questions are added. After importing, run Re-index to make them live.
         </Typography>
       </KDialog>
     </Box>

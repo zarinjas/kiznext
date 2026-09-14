@@ -58,6 +58,71 @@ function roomOfStudent(student: {
   })
 }
 
+/** Decode a PNG signature data URL into a buffer, or null when it isn't one. */
+function parseSignature(signatureDataUrl: string): Buffer | null {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=\s]+)$/.exec((signatureDataUrl ?? "").trim())
+  if (!match) return null
+  const buffer = Buffer.from(match[1].replace(/\s/g, ""), "base64")
+  return buffer.length === 0 ? null : buffer
+}
+
+/**
+ * Shared transaction: verify the student is on the active intake, has a room,
+ * hasn't signed this session yet, then store the signature PNG + record.
+ * Used by both the public QR flow and the signed-in app flow.
+ */
+async function recordSignedCheckIn(input: {
+  sessionId: string
+  type: CheckInTypeValue
+  matricId: string
+  signatureBuffer: Buffer
+}): Promise<{ matricId: string; name: string; roomLabel: string; signedAt: Date }> {
+  const intake = await getActiveIntake()
+  if (!intake) throw new Error("The KIZ student list isn't ready yet — try again later.")
+
+  return prisma.$transaction(async (tx) => {
+    const student = await tx.eligibleStudent.findFirst({
+      where: { intakeId: intake.id, matricId: input.matricId, deletedAt: null },
+      include: { bed: { include: { room: { include: { block: true } } } } },
+    })
+    if (!student) {
+      throw new Error("That Matric No. isn't on the current KIZ list. Double-check it, or ask at the counter.")
+    }
+    const roomLabel = roomOfStudent(student)
+    if (!roomLabel) {
+      throw new Error("You don't have a room assigned yet — check at the KIZ office before checking in.")
+    }
+
+    const existing = await tx.checkInRecord.findFirst({
+      where: { sessionId: input.sessionId, eligibleStudentId: student.id, deletedAt: null },
+      select: { id: true },
+    })
+    if (existing) throw new Error("You've already signed for this session.")
+
+    const saved = await saveUpload(input.signatureBuffer, {
+      dir: "signatures",
+      prefix: `sig-${student.matricId.toLowerCase()}`,
+      maxBytes: SIGNATURE_MAX_BYTES,
+    })
+
+    const record = await tx.checkInRecord.create({
+      data: {
+        sessionId: input.sessionId,
+        eligibleStudentId: student.id,
+        matricId: student.matricId,
+        name: student.name,
+        type: input.type,
+        roomLabel,
+        signatureUrl: saved.url,
+        signedAt: nowMalaysia(),
+      },
+      select: { signedAt: true },
+    })
+
+    return { matricId: student.matricId, name: student.name, roomLabel, signedAt: record.signedAt }
+  })
+}
+
 // ── Public (QR flow) ───────────────────────────────────────────────────────
 
 export interface SessionLookup {
@@ -163,55 +228,15 @@ export async function submitCheckInRecord(
   const matricId = (matricRaw ?? "").trim().toUpperCase()
   if (!matricId) return { ok: false, error: "Enter your Matric No. first." }
 
-  // Signature must be a real PNG data URL within a sane size.
-  const match = /^data:image\/png;base64,([A-Za-z0-9+/=\s]+)$/.exec((signatureDataUrl ?? "").trim())
-  if (!match) return { ok: false, error: "Please sign in the box before submitting." }
-  const buffer = Buffer.from(match[1].replace(/\s/g, ""), "base64")
-  if (buffer.length === 0) return { ok: false, error: "Please sign in the box before submitting." }
-
-  const intake = await getActiveIntake()
-  if (!intake) return { ok: false, error: "The KIZ student list isn't ready yet — try again later." }
+  const buffer = parseSignature(signatureDataUrl)
+  if (!buffer) return { ok: false, error: "Please sign in the box before submitting." }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const student = await tx.eligibleStudent.findFirst({
-        where: { intakeId: intake.id, matricId, deletedAt: null },
-        include: { bed: { include: { room: { include: { block: true } } } } },
-      })
-      if (!student) {
-        throw new Error("That Matric No. isn't on the current KIZ list. Double-check it, or ask at the counter.")
-      }
-      const roomLabel = roomOfStudent(student)
-      if (!roomLabel) {
-        throw new Error("You don't have a room assigned yet — check at the KIZ office before checking in.")
-      }
-
-      const existing = await tx.checkInRecord.findFirst({
-        where: { sessionId: res.session.id, eligibleStudentId: student.id, deletedAt: null },
-        select: { id: true },
-      })
-      if (existing) {
-        throw new Error("You've already signed for this session.")
-      }
-
-      const saved = await saveUpload(buffer, { dir: "signatures", prefix: `sig-${matricId.toLowerCase()}`, maxBytes: SIGNATURE_MAX_BYTES })
-
-      const signedAt = nowMalaysia()
-      const record = await tx.checkInRecord.create({
-        data: {
-          sessionId: res.session.id,
-          eligibleStudentId: student.id,
-          matricId: student.matricId,
-          name: student.name,
-          type: res.session.type,
-          roomLabel,
-          signatureUrl: saved.url,
-          signedAt,
-        },
-        select: { signedAt: true },
-      })
-
-      return { matricId: student.matricId, name: student.name, roomLabel, signedAt: record.signedAt }
+    const result = await recordSignedCheckIn({
+      sessionId: res.session.id,
+      type: res.session.type as CheckInTypeValue,
+      matricId,
+      signatureBuffer: buffer,
     })
 
     return {
@@ -220,6 +245,127 @@ export async function submitCheckInRecord(
       type: res.session.type as CheckInTypeValue,
       signedAtIso: result.signedAt.toISOString(),
     }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not save your signature — try again." }
+  }
+}
+
+// ── Signed-in app flow (no QR needed) ───────────────────────────────────────
+
+export interface OpenCheckInSession {
+  id: string
+  name: string
+  type: CheckInTypeValue
+  opensAtIso: string | null
+  closesAtIso: string | null
+}
+
+/** Admin-open, currently-valid check-in sessions (normally just one). */
+export async function getOpenCheckInSessions(): Promise<OpenCheckInSession[]> {
+  const now = new Date()
+  const sessions = await prisma.checkInSession.findMany({
+    where: {
+      deletedAt: null,
+      isActive: true,
+      AND: [
+        { OR: [{ opensAt: null }, { opensAt: { lte: now } }] },
+        { OR: [{ closesAt: null }, { closesAt: { gte: now } }] },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, type: true, opensAt: true, closesAt: true },
+  })
+  return sessions.map((s) => ({
+    id: s.id,
+    name: s.name,
+    type: s.type as CheckInTypeValue,
+    opensAtIso: s.opensAt ? s.opensAt.toISOString() : null,
+    closesAtIso: s.closesAt ? s.closesAt.toISOString() : null,
+  }))
+}
+
+export interface StudentCheckInOverview {
+  ok: boolean
+  error?: string
+  /** The open session to act on, or null when the office hasn't opened one. */
+  session: OpenCheckInSession | null
+  name: string | null
+  matricId: string | null
+  roomLabel: string | null
+  alreadySigned: boolean
+}
+
+/**
+ * Signed-in student's check-in state for the in-app flow. Identity comes from
+ * the session — the student never types a matric here.
+ */
+export async function getStudentCheckInOverview(): Promise<StudentCheckInOverview> {
+  const session = await auth()
+  if (!session?.user) {
+    return { ok: false, error: "Please sign in again.", session: null, name: null, matricId: null, roomLabel: null, alreadySigned: false }
+  }
+
+  const matricId = session.user.matricId
+  const [sessions, intake] = await Promise.all([getOpenCheckInSessions(), getActiveIntake()])
+  const active = sessions[0] ?? null
+
+  const student = intake
+    ? await prisma.eligibleStudent.findFirst({
+        where: { intakeId: intake.id, matricId, deletedAt: null },
+        include: { bed: { include: { room: { include: { block: true } } } } },
+      })
+    : null
+
+  const alreadySigned =
+    active && student
+      ? Boolean(
+          await prisma.checkInRecord.findFirst({
+            where: { sessionId: active.id, eligibleStudentId: student.id, deletedAt: null },
+            select: { id: true },
+          }),
+        )
+      : false
+
+  return {
+    ok: true,
+    session: active,
+    name: student?.name ?? session.user.name ?? null,
+    matricId,
+    roomLabel: student ? roomOfStudent(student) : null,
+    alreadySigned,
+  }
+}
+
+/**
+ * Signed-in student checks in / out from the app. No QR token: the active
+ * session is resolved server-side and the identity comes from the session.
+ */
+export async function submitOwnCheckIn(signatureDataUrl: string): Promise<SubmitResult> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: "Please sign in again." }
+  if (session.user.role !== "ahli") {
+    return { ok: false, error: "Only students can check in from the app. Please use the counter QR." }
+  }
+
+  const buffer = parseSignature(signatureDataUrl)
+  if (!buffer) return { ok: false, error: "Please sign in the box before submitting." }
+
+  const active = (await getOpenCheckInSessions())[0]
+  if (!active) {
+    return { ok: false, error: "No check-in session is open right now. Check with the KIZ counter." }
+  }
+
+  try {
+    const result = await recordSignedCheckIn({
+      sessionId: active.id,
+      type: active.type,
+      matricId: session.user.matricId,
+      signatureBuffer: buffer,
+    })
+
+    revalidatePath(`/${session.user.role}`)
+    revalidatePath(`/${session.user.role}/checkin`)
+    return { ok: true, ...result, type: active.type, signedAtIso: result.signedAt.toISOString() }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not save your signature — try again." }
   }

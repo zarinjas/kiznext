@@ -1,15 +1,16 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
-import Button from "@mui/material/Button"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { font } from "@/lib/theme"
+import { MyBookingsHeaderActions } from "./header-actions"
+
+const KL = "Asia/Kuala_Lumpur"
 
 export default async function MyBookingsPage() {
   const session = await auth()
@@ -36,26 +37,7 @@ export default async function MyBookingsPage() {
       <PageHeader
         overline="Bookings"
         title="My bookings"
-        actions={
-          <>
-            <Button
-              component={Link}
-              href={`/${role}/tempahan-fasiliti`}
-              variant="contained"
-              startIcon={<KIcon icon="meeting_room" size={18} />}
-            >
-              Book a facility
-            </Button>
-            <Button
-              component={Link}
-              href={`/${role}/rumah-tamu`}
-              variant="outlined"
-              startIcon={<KIcon icon="hotel" size={18} />}
-            >
-              Guest house
-            </Button>
-          </>
-        }
+        actions={<MyBookingsHeaderActions role={role} />}
       />
 
       {total === 0 ? (
@@ -75,9 +57,9 @@ export default async function MyBookingsPage() {
                   title={b.facility.name}
                   subtitle={
                     <>
-                      {b.timeSlotStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} ·{" "}
-                      {b.timeSlotStart.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}–
-                      {b.timeSlotEnd.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+                      {b.timeSlotStart.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: KL })} ·{" "}
+                      {b.timeSlotStart.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", timeZone: KL })}–
+                      {b.timeSlotEnd.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", timeZone: KL })}
                       {b.bookingRef && (
                         <>
                           {" · "}
@@ -124,8 +106,8 @@ export default async function MyBookingsPage() {
                   subtitle={
                     <>
                       {b.guestHouse.name} ·{" "}
-                      {b.startDate.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} –{" "}
-                      {b.endDate.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} · {b.periodType}
+                      {b.startDate.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: KL })} –{" "}
+                      {b.endDate.toLocaleDateString("en-MY", { day: "numeric", month: "short", timeZone: KL })} · {b.periodType}
                     </>
                   }
                   trailing={

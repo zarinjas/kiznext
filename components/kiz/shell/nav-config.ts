@@ -52,6 +52,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Bookings",
       items: [
         { label: "Room Selection", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
+        { label: "Check-in / Out", href: `/${role}/checkin`, icon: "how_to_reg", roles: ["ahli"] },
         { label: "Facilities", href: `/${role}/tempahan-fasiliti`, icon: "meeting_room" },
         { label: "Guest House", href: `/${role}/rumah-tamu`, icon: "hotel" },
         { label: "My Bookings", href: `/${role}/tempahan`, icon: "calendar_month" },

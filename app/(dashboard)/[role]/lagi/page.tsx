@@ -15,7 +15,12 @@ function buildGroups(role: string): { label: string; items: { label: string; hre
     {
       label: "Bookings",
       items: [
-        ...(role === "ahli" ? [{ label: "Choose room", href: "bilik", icon: "bedroom_parent" }] : []),
+        ...(role === "ahli"
+          ? [
+              { label: "Choose room", href: "bilik", icon: "bedroom_parent" },
+              { label: "Check-in / Out", href: "checkin", icon: "how_to_reg" },
+            ]
+          : []),
         { label: "My bookings", href: "tempahan", icon: "calendar_month" },
         { label: "Book a facility", href: "tempahan-fasiliti", icon: "meeting_room" },
         { label: "Guest house", href: "rumah-tamu", icon: "hotel" },
