@@ -61,10 +61,9 @@ echo "==> [5/7] prisma db push (schema sync)"
 as_app "npx prisma db push --accept-data-loss"
 
 echo "==> [6/7] next build"
-# The VPS has 1.9 GB RAM. Next's build-time TypeScript check needs >1 GB of V8
-# heap and dies with "JavaScript heap out of memory" at the default (~1 GB)
-# limit. Raise the heap so the type check can finish (swap absorbs the spike).
-as_app "NODE_OPTIONS=--max-old-space-size=1536 npm run build"
+# TypeScript is checked in CI (deploy.yml `typecheck` job) and the VPS build has
+# `typescript.ignoreBuildErrors` on, so this step only compiles + prerenders.
+as_app "npm run build"
 
 echo "==> [7/7] ownership + restart service"
 chown -R "$RUNUSER:$RUNUSER" "$APP"

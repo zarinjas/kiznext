@@ -10,7 +10,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Types are checked here (7 GB runner) because the 2 GB VPS can't run Next's
+  # build-time TypeScript check without thrashing swap. The VPS build sets
+  # `typescript.ignoreBuildErrors`; this job is what actually enforces types.
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/kiznext
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+
   deploy:
+    needs: typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to VPS over SSH

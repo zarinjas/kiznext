@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
   // (it only ever runs in the urus-bilik server action, so keeping it external
   // is safe). `sharp` is external for the same class of reason.
   serverExternalPackages: ["sharp", "googleapis"],
+  // The VPS has 1.9 GB RAM and Next's build-time TypeScript check needs >1 GB,
+  // so it thrashes swap for 20+ minutes (and OOMs below a raised heap limit).
+  // Types are checked on the GitHub runner instead — see the `typecheck` job in
+  // .github/workflows/deploy.yml — so the VPS build only compiles.
+  typescript: { ignoreBuildErrors: true },
   // Runtime uploads land in public/uploads/ but `next start` only serves files
   // that existed at build time — anything uploaded live 404s as a static file.
   // Rewrite /uploads/* to a dynamic route (app/api/uploads/[...path]) that
