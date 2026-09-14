@@ -43,6 +43,11 @@ const toneByStatus: Record<string, StatusTone> = {
   // account status (urus-pengguna)
   unverified: "warning",
   active: "success",
+  // invitations (urus-jemputan)
+  accepted: "success",
+  revoked: "danger",
+  expired: "neutral",
+  resident: "success",
   // facility directory
   coming_soon: "warning",
   bookable: "info",
@@ -80,6 +85,11 @@ const labelByStatus: Record<string, string> = {
   // account status (urus-pengguna)
   unverified: "Unverified",
   active: "Active",
+  // invitations (urus-jemputan)
+  accepted: "Accepted",
+  revoked: "Revoked",
+  expired: "Expired",
+  resident: "Resident",
   // facility directory
   coming_soon: "Coming soon",
   bookable: "Bookable",

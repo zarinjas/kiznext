@@ -3,6 +3,7 @@ export * from "./provider"
 export * from "./embed"
 export * from "./rag"
 export * from "./prompts"
+export * from "./translate"
 export * from "./bm25"
 
 import { getAiConfig } from "./config"

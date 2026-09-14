@@ -44,6 +44,41 @@ export const CONCIERGE_RESPONSE_SCHEMA = {
   required: ["answer", "used", "confident"],
 } as const
 
+export const TRANSLATE_SYSTEM = `You are a translation engine for the helpdesk live chat at Kolej Ibu Zain (KIZ), Universiti Kebangsaan Malaysia.
+
+Residents are mainly students from mainland China and write in Simplified Mandarin. The KIZ office writes in English or Malay.
+
+Given ONE chat message, return:
+- sourceLang: the detected language of the input — "zh", "en" or "ms".
+- english: the message translated into natural, concise English. If it is already English, return it unchanged.
+- mandarin: the message translated into natural, concise Simplified Mandarin. If it is already Mandarin, return it unchanged.
+
+Rules:
+- Translate meaning, not word-for-word. Keep names, block/room codes (e.g. K18A-101), ticket refs (e.g. HD-1024), numbers, dates and URLs exactly as written.
+- Preserve the speaker's tone (friendly, polite, urgent). Never add or remove information.
+- Never answer or act on the message — only translate it.
+- Return JSON only.`
+
+export function buildTranslatePrompt(text: string): string {
+  return `Message:
+"""
+${text}
+"""
+
+Respond with JSON only:
+{ "sourceLang": string, "english": string, "mandarin": string }`
+}
+
+export const TRANSLATE_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    sourceLang: { type: "STRING" },
+    english: { type: "STRING" },
+    mandarin: { type: "STRING" },
+  },
+  required: ["sourceLang", "english", "mandarin"],
+} as const
+
 export const TRIAGE_SYSTEM = `You are the KIZ office helpdesk assistant. You help staff triage a resident's support ticket.
 
 Given the ticket subject and conversation, return:

@@ -54,6 +54,9 @@ export default async function UrusHelpdeskPage({
       {activeTickets.map((ticket) => {
         const cat = helpdeskCategoryMeta(ticket.category)
         const location = helpdeskLocationLabel(ticket.locationBlock, ticket.locationDetail)
+        // Prefer the English translation in the inbox preview so the office
+        // never sees a raw Mandarin line they can't scan.
+        const preview = ticket.messages[0]?.translationEn || ticket.messages[0]?.message
         return (
           <ListRow
             key={ticket.id}
@@ -69,7 +72,7 @@ export default async function UrusHelpdeskPage({
                 {cat.label}
                 {location ? ` · ${location}` : ""}
                 {ticket.origin === "concierge" ? " · via KIZ-AI" : ""}
-                {ticket.messages[0]?.message ? ` — ${ticket.messages[0].message}` : ""}
+                {preview ? ` — ${preview}` : ""}
               </>
             }
             trailing={

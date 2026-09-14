@@ -158,6 +158,7 @@ export default async function TicketPage({
           <TicketChat
             ticketId={ticket.id}
             ticketStatus={ticket.status}
+            channel={ticket.channel}
             messages={ticket.messages}
             role={role}
           />

@@ -9,17 +9,29 @@ import Typography from "@mui/material/Typography"
 import Alert from "@mui/material/Alert"
 import CircularProgress from "@mui/material/CircularProgress"
 import { color, gradient, glass } from "@/lib/theme"
+import type { Role } from "@/lib/rbac"
 import { register } from "./actions"
+
+interface InvitationPreview {
+  email: string
+  name: string | null
+  matricId: string | null
+  role: Role
+  resident: boolean
+}
 
 interface Props {
   logoUrl: string | null
   defaultMatric?: string
   defaultName?: string
+  invitation?: InvitationPreview
+  invitationToken?: string
+  invitationError?: string
 }
 
 type Outcome =
   | { kind: "form" }
-  | { kind: "success"; message: string; role: "ahli" | "staf" }
+  | { kind: "success"; message: string; role: Role }
   | { kind: "error"; error: string }
 
 function accountHint(email: string): string | null {
@@ -30,10 +42,17 @@ function accountHint(email: string): string | null {
   return null
 }
 
-export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
+export function RegisterForm({
+  logoUrl,
+  defaultMatric,
+  defaultName,
+  invitation,
+  invitationToken,
+  invitationError,
+}: Props) {
   const [outcome, setOutcome] = useState<Outcome>({ kind: "form" })
   const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState(invitation?.email ?? "")
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -54,6 +73,7 @@ export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
       name: ((form.get("name") as string) ?? "").trim(),
       email: ((form.get("email") as string) ?? "").trim().toLowerCase(),
       password,
+      inviteToken: invitationToken,
     })
     setLoading(false)
 
@@ -64,7 +84,13 @@ export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
     setOutcome({ kind: "success", message: result.message, role: result.role })
   }
 
-  const hint = accountHint(email)
+  const hint = invitation
+    ? invitation.role === "admin_kiz"
+      ? "You were invited as an Admin KIZ."
+      : invitation.resident
+        ? "You were invited as a Student — your matric No. is on the KIZ resident list."
+        : "You were invited as a Student."
+    : accountHint(email)
 
   return (
     <Box sx={{ minHeight: "100dvh", display: "flex", backgroundColor: "background.default" }}>
@@ -109,7 +135,39 @@ export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
             )}
           </Box>
 
-          {outcome.kind === "success" ? (
+          {invitationError ? (
+            <Box>
+              <Box
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mb: 2.5,
+                  backgroundColor: color.danger.soft,
+                  color: color.danger.ink,
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: 24 }}>link_off</span>
+              </Box>
+              <Typography variant="h1" sx={{ mb: 1 }}>Invitation problem</Typography>
+              <Typography variant="body1" sx={{ color: "text.secondary", mb: 3 }}>
+                {invitationError}
+              </Typography>
+              <Button
+                component={Link}
+                href="/daftar"
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={<span className="material-symbols-rounded" style={{ fontSize: 18 }}>person_add</span>}
+              >
+                Register without an invitation
+              </Button>
+            </Box>
+          ) : outcome.kind === "success" ? (
             <Box>
               <Box
                 sx={{
@@ -149,9 +207,24 @@ export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
             </Box>
           ) : (
             <>
+              {invitation && (
+                <Alert
+                  severity="success"
+                  variant="standard"
+                  icon={<span className="material-symbols-rounded" style={{ fontSize: 20 }}>mark_email_read</span>}
+                  sx={{ mb: 3 }}
+                >
+                  You&apos;ve been invited to join KIZ Super App as{" "}
+                  <strong>{invitation.role === "admin_kiz" ? "Admin KIZ" : "a Student"}</strong>.
+                  {invitation.resident ? " Your matric No. is on the resident list." : ""}
+                </Alert>
+              )}
+
               <Typography variant="h1" sx={{ mb: 1 }}>Create your account</Typography>
               <Typography variant="body1" sx={{ color: "text.secondary", mb: 4 }}>
-                Register with your UKM email to join the KIZ app.
+                {invitation
+                  ? "Finish setting up your invited account."
+                  : "Register with your UKM email to join the KIZ app."}
               </Typography>
 
               <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -165,20 +238,21 @@ export function RegisterForm({ logoUrl, defaultMatric, defaultName }: Props) {
                   autoCorrect="off"
                   required
                   fullWidth
-                  defaultValue={defaultMatric}
+                  defaultValue={invitation?.matricId ?? defaultMatric}
                   slotProps={{ htmlInput: { sx: { textTransform: "uppercase" } } }}
                 />
-                <TextField id="name" name="name" label="Full name" placeholder="As printed on your ID" autoComplete="name" required fullWidth defaultValue={defaultName} />
+                <TextField id="name" name="name" label="Full name" placeholder="As printed on your ID" autoComplete="name" required fullWidth defaultValue={invitation?.name ?? defaultName} />
                 <TextField
                   id="email"
                   name="email"
-                  label="UKM email"
+                  label="Email"
                   type="email"
                   placeholder={email.includes("@siswa") ? "you@siswa.ukm.edu.my" : "you@ukm.edu.my"}
                   autoComplete="email"
                   required
                   fullWidth
                   value={email}
+                  disabled={!!invitation}
                   onChange={(e) => setEmail(e.target.value)}
                   helperText={hint ?? " "}
                 />

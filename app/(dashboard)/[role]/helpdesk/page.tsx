@@ -20,6 +20,11 @@ export default async function HelpdeskPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
+  // Admins run support from the helpdesk inbox, not the resident ask flow.
+  if (session.user.role === "admin_kiz" || session.user.role === "superadmin") {
+    redirect(`/${session.user.role}/urus-helpdesk`)
+  }
+
   const [tickets, blocks, contacts, room] = await Promise.all([
     prisma.helpdeskTicket.findMany({
       where: { userId: session.user.id, deletedAt: null },

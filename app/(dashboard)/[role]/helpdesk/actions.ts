@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { isOfficeHours, getOfficeHoursMessage } from "@/lib/office-hours"
+import { translateLiveMessage } from "@/lib/helpdesk-translate"
+import type { Role } from "@/lib/rbac"
 import type { HelpdeskCategory, HelpdeskChannel } from "@/app/generated/prisma/client"
 
 export interface CreateTicketInput {
@@ -83,7 +85,12 @@ export async function startLiveChat(message: string) {
       status: "submitted",
       messages: { create: { senderId: session.user.id, message: text } },
     },
+    include: { messages: true },
   })
+
+  // Auto-translate the opening question so the office reads it in English.
+  const first = ticket.messages[0]
+  if (first) translateLiveMessage(first.id, text)
 
   if (!isOfficeHours()) {
     await prisma.helpdeskMessage.create({
@@ -108,14 +115,20 @@ export async function sendReply(ticketId: string, message: string) {
     where: { id: ticketId },
   })
   if (!ticket || ticket.deletedAt) throw new Error("Ticket not found")
+  if (ticket.userId !== session.user.id) throw new Error("Unauthorized")
 
-  await prisma.helpdeskMessage.create({
+  const created = await prisma.helpdeskMessage.create({
     data: {
       ticketId,
       senderId: session.user.id,
       message,
     },
   })
+
+  // Live chats are translated both ways; structured tickets stay as typed.
+  if (ticket.channel === "live") {
+    translateLiveMessage(created.id, message)
+  }
 
   // A reply on a resolved or awaiting-more-info ticket brings it back to life.
   if (ticket.status === "resolved" || ticket.status === "more_info_required") {
@@ -143,6 +156,16 @@ export async function closeTicket(ticketId: string) {
 export async function getTicketMessages(ticketId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const ticket = await prisma.helpdeskTicket.findUnique({
+    where: { id: ticketId },
+    select: { userId: true },
+  })
+  if (!ticket) throw new Error("Ticket not found")
+
+  const role = session.user.role as Role
+  const isStaff = role === "admin_kiz" || role === "superadmin"
+  if (!isStaff && ticket.userId !== session.user.id) throw new Error("Unauthorized")
 
   return prisma.helpdeskMessage.findMany({
     where: { ticketId, deletedAt: null },

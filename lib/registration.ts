@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/db"
 import { appOrigin, sendVerificationEmail } from "@/lib/email"
+import { markInvitationAccepted, resolvePendingInvitation } from "@/lib/invitations"
 import type { AccountStatus, Role } from "@/lib/rbac"
 
 /**
@@ -86,16 +87,34 @@ export interface RegisterInput {
   name: string
   email: string
   password: string
+  /** Raw invite token when registering from an invitation link. */
+  inviteToken?: string
 }
 
 export type RegisterResult =
-  | { ok: true; role: "ahli" | "staf"; message: string; resent?: boolean }
-  | { ok: false; error: string; code?: "invalid_email_domain" | "duplicate" | "invalid_input" }
+  | { ok: true; role: Role; message: string; resent?: boolean }
+  | {
+      ok: false
+      error: string
+      code?: "invalid_email_domain" | "duplicate" | "invalid_input" | "invalid_invitation"
+    }
 
 export async function registerAccount(input: RegisterInput): Promise<RegisterResult> {
-  const matricId = normalizeMatric(input.matricId)
-  const name = input.name.trim()
-  const email = input.email.trim().toLowerCase()
+  // An invitation overrides both the email and the role, so the UKM-domain
+  // check below is skipped for invited accounts (admins are often not on a
+  // UKM address, and students are invited explicitly by the office).
+  const invitation = input.inviteToken ? await resolvePendingInvitation(input.inviteToken) : null
+  if (input.inviteToken && !invitation) {
+    return {
+      ok: false,
+      error: "This invitation link is invalid or has expired. Ask the KIZ office for a new one.",
+      code: "invalid_invitation",
+    }
+  }
+
+  const email = (invitation ? invitation.email : input.email).trim().toLowerCase()
+  const matricId = normalizeMatric(input.matricId || invitation?.matricId || "")
+  const name = (input.name.trim() || invitation?.name?.trim() || "").trim()
   const password = input.password
 
   if (!matricId) return { ok: false, error: "Matric No. is required.", code: "invalid_input" }
@@ -104,13 +123,19 @@ export async function registerAccount(input: RegisterInput): Promise<RegisterRes
     return { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`, code: "invalid_input" }
   }
 
-  const kind = roleFromEmail(email)
-  if (!kind) {
-    return {
-      ok: false,
-      error: `Use your official UKM email — students: @${STUDENT_EMAIL_DOMAIN}, staff: @${STAFF_EMAIL_DOMAIN}.`,
-      code: "invalid_email_domain",
+  let role: Role
+  if (invitation) {
+    role = invitation.role
+  } else {
+    const kind = roleFromEmail(email)
+    if (!kind) {
+      return {
+        ok: false,
+        error: `Use your official UKM email — students: @${STUDENT_EMAIL_DOMAIN}, staff: @${STAFF_EMAIL_DOMAIN}.`,
+        code: "invalid_email_domain",
+      }
     }
+    role = kind.role
   }
 
   const existing = await prisma.user.findUnique({ where: { matricId } })
@@ -126,9 +151,10 @@ export async function registerAccount(input: RegisterInput): Promise<RegisterRes
       } catch {
         return { ok: false, error: "Couldn't send the verification email right now. Try again in a moment." }
       }
+      if (invitation) await markInvitationAccepted(invitation.id, existing.id)
       return {
         ok: true,
-        role: existing.role === "staf" ? "staf" : "ahli",
+        role: existing.role,
         resent: true,
         message: `A fresh verification email is on its way to ${existing.email}.`,
       }
@@ -152,7 +178,7 @@ export async function registerAccount(input: RegisterInput): Promise<RegisterRes
       name,
       email,
       passwordHash,
-      role: kind.role,
+      role,
       accountStatus: "unverified",
       residentCardQr: matricId,
     },
@@ -164,9 +190,11 @@ export async function registerAccount(input: RegisterInput): Promise<RegisterRes
     return { ok: false, error: "Couldn't send the verification email right now. Try again in a moment." }
   }
 
+  if (invitation) await markInvitationAccepted(invitation.id, user.id)
+
   return {
     ok: true,
-    role: kind.role,
+    role,
     message: `Account created! We've sent a verification link to ${email}.`,
   }
 }
@@ -250,10 +278,10 @@ export async function verifyEmailToken(
   }
 
   const now = new Date()
-  const eligible = user.role === "ahli" ? await eligibleOnActiveIntake(user.matricId) : null
+  const needsIntake = user.role === "ahli"
+  const eligible = needsIntake ? await eligibleOnActiveIntake(user.matricId) : null
 
-  const accountStatus: AccountStatus =
-    user.role === "staf" ? "active" : eligible ? "active" : "pending"
+  const accountStatus: AccountStatus = !needsIntake ? "active" : eligible ? "active" : "pending"
 
   await prisma.$transaction([
     prisma.verificationToken.update({
@@ -301,7 +329,7 @@ export async function autoUpgradePendingUser(userId: string): Promise<AccountSta
     return user.accountStatus
   }
 
-  if (user.role === "staf") {
+  if (user.role !== "ahli") {
     await prisma.user.update({ where: { id: user.id }, data: { accountStatus: "active" } })
     return "active"
   }

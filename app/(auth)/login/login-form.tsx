@@ -11,7 +11,9 @@ import Alert from "@mui/material/Alert"
 import CircularProgress from "@mui/material/CircularProgress"
 import { color, gradient, glass } from "@/lib/theme"
 import { resendVerification } from "../daftar/actions"
-import { quickSignIn } from "./actions"
+
+/** KIZ college green (matches lib/pdf.ts and the check-in flow). */
+const KIZ_GREEN = { deep: "#004B23", hover: "#003A1B" }
 
 interface Props {
   logoUrl: string | null
@@ -150,7 +152,11 @@ export function LoginForm({ logoUrl, loginBackgroundUrl, callbackUrl = "/dashboa
               size="large"
               disabled={loading || resending}
               fullWidth
-              sx={{ mt: 1 }}
+              sx={{
+                mt: 1,
+                backgroundColor: KIZ_GREEN.deep,
+                "&:hover": { backgroundColor: KIZ_GREEN.hover },
+              }}
               startIcon={loading ? <CircularProgress size={15} color="inherit" /> : undefined}
             >
               {loading ? "Signing in…" : "Sign in"}
@@ -180,24 +186,6 @@ export function LoginForm({ logoUrl, loginBackgroundUrl, callbackUrl = "/dashboa
             </Typography>
           </Box>
         </Box>
-
-          <Box sx={{ mt: 3, pt: 3, borderTop: "1px solid", borderColor: "divider" }}>
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              Quick demo login (password: kiz123)
-            </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1.5 }}>
-              <Box component="form" action={quickSignIn.bind(null, "A123456")} sx={{ display: "block", width: "100%" }}>
-                <Button type="submit" variant="contained" size="large" fullWidth>
-                  Student
-                </Button>
-              </Box>
-              <Box component="form" action={quickSignIn.bind(null, "ADMIN001")} sx={{ display: "block", width: "100%" }}>
-                <Button type="submit" variant="contained" size="large" fullWidth>
-                  Super Admin
-                </Button>
-              </Box>
-            </Box>
-          </Box>
 
           <Typography variant="caption" sx={{ display: "block", mt: 4, color: "text.disabled" }}>
             Need help? Contact the KIZ management office.

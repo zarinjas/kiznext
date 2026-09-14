@@ -10,7 +10,7 @@ import TextField from "@mui/material/TextField"
 import useMediaQuery from "@mui/material/useMediaQuery"
 import { useTheme } from "@mui/material/styles"
 import { KIcon } from "@/components/kiz/primitives/icon"
-import { color, radius, elevation, glass, gradient } from "@/lib/theme"
+import { color, radius, glass, gradient } from "@/lib/theme"
 import { askConcierge, escalateToOffice } from "@/app/(dashboard)/[role]/concierge-actions"
 import type { ConciergeEmotion, ConciergeFrames } from "@/lib/ai/config"
 
@@ -538,21 +538,18 @@ export function KizAi({
             width: 60,
             height: 60,
             p: 0,
-            borderRadius: "50%",
-            border: "2px solid",
-            borderColor: "background.paper",
-            background: gradient.hero,
-            boxShadow: elevation.e3,
+            border: "none",
+            background: "transparent",
             cursor: "pointer",
-            overflow: "hidden",
+            filter: "drop-shadow(0 8px 16px rgba(9,9,11,0.22))",
           }}
         >
-          <RobotSprite key={emotion} frames={frames[emotion]} fallback={avatarUrl} size={56} intervalMs={EMOTION_INTERVAL[emotion]} />
+          <RobotSprite key={emotion} frames={frames[emotion]} fallback={avatarUrl} size={60} intervalMs={EMOTION_INTERVAL[emotion]} />
           <Box
             sx={{
               position: "absolute",
-              top: 2,
-              right: 2,
+              top: 1,
+              right: 1,
               width: 12,
               height: 12,
               borderRadius: "50%",

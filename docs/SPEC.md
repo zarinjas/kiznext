@@ -23,7 +23,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Facility Booking | Browse college facilities, view availability, book a time slot, admin approves. Approved bookings get a PDF slip. |
 | Guest House Booking | Admins configure the guest houses (name, description, photos, price, capacity, max stay). Students pick a guest house and book it daily/weekly/monthly; admin approves, then check-in/check-out. Payment marked manually. |
 | Helpdesk | Per-student support threads with two channels: **Live Chat** (quick questions, no form) and **Support Ticket** (structured, tracked requests/applications, e.g. room change). Admin inbox splits the two; chat thread, assign, close, and out-of-hours auto-reply are shared. |
-| KIZ-AI Concierge | A Gemini-powered robot (`KIZ-AI`, admin-uploaded mascot with **3 emotions × 3 animated frames** — idle/thinking/happy — plus a name) that answers resident questions from the app's own content via retrieval-augmented generation (announcements, facilities, offices, guest houses, events, contacts, static FAQ). Replies cite their sources. When it can't answer, it offers a one-tap handoff to the KIZ office, creating a pre-filled helpdesk request. Every unanswered question is logged for an admin FAQ feedback loop. |
+| KIZ-AI Concierge | A Gemini/Ollama-powered robot (`KIZ-AI`, admin-uploaded mascot with **3 emotions × 3 animated frames** — idle/thinking/happy — plus a name) that answers resident questions from the app's own content via retrieval-augmented generation (announcements, facilities, offices, guest houses, events, contacts, and an **admin-curated FAQ knowledge base**). Chat and embeddings can use different providers, and retrieval falls back to keyword search. Replies cite their sources and follow the asker's language. When it can't answer, it offers a one-tap handoff to the KIZ office, creating a pre-filled helpdesk request. Every unanswered question is logged so staff can turn it into a FAQ — the feedback loop that keeps improving answers. |
 | Announcements | Admin-posted feed. Tags, pinning, scheduling, expiry, file attachments. |
 | Community Chat | One shared room for all residents, staff & fellows. Reactions, replies, reports to the KIZ team, presence (members/online), image & PDF attachments, and a community info rail (guidelines, team, Helpdesk route). |
 | Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
@@ -31,6 +31,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Accommodation Applications | Accepted students (imported from eKolej via CSV) request a single room, a same-gender double-room roommate by matric ID, or flexible placement during an admin-defined window. Students never choose or see physical rooms; admins allocate final rooms after review. See `ROOM-SELECTION.md`. |
 | Directory | AR Directory — pick a destination and a camera-compass arrow + live distance guide you to it (outdoor GPS/compass; indoor rooms are pinned by lat/lng inside the single-floor admin building). Admin manages the destination pins. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
+| Invitations | Superadmin invites people (student or admin) to self-register by email — one at a time or in bulk. An invited student whose matric is already on the active intake is marked a resident and activated on registration; admin invitations never need an intake match. |
 
 ### Explicitly out of scope
 
@@ -81,6 +82,12 @@ Students and staff register themselves (`/daftar`) and must confirm their email
 through a Resend link before their first sign-in. The email domain selects the
 role — `@siswa.ukm.edu.my` → `ahli`, `@ukm.edu.my` → `staf`. Accounts created by
 an admin (or the seed) default to `active` and skip email verification.
+
+A superadmin can also **invite** people (`/urus-jemputan`): the invitation email
+links to `/daftar?invite=<token>`, where the email and role are fixed by the
+invitation (so the UKM-domain check is bypassed and admin staff may use any
+address). An invited student whose matric matches the active intake is flagged
+**resident** and becomes active + linked on email verification.
 
 The identity anchor is the matric ID, **not** the email: the eKolej KIZ intake
 CSV has no email column, so a student is matched to the official list by matric.
@@ -141,6 +148,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
 | `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
 | `VerificationToken` | verification_tokens | single-use email-verify links. `userId`, `tokenHash` unique (SHA-256 of the raw token — never stored), `expiresAt`, `usedAt`. Soft-deleted when consumed. |
+| `Invitation` | invitations | superadmin-issued self-registration invite. `email`, `role` (ahli/admin_kiz), optional `matricId`/`name`, `tokenHash` unique (SHA-256, 14-day expiry), `resident` (matric matched the active intake), `acceptedAt`/`acceptedById`, `revokedAt`, `lastSentAt`, `sentCount`, `invitedById`. |
 | `ResidenceBlock` | residence_blocks | `name` unique, `gender`, `floors`, `sortOrder`. Physical residential block, gender-restricted. Distinct from `Block` (facility grouping). |
 | `ResidenceRoom` | residence_rooms | `blockId`, `floor`, `number` (`@@unique([blockId, number])`), `type` (single/double), `status` (available/maintenance/closed). |
 | `Bed` | beds | `roomId`, `position` (single/left/right), `occupantId` unique → `EligibleStudent`. `@@unique([roomId, position])`. Single room = 1 bed, double = 2. |
@@ -150,6 +158,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `RoomApplication` | room_applications | one soft-deletable preference per applicant: `type` (single/double/flexible), status, optional same-gender roommate, submission and response times. This does not allocate a physical bed. |
 | `AiKnowledge` | ai_knowledge | KIZ-AI retrieval index over app content. `sourceType` (announcement/facility/office/content/guesthouse/event/faq), `sourceId`, `title`, `content`, `embedding` (JSON `number[]`), `hash` (sha256, skip-unchanged), `href` (citation route suffix). Rebuilt by an admin "Re-index" action. |
 | `AiUnansweredLog` | ai_unanswered_log | Questions KIZ-AI couldn't answer: `userId`, `question`, `bestScore`, `ticketId` (set when escalated), `resolved`. Powers the admin "top unanswered" feedback loop. |
+| `Faq` | faqs | Admin-curated Q&A that KIZ-AI answers (the "training" surface — no fine-tuning): `category`, `question`, `answer`, `keywords` (alt phrasings/BM/ZH), `language`, `published`, `sortOrder`. Importable/exportable as CSV. Published + answered rows are indexed into `ai_knowledge`. |
 
 New enums: `Gender` (male/female), `RoomType` (single/double), `RoomApplicationType`
 (single/double/flexible), `RoomApplicationStatus`, `RoomStatus`
@@ -172,7 +181,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | Route | Feature |
 |---|---|
 | `/login` | Credentials sign-in. |
-| `/daftar` | Self-service registration. Email domain picks the role (`@siswa.ukm.edu.my` → student, `@ukm.edu.my` → staff); sends a Resend verification link. |
+| `/daftar` | Self-service registration. Email domain picks the role (`@siswa.ukm.edu.my` → student, `@ukm.edu.my` → staff); sends a Resend verification link. With `?invite=<token>` the email + role come from the invitation instead. |
 | `/sahkan` | Email-verification landing. Consumes the token, marks the account, matches against the active intake (see §3). |
 
 ### Member routes
@@ -208,6 +217,9 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
 | `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `pengetua` sees the occupancy tab read-only. |
 | `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
+| `urus-jemputan` | **Superadmin only.** Invite people to self-register by email (one at a time or in bulk), choosing Student or Admin KIZ; manage issued invitations (status, resend, revoke, soft-delete). |
+| `urus-ai` | KIZ-AI admin — chat/embedding providers (Gemini / Ollama), robot mascot + emotion frames, retrieval mode, **Test connection**, knowledge index + re-index, unanswered questions. |
+| `urus-faq` | FAQ knowledge base — CRUD, publish/draft, CSV import/export, downloadable template, "Add starter questions", and promote an unanswered question into a FAQ. |
 | `urus-tempahan` | **Legacy** booking approvals. Superseded. |
 
 ### Layout

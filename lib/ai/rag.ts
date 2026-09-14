@@ -121,7 +121,7 @@ function staticFaqs(): KnowledgeSource[] {
 }
 
 async function collectSources(): Promise<KnowledgeSource[]> {
-  const [announcements, facilities, offices, contents, guestHouses, events] = await Promise.all([
+  const [announcements, facilities, offices, contents, guestHouses, events, faqs] = await Promise.all([
     prisma.announcement.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.facility.findMany({
       where: { deletedAt: null },
@@ -135,9 +135,21 @@ async function collectSources(): Promise<KnowledgeSource[]> {
       orderBy: { startsAt: "asc" },
       take: 30,
     }),
+    prisma.faq.findMany({ where: { deletedAt: null, published: true, answer: { not: "" } } }),
   ])
 
   const sources: KnowledgeSource[] = []
+
+  // Admin-curated FAQ — the primary knowledge surface.
+  for (const f of faqs) {
+    sources.push({
+      sourceType: "faq",
+      sourceId: f.id,
+      title: f.question,
+      content: [f.answer, f.keywords ? `Keywords: ${f.keywords}` : ""].filter(Boolean).join(" "),
+      href: "helpdesk",
+    })
+  }
 
   for (const a of announcements) {
     sources.push({

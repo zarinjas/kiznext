@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireRole } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
+import { translateLiveMessage } from "@/lib/helpdesk-translate"
 import type { Role } from "@/lib/rbac"
 
 /** New status a ticket moves to once an admin actually engages with it. */
@@ -22,13 +23,19 @@ export async function adminReply(ticketId: string, message: string) {
   })
   if (!ticket || ticket.deletedAt) throw new Error("Ticket not found")
 
-  await prisma.helpdeskMessage.create({
+  const created = await prisma.helpdeskMessage.create({
     data: {
       ticketId,
       senderId: session.user.id,
       message,
     },
   })
+
+  // Live chats are translated both ways so the resident reads the reply in
+  // Mandarin; structured tickets stay as typed.
+  if (ticket.channel === "live") {
+    translateLiveMessage(created.id, message)
+  }
 
   const next = await ticketStatusAfterReply(ticket.status)
   if (next) {

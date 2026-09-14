@@ -22,6 +22,7 @@ import {
   clearUnanswered,
   testAiConnection,
 } from "@/lib/ai/admin-actions"
+import { getFaqTemplateCsv } from "@/lib/ai/faq-actions"
 import type { UnansweredRow, AiTestResult } from "@/lib/ai/types"
 import type { ConciergeFrames } from "@/lib/ai/config"
 
@@ -83,6 +84,7 @@ export function AiSettingsForm({
   const [uploading, setUploading] = useState(false)
   const [indexing, setIndexing] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [templateBusy, setTemplateBusy] = useState(false)
   const [test, setTest] = useState<AiTestResult | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -193,6 +195,26 @@ export function AiSettingsForm({
   async function handleClearUnanswered() {
     await clearUnanswered()
     router.refresh()
+  }
+
+  async function handleTemplate() {
+    setError("")
+    setSuccess("")
+    setTemplateBusy(true)
+    try {
+      const csv = await getFaqTemplateCsv()
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "kiz-faq-template.csv"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setError("Couldn't generate the template.")
+    } finally {
+      setTemplateBusy(false)
+    }
   }
 
   return (
@@ -394,12 +416,17 @@ export function AiSettingsForm({
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 {knowledgeCount} item{knowledgeCount === 1 ? "" : "s"} indexed · {embeddedCount} with embeddings ·{" "}
-                {knowledgeCount - embeddedCount} keyword-only. Re-index after adding announcements, facilities or contacts.
+                {knowledgeCount - embeddedCount} keyword-only. Re-index after editing the FAQ, announcements or facilities.
               </Typography>
             </Box>
-            <KButton type="button" variant="outlined" size="small" icon="refresh" onClick={handleReindex} loading={indexing}>
-              {indexing ? "Indexing…" : "Re-index now"}
-            </KButton>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <KButton type="button" variant="outlined" size="small" icon="download" onClick={handleTemplate} loading={templateBusy}>
+                {templateBusy ? "Preparing…" : "FAQ template"}
+              </KButton>
+              <KButton type="button" variant="outlined" size="small" icon="refresh" onClick={handleReindex} loading={indexing}>
+                {indexing ? "Indexing…" : "Re-index now"}
+              </KButton>
+            </Box>
           </Box>
         </Box>
 

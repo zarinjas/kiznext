@@ -18,7 +18,8 @@ import { getTicketMessages } from "../../helpdesk/actions"
 import { AiAssist } from "./ai-assist"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { color, radius } from "@/lib/theme"
-import { isHelpdeskActive } from "@/lib/helpdesk-meta"
+import { isHelpdeskActive, messageVersions } from "@/lib/helpdesk-meta"
+import { chatRoleBadge } from "@/lib/chat-meta"
 
 const ADMIN_IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
 
@@ -33,6 +34,9 @@ interface Message {
   id: string
   message: string
   isAutoReply: boolean
+  sourceLang?: string | null
+  translationEn?: string | null
+  translationZh?: string | null
   createdAt: Date
   sender: { name: string; role: string }
 }
@@ -182,6 +186,10 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
         {messages.map((msg) => {
           const isStaff = msg.sender.role === "admin_kiz" || msg.sender.role === "superadmin"
           const time = new Date(msg.createdAt).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })
+          const badge = chatRoleBadge(msg.sender.role)
+          const isImage = ADMIN_IMAGE_URL_RE.test(msg.message.trim())
+          const versions = messageVersions(msg)
+          const body = isImage ? msg.message : versions.en
 
           if (msg.isAutoReply) {
             return (
@@ -210,13 +218,27 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
           return (
             <Box key={msg.id} sx={{ display: "flex", justifyContent: isStaff ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 1 }}>
               <Box sx={{ maxWidth: { xs: "80%", sm: "70%" }, minWidth: 0 }}>
-                {!isStaff && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 0.5, mb: 0.25 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: "text.primary" }}>
-                      {msg.sender.name}
-                    </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 0.5, mb: 0.25, justifyContent: isStaff ? "flex-end" : "flex-start" }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: "text.primary" }}>
+                    {msg.sender.name}
+                  </Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      px: 0.625,
+                      py: 0.125,
+                      borderRadius: `${radius.pill}px`,
+                      backgroundColor: badge.tone.soft,
+                      color: badge.tone.ink,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {badge.label}
                   </Box>
-                )}
+                </Box>
                 <Box
                   sx={{
                     px: 1.5,
@@ -229,8 +251,13 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
                     wordBreak: "break-word",
                   }}
                 >
-                  {adminRenderMessage(msg.message)}
+                  {adminRenderMessage(body)}
                 </Box>
+                {versions.translated && !isImage && body !== msg.message && (
+                  <Typography variant="caption" sx={{ display: "block", px: 0.5, mt: 0.25, color: "text.disabled", textAlign: isStaff ? "right" : "left" }}>
+                    Translated to English
+                  </Typography>
+                )}
                 <Typography variant="caption" sx={{ display: "block", px: 0.5, mt: 0.25, color: "text.disabled", textAlign: isStaff ? "right" : "left" }}>
                   {time}
                 </Typography>

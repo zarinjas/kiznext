@@ -87,6 +87,33 @@ export function isHelpdeskDone(status: string): boolean {
 }
 
 /**
+ * A helpdesk message that may carry auto-translations (live chat). `message`
+ * is always the text exactly as typed; `translationEn`/`translationZh` are the
+ * machine versions. Everything falls back to the original when a translation
+ * is missing (AI off, non-live thread, or an older message).
+ */
+export interface TranslatableMessage {
+  message: string
+  sourceLang?: string | null
+  translationEn?: string | null
+  translationZh?: string | null
+}
+
+export interface MessageVersions {
+  en: string
+  zh: string
+  /** True when the English and Mandarin versions differ (a translation exists). */
+  translated: boolean
+}
+
+export function messageVersions(msg: TranslatableMessage): MessageVersions {
+  const original = msg.message ?? ""
+  const en = msg.translationEn?.trim() || (msg.sourceLang === "en" ? original : "") || original
+  const zh = msg.translationZh?.trim() || (msg.sourceLang === "zh" ? original : "") || original
+  return { en, zh, translated: en !== zh }
+}
+
+/**
  * Channel meta — a `live` chat is a quick Q&A (no category form, lighter
  * lifecycle); a `ticket` is a structured, tracked request/application.
  */

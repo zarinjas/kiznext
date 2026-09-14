@@ -60,7 +60,7 @@ export function navForRole(role: Role): NavGroup[] {
     {
       label: "Support",
       items: [
-        { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent" },
+        { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent", roles: ["ahli", "staf", "fellow", "pengetua"] },
         { label: "Lost & Found", href: `/${role}/hilang`, icon: "search" },
         { label: "Offices", href: `/${role}/pejabat`, icon: "domain" },
         { label: "AR Directory", href: `/${role}/direktori`, icon: "view_in_ar" },
@@ -100,9 +100,17 @@ export function navForRole(role: Role): NavGroup[] {
         ],
       },
       {
+        label: "AI",
+        items: [
+          { label: "KIZ-AI", href: `/${role}/urus-ai`, icon: "smart_toy", admin: true },
+          { label: "FAQ Knowledge", href: `/${role}/urus-faq`, icon: "quiz", admin: true },
+        ],
+      },
+      {
         label: "System",
         items: [
           { label: "Users", href: `/${role}/urus-pengguna`, icon: "manage_accounts", admin: true },
+          { label: "Invitations", href: `/${role}/urus-jemputan`, icon: "mail", admin: true, roles: ["superadmin"] },
           { label: "Settings", href: `/${role}/urus-tetapan`, icon: "settings", admin: true },
         ],
       },

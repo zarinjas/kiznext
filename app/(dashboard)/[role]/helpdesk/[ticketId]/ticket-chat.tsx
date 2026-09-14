@@ -8,8 +8,21 @@ import Tooltip from "@mui/material/Tooltip"
 import { sendReply, closeTicket, getTicketMessages } from "../actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { color, radius } from "@/lib/theme"
+import { messageVersions } from "@/lib/helpdesk-meta"
+import { chatRoleBadge } from "@/lib/chat-meta"
 
 const IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
+const STAFF_ROLES = ["admin_kiz", "superadmin"]
+
+function isStaffRole(role: string): boolean {
+  return STAFF_ROLES.includes(role)
+}
+
+/** Default the reader to Mandarin only when the resident actually writes it. */
+function initialViewerLang(messages: Message[]): "en" | "zh" {
+  const first = messages.find((m) => m.sourceLang && !isStaffRole(m.sender.role))
+  return first?.sourceLang === "zh" ? "zh" : "en"
+}
 
 function renderMessage(msg: string) {
   if (IMAGE_URL_RE.test(msg.trim())) {
@@ -30,6 +43,9 @@ interface Message {
   id: string
   message: string
   isAutoReply: boolean
+  sourceLang?: string | null
+  translationEn?: string | null
+  translationZh?: string | null
   createdAt: Date
   sender: { name: string; role: string }
 }
@@ -37,20 +53,31 @@ interface Message {
 interface Props {
   ticketId: string
   ticketStatus: string
+  channel: string
   messages: Message[]
   role: string
 }
 
 /** TicketChat — helpdesk conversation, styled from the shared chat recipe. */
-export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, role }: Props) {
+export function TicketChat({ ticketId, ticketStatus, channel, messages: initialMessages, role }: Props) {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
+  const [lang, setLang] = useState<"en" | "zh">(() => initialViewerLang(initialMessages))
+  const picked = useRef(false)
   const endRef = useRef<HTMLDivElement>(null)
 
   const isClosed = ticketStatus === "closed"
-  const isAdmin = role === "admin_kiz" || role === "superadmin"
+  const isAdmin = isStaffRole(role)
+  const canTranslate = channel === "live" && messages.some((m) => messageVersions(m).translated)
+
+  // The opening message is translated just after it's sent, so the first render
+  // may not know the resident writes Mandarin yet — switch to 中文 once it does,
+  // unless they've already chosen a language themselves.
+  useEffect(() => {
+    if (!picked.current && initialViewerLang(messages) === "zh") setLang("zh")
+  }, [messages])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -109,10 +136,72 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
         </Box>
       )}
 
+      {/* Live-chat translation switcher */}
+      {canTranslate && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            px: 1.5,
+            py: 0.75,
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            backgroundColor: color.info.soft,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: color.info.ink, fontWeight: 600 }}
+          >
+            <KIcon icon="translate" size={14} />
+            Auto-translated
+          </Typography>
+          <Box
+            sx={{
+              display: "inline-flex",
+              borderRadius: `${radius.pill}px`,
+              border: "1px solid",
+              borderColor: "divider",
+              overflow: "hidden",
+              backgroundColor: "background.paper",
+            }}
+          >
+            {(["en", "zh"] as const).map((l) => (
+              <Box
+                key={l}
+                component="button"
+                onClick={() => {
+                  picked.current = true
+                  setLang(l)
+                }}
+                sx={{
+                  px: 1.25,
+                  py: 0.5,
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  backgroundColor: lang === l ? color.brand[600] : "transparent",
+                  color: lang === l ? "#fff" : "text.secondary",
+                }}
+              >
+                {l === "en" ? "English" : "中文"}
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+
       <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5, "&::-webkit-scrollbar": { width: 6 } }}>
         {messages.map((msg) => {
           const mine = msg.sender.role === role
           const time = new Date(msg.createdAt).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })
+          const badge = chatRoleBadge(msg.sender.role)
+          const isImage = IMAGE_URL_RE.test(msg.message.trim())
+          const versions = messageVersions(msg)
+          const body = isImage ? msg.message : lang === "zh" ? versions.zh : versions.en
 
           if (msg.isAutoReply) {
             return (
@@ -146,6 +235,22 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
                     <Typography variant="caption" sx={{ fontWeight: 600, color: "text.primary" }}>
                       {msg.sender.name}
                     </Typography>
+                    <Box
+                      component="span"
+                      sx={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        px: 0.625,
+                        py: 0.125,
+                        borderRadius: `${radius.pill}px`,
+                        backgroundColor: badge.tone.soft,
+                        color: badge.tone.ink,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      {badge.label}
+                    </Box>
                   </Box>
                 )}
                 <Box
@@ -160,8 +265,13 @@ export function TicketChat({ ticketId, ticketStatus, messages: initialMessages, 
                     wordBreak: "break-word",
                   }}
                 >
-                  {renderMessage(msg.message)}
+                  {renderMessage(body)}
                 </Box>
+                {versions.translated && !isImage && body !== msg.message && (
+                  <Typography variant="caption" sx={{ display: "block", px: 0.5, mt: 0.25, color: "text.disabled", textAlign: mine ? "right" : "left" }}>
+                    {lang === "zh" ? "Translated to 中文" : "Translated to English"}
+                  </Typography>
+                )}
                 <Typography variant="caption" sx={{ display: "block", px: 0.5, mt: 0.25, color: "text.disabled", textAlign: mine ? "right" : "left" }}>
                   {time}
                 </Typography>
