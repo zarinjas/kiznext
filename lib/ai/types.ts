@@ -26,3 +26,8 @@ export interface ConciergeReply {
   officeOpen: boolean
   error?: string
 }
+
+export interface AiTestResult {
+  chat: { ok: boolean; detail: string }
+  embed: { ok: boolean; detail: string }
+}

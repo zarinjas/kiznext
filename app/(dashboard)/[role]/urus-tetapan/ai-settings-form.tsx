@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import TextField from "@mui/material/TextField"
+import MenuItem from "@mui/material/MenuItem"
 import Alert from "@mui/material/Alert"
 import Typography from "@mui/material/Typography"
 import CircularProgress from "@mui/material/CircularProgress"
@@ -19,8 +20,9 @@ import {
   removeConciergeAvatar,
   reindexKnowledgeAction,
   clearUnanswered,
+  testAiConnection,
 } from "@/lib/ai/admin-actions"
-import type { UnansweredRow } from "@/lib/ai/types"
+import type { UnansweredRow, AiTestResult } from "@/lib/ai/types"
 import type { ConciergeFrames } from "@/lib/ai/config"
 
 interface Props {
@@ -29,9 +31,17 @@ interface Props {
   initialModel: string
   initialEmbedModel: string
   initialName: string
+  initialChatProvider: string
+  initialEmbedProvider: string
+  initialRetrievalMode: string
+  initialOllamaUrl: string
+  initialOllamaModel: string
+  initialOllamaEmbedModel: string
   avatarUrl: string | null
   frames: ConciergeFrames
   knowledgeCount: number
+  embeddedCount: number
+  enabled: boolean
   unanswered: UnansweredRow[]
 }
 
@@ -41,9 +51,17 @@ export function AiSettingsForm({
   initialModel,
   initialEmbedModel,
   initialName,
+  initialChatProvider,
+  initialEmbedProvider,
+  initialRetrievalMode,
+  initialOllamaUrl,
+  initialOllamaModel,
+  initialOllamaEmbedModel,
   avatarUrl,
   frames,
   knowledgeCount,
+  embeddedCount,
+  enabled,
   unanswered,
 }: Props) {
   const router = useRouter()
@@ -53,13 +71,24 @@ export function AiSettingsForm({
   const [model, setModel] = useState(initialModel)
   const [embedModel, setEmbedModel] = useState(initialEmbedModel)
   const [name, setName] = useState(initialName)
+  const [chatProvider, setChatProvider] = useState(initialChatProvider)
+  const [embedProvider, setEmbedProvider] = useState(initialEmbedProvider)
+  const [retrievalMode, setRetrievalMode] = useState(initialRetrievalMode)
+  const [ollamaUrl, setOllamaUrl] = useState(initialOllamaUrl)
+  const [ollamaModel, setOllamaModel] = useState(initialOllamaModel)
+  const [ollamaEmbedModel, setOllamaEmbedModel] = useState(initialOllamaEmbedModel)
   const [removeKey, setRemoveKey] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [indexing, setIndexing] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [test, setTest] = useState<AiTestResult | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+
+  const needsGemini = chatProvider === "gemini" || embedProvider === "gemini"
+  const needsOllama = chatProvider === "ollama" || embedProvider === "ollama"
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -67,7 +96,19 @@ export function AiSettingsForm({
     setSuccess("")
     setSaving(true)
     try {
-      const result = await saveAiConfig({ apiKey, model, embedModel, conciergeName: name, removeKey })
+      const result = await saveAiConfig({
+        apiKey,
+        model,
+        embedModel,
+        conciergeName: name,
+        removeKey,
+        chatProvider,
+        embedProvider,
+        retrievalMode,
+        ollamaUrl,
+        ollamaModel,
+        ollamaEmbedModel,
+      })
       if (result.success) {
         setSuccess("KIZ-AI settings saved.")
         setApiKey("")
@@ -78,6 +119,18 @@ export function AiSettingsForm({
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleTest() {
+    setError("")
+    setSuccess("")
+    setTest(null)
+    setTesting(true)
+    try {
+      setTest(await testAiConnection())
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -122,7 +175,12 @@ export function AiSettingsForm({
     try {
       const result = await reindexKnowledgeAction()
       if (result.success) {
-        setSuccess(`Indexed ${result.indexed} · skipped ${result.skipped} · removed ${result.removed}. KIZ-AI is up to date.`)
+        setSuccess(
+          `Indexed ${result.indexed} · skipped ${result.skipped} · removed ${result.removed}` +
+            (result.mode === "keyword"
+              ? " (keyword-only — no embeddings)."
+              : ` · embedded ${result.embedded}${result.keywordOnly ? ` · keyword-only ${result.keywordOnly}` : ""}.`),
+        )
         router.refresh()
       } else {
         setError(result.error ?? "Re-index failed.")
@@ -139,11 +197,17 @@ export function AiSettingsForm({
 
   return (
     <FormSection
-      title="KIZ-AI (Gemini)"
-      subtitle="Connect Google Gemini and design the KIZ-AI robot. The key is stored on this server only."
+      title="KIZ-AI (Gemini + Ollama)"
+      subtitle="Run chat and embeddings on Google Gemini and/or a local Ollama server. Keys are stored on this server only."
       icon="smart_toy"
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+        {!enabled && (
+          <Alert severity="info">
+            No chat provider is configured yet — the KIZ-AI button stays hidden until one is set up.
+          </Alert>
+        )}
+
         {/* Robot avatar */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
           <Box
@@ -198,74 +262,123 @@ export function AiSettingsForm({
         <EmotionFrames frames={frames} onError={setError} />
 
         <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <TextField
-            label="Gemini API key"
-            type="password"
-            value={apiKey}
-            onChange={(e) => {
-              setApiKey(e.target.value)
-              if (e.target.value && removeKey) setRemoveKey(false)
-            }}
-            placeholder={apiKeySet ? "Saved — leave blank to keep it" : "AIza…"}
-            autoComplete="off"
-            fullWidth
-            disabled={removeKey}
-            helperText={
-              removeKey
-                ? "The stored key will be removed when you save."
-                : apiKeyFromEnv
-                  ? "Using GEMINI_API_KEY from the server .env. Paste a key here to override it."
-                  : apiKeySet
-                    ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
-                    : "Paste a Google AI Studio key (aistudio.google.com → Get API key)."
-            }
-          />
-
-          {apiKeySet && !apiKeyFromEnv && !removeKey && (
-            <Box>
-              <Button
-                size="small"
-                onClick={() => {
-                  setRemoveKey(true)
-                  setApiKey("")
-                }}
-                startIcon={<KIcon icon="delete" size={15} />}
-                sx={{ color: color.danger.main, textTransform: "none" }}
-              >
-                Remove API key
-              </Button>
-            </Box>
-          )}
-
+          {/* Providers */}
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-            <TextField
-              label="Chat model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              helperText="e.g. gemini-2.0-flash"
-              fullWidth
-            />
-            <TextField
-              label="Embedding model"
-              value={embedModel}
-              onChange={(e) => setEmbedModel(e.target.value)}
-              helperText="e.g. text-embedding-004"
-              fullWidth
-            />
+            <TextField select label="Chat provider" value={chatProvider} onChange={(e) => setChatProvider(e.target.value)} fullWidth>
+              <MenuItem value="gemini">Google Gemini</MenuItem>
+              <MenuItem value="ollama">Ollama (local)</MenuItem>
+            </TextField>
+            <TextField select label="Embedding provider" value={embedProvider} onChange={(e) => setEmbedProvider(e.target.value)} fullWidth>
+              <MenuItem value="gemini">Google Gemini</MenuItem>
+              <MenuItem value="ollama">Ollama (local)</MenuItem>
+              <MenuItem value="none">None (keyword search only)</MenuItem>
+            </TextField>
           </Box>
 
+          {needsGemini && (
+            <>
+              <TextField
+                label="Gemini API key"
+                type="password"
+                value={apiKey}
+                onChange={(e) => {
+                  setApiKey(e.target.value)
+                  if (e.target.value && removeKey) setRemoveKey(false)
+                }}
+                placeholder={apiKeySet ? "Saved — leave blank to keep it" : "AIza…"}
+                autoComplete="off"
+                fullWidth
+                disabled={removeKey}
+                helperText={
+                  removeKey
+                    ? "The stored key will be removed when you save."
+                    : apiKeyFromEnv
+                      ? "Using GEMINI_API_KEY from the server .env. Paste a key here to override it."
+                      : apiKeySet
+                        ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
+                        : "Paste a Google AI Studio key (aistudio.google.com → Get API key)."
+                }
+              />
+              {apiKeySet && !apiKeyFromEnv && !removeKey && (
+                <Box>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setRemoveKey(true)
+                      setApiKey("")
+                    }}
+                    startIcon={<KIcon icon="delete" size={15} />}
+                    sx={{ color: color.danger.main, textTransform: "none" }}
+                  >
+                    Remove API key
+                  </Button>
+                </Box>
+              )}
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                <TextField label="Gemini chat model" value={model} onChange={(e) => setModel(e.target.value)} helperText="e.g. gemini-2.0-flash" fullWidth />
+                <TextField
+                  label="Gemini embedding model"
+                  value={embedModel}
+                  onChange={(e) => setEmbedModel(e.target.value)}
+                  helperText="e.g. gemini-embedding-001"
+                  fullWidth
+                />
+              </Box>
+            </>
+          )}
+
+          {needsOllama && (
+            <>
+              <TextField
+                label="Ollama base URL"
+                value={ollamaUrl}
+                onChange={(e) => setOllamaUrl(e.target.value)}
+                placeholder="http://localhost:11434"
+                fullWidth
+                helperText="Where the app reaches your Ollama server. Use http://host.docker.internal:11434 if the app runs in Docker."
+              />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                <TextField label="Ollama chat model" value={ollamaModel} onChange={(e) => setOllamaModel(e.target.value)} helperText="e.g. llama3.2" fullWidth />
+                <TextField
+                  label="Ollama embedding model"
+                  value={ollamaEmbedModel}
+                  onChange={(e) => setOllamaEmbedModel(e.target.value)}
+                  helperText="e.g. nomic-embed-text"
+                  fullWidth
+                />
+              </Box>
+            </>
+          )}
+
           <TextField
-            label="Robot name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            helperText="Shown in the concierge header, e.g. KIZ-AI."
+            select
+            label="Retrieval mode"
+            value={retrievalMode}
+            onChange={(e) => setRetrievalMode(e.target.value)}
             fullWidth
-          />
+            helperText="Auto uses embeddings when available and falls back to keyword (BM25) search."
+          >
+            <MenuItem value="auto">Auto (embeddings, fallback to keyword)</MenuItem>
+            <MenuItem value="embeddings">Embeddings only</MenuItem>
+            <MenuItem value="keyword">Keyword only (BM25, no API)</MenuItem>
+          </TextField>
+
+          <TextField label="Robot name" value={name} onChange={(e) => setName(e.target.value)} helperText="Shown in the concierge header, e.g. KIZ-AI." fullWidth />
+
+          {test && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+              <Alert severity={test.chat.ok ? "success" : "error"}>Chat: {test.chat.detail}</Alert>
+              <Alert severity={test.embed.ok ? "success" : "warning"}>Embeddings: {test.embed.detail}</Alert>
+            </Box>
+          )}
 
           {error && <Alert severity="error">{error}</Alert>}
           {success && <Alert severity="success">{success}</Alert>}
 
-          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button type="button" variant="outlined" onClick={handleTest} disabled={testing} startIcon={testing ? undefined : <KIcon icon="cable" size={16} />}>
+              {testing ? "Testing…" : "Test connection"}
+            </Button>
             <Button type="submit" variant="contained" disabled={saving} startIcon={saving ? undefined : <KIcon icon="save" size={16} />}>
               {saving ? "Saving…" : "Save"}
             </Button>
@@ -280,7 +393,8 @@ export function AiSettingsForm({
                 Knowledge index
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                {knowledgeCount} item{knowledgeCount === 1 ? "" : "s"} indexed. Re-index after adding announcements, facilities or contacts.
+                {knowledgeCount} item{knowledgeCount === 1 ? "" : "s"} indexed · {embeddedCount} with embeddings ·{" "}
+                {knowledgeCount - embeddedCount} keyword-only. Re-index after adding announcements, facilities or contacts.
               </Typography>
             </Box>
             <KButton type="button" variant="outlined" size="small" icon="refresh" onClick={handleReindex} loading={indexing}>

@@ -11,14 +11,20 @@ import { saveUpload } from "@/lib/image-upload"
 import {
   AI_SETTING_KEYS,
   DEFAULT_AI_MODEL,
-  DEFAULT_EMBED_MODEL,
+  DEFAULT_GEMINI_EMBED_MODEL,
   DEFAULT_CONCIERGE_NAME,
+  DEFAULT_OLLAMA_URL,
+  DEFAULT_OLLAMA_MODEL,
+  DEFAULT_OLLAMA_EMBED_MODEL,
   getConciergeFrames,
   type ConciergeEmotion,
   type ConciergeFrames,
 } from "./config"
 import { indexKnowledge } from "./rag"
-import type { UnansweredRow } from "./types"
+import { generateText } from "./provider"
+import { embedText } from "./embed"
+import { getAiConfig } from "./config"
+import type { UnansweredRow, AiTestResult } from "./types"
 
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024
 const FRAME_MAX_SIZE = 2 * 1024 * 1024
@@ -45,34 +51,49 @@ async function upsertSetting(key: string, value: string) {
 /** Masked AI config for the App Settings panel — the key is never returned. */
 export async function getAiAdminConfig() {
   await requireAiAdmin()
-  const [key, model, embedModel, name, avatar] = await Promise.all([
+  const cfg = await getAiConfig()
+  const [keyRow, knowledge, withEmbedding] = await Promise.all([
     prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.apiKey } }),
-    prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.model } }),
-    prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.embedModel } }),
-    prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.name } }),
-    prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.avatar } }),
+    prisma.aiKnowledge.count({ where: { deletedAt: null } }),
+    prisma.aiKnowledge.count({ where: { deletedAt: null, NOT: { embedding: "" } } }),
   ])
   const envKey = process.env.GEMINI_API_KEY?.trim() || null
-  const storedKey = key?.value?.trim() || null
+  const storedKey = keyRow?.value?.trim() || null
   return {
     apiKeySet: Boolean(storedKey || envKey),
     apiKeyFromEnv: !storedKey && Boolean(envKey),
-    model: model?.value?.trim() || DEFAULT_AI_MODEL,
-    embedModel: embedModel?.value?.trim() || DEFAULT_EMBED_MODEL,
-    conciergeName: name?.value?.trim() || DEFAULT_CONCIERGE_NAME,
-    avatarUrl: avatar?.value || null,
+    model: cfg.model,
+    embedModel: cfg.embedModel,
+    chatProvider: cfg.chatProvider,
+    embedProvider: cfg.embedProvider,
+    retrievalMode: cfg.retrievalMode,
+    ollamaUrl: cfg.ollamaUrl,
+    ollamaModel: cfg.ollamaModel,
+    ollamaEmbedModel: cfg.ollamaEmbedModel,
+    conciergeName: cfg.conciergeName,
+    avatarUrl: cfg.avatarUrl,
     frames: await getConciergeFrames(),
-    knowledgeCount: await prisma.aiKnowledge.count({ where: { deletedAt: null } }),
+    knowledgeCount: knowledge,
+    embeddedCount: withEmbedding,
+    enabled: cfg.enabled,
   }
 }
 
-export async function saveAiConfig(input: {
+interface AiConfigInput {
   apiKey: string
   model: string
   embedModel: string
   conciergeName: string
   removeKey: boolean
-}): Promise<{ success: boolean; error?: string }> {
+  chatProvider: string
+  embedProvider: string
+  retrievalMode: string
+  ollamaUrl: string
+  ollamaModel: string
+  ollamaEmbedModel: string
+}
+
+export async function saveAiConfig(input: AiConfigInput): Promise<{ success: boolean; error?: string }> {
   try {
     await requireAiAdmin()
 
@@ -83,8 +104,20 @@ export async function saveAiConfig(input: {
     }
 
     await upsertSetting(AI_SETTING_KEYS.model, input.model.trim() || DEFAULT_AI_MODEL)
-    await upsertSetting(AI_SETTING_KEYS.embedModel, input.embedModel.trim() || DEFAULT_EMBED_MODEL)
+    await upsertSetting(AI_SETTING_KEYS.embedModel, input.embedModel.trim() || DEFAULT_GEMINI_EMBED_MODEL)
     await upsertSetting(AI_SETTING_KEYS.name, input.conciergeName.trim() || DEFAULT_CONCIERGE_NAME)
+    await upsertSetting(AI_SETTING_KEYS.chatProvider, input.chatProvider === "ollama" ? "ollama" : "gemini")
+    await upsertSetting(
+      AI_SETTING_KEYS.embedProvider,
+      input.embedProvider === "ollama" ? "ollama" : input.embedProvider === "none" ? "none" : "gemini",
+    )
+    await upsertSetting(
+      AI_SETTING_KEYS.retrievalMode,
+      input.retrievalMode === "keyword" ? "keyword" : input.retrievalMode === "embeddings" ? "embeddings" : "auto",
+    )
+    await upsertSetting(AI_SETTING_KEYS.ollamaUrl, input.ollamaUrl.trim() || DEFAULT_OLLAMA_URL)
+    await upsertSetting(AI_SETTING_KEYS.ollamaModel, input.ollamaModel.trim() || DEFAULT_OLLAMA_MODEL)
+    await upsertSetting(AI_SETTING_KEYS.ollamaEmbedModel, input.ollamaEmbedModel.trim() || DEFAULT_OLLAMA_EMBED_MODEL)
 
     revalidatePath("/", "layout")
     return { success: true }
@@ -92,6 +125,33 @@ export async function saveAiConfig(input: {
     console.error("[ai:saveAiConfig]", err)
     return { success: false, error: err instanceof Error ? err.message : "Something went wrong." }
   }
+}
+
+/** Try a tiny chat + embedding call so admins can debug provider setup. */
+export async function testAiConnection(): Promise<AiTestResult> {
+  await requireAiAdmin()
+  const cfg = await getAiConfig()
+
+  const chat = await (async () => {
+    try {
+      const text = await generateText(cfg, { prompt: "Reply with the single word: OK", maxOutputTokens: 16, temperature: 0 })
+      return { ok: true, detail: `${cfg.chatProvider} · "${text.slice(0, 40)}"` }
+    } catch (err) {
+      return { ok: false, detail: err instanceof Error ? err.message : "failed" }
+    }
+  })()
+
+  const embed = await (async () => {
+    if (!cfg.embedEnabled) return { ok: false, detail: "embeddings disabled" }
+    try {
+      const vector = await embedText(cfg, "KIZ test")
+      return { ok: true, detail: `${cfg.embedProvider} · ${vector.length} dims` }
+    } catch (err) {
+      return { ok: false, detail: err instanceof Error ? err.message : "failed" }
+    }
+  })()
+
+  return { chat, embed }
 }
 
 export async function uploadConciergeAvatar(
@@ -245,6 +305,9 @@ export async function reindexKnowledgeAction(): Promise<{
   indexed?: number
   skipped?: number
   removed?: number
+  embedded?: number
+  keywordOnly?: number
+  mode?: "embeddings" | "keyword"
 }> {
   try {
     const role = await requireAiAdmin()

@@ -1,12 +1,12 @@
 import type { AiConfig } from "./config"
 
 /**
- * Gemini provider — plain `fetch` against the REST API, no SDK dependency.
- * https://ai.google.dev/api/generate-content
+ * Chat provider layer — Gemini REST or a local Ollama server (OpenAI-compatible
+ * `/v1/chat/completions`). Plain `fetch`, no SDK dependency.
  */
 
-const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-const TIMEOUT_MS = 30_000
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+const TIMEOUT_MS = 45_000
 
 export class AiError extends Error {
   readonly status?: number
@@ -22,9 +22,9 @@ export interface GenerateOptions {
   system?: string
   temperature?: number
   maxOutputTokens?: number
-  /** Ask Gemini for strict JSON output. */
+  /** Ask the model for strict JSON output. */
   json?: boolean
-  /** Optional response schema (OpenAPI subset) when `json` is true. */
+  /** Optional Gemini response schema (OpenAPI subset) when `json` is true. */
   responseSchema?: unknown
 }
 
@@ -33,11 +33,15 @@ interface GeminiResponse {
   error?: { message?: string }
 }
 
+interface OllamaResponse {
+  choices?: { message?: { content?: string } }[]
+  error?: { message?: string }
+}
+
 async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
-  if (!cfg.apiKey) throw new AiError("AI is not configured")
+  if (!cfg.apiKey) throw new AiError("Gemini API key is not set")
 
-  const url = `${API_BASE}/${encodeURIComponent(cfg.model)}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`
-
+  const url = `${GEMINI_BASE}/${encodeURIComponent(cfg.model)}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`
   const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
     generationConfig: {
@@ -49,9 +53,37 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
   }
   if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] }
 
+  const data = await postJson<GeminiResponse>(url, body, "Gemini")
+  const parts = data.candidates?.[0]?.content?.parts
+  const text = Array.isArray(parts) ? parts.map((p) => p.text ?? "").join("") : ""
+  if (!text.trim()) throw new AiError("Gemini returned an empty response")
+  return text.trim()
+}
+
+async function callOllama(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
+  const url = `${cfg.ollamaUrl}/v1/chat/completions`
+  const messages: { role: string; content: string }[] = []
+  if (opts.system) messages.push({ role: "system", content: opts.system })
+  messages.push({ role: "user", content: opts.prompt })
+
+  const body: Record<string, unknown> = {
+    model: cfg.ollamaModel,
+    messages,
+    temperature: opts.temperature ?? 0.4,
+    max_tokens: opts.maxOutputTokens ?? 1024,
+    stream: false,
+    ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+  }
+
+  const data = await postJson<OllamaResponse>(url, body, "Ollama")
+  const text = data.choices?.[0]?.message?.content ?? ""
+  if (!text.trim()) throw new AiError("Ollama returned an empty response")
+  return text.trim()
+}
+
+async function postJson<T>(url: string, body: unknown, label: string): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
-
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -59,39 +91,33 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
       body: JSON.stringify(body),
       signal: controller.signal,
     })
-
     if (!res.ok) {
       const raw = await res.text().catch(() => "")
-      throw new AiError(`Gemini request failed (${res.status}): ${raw.slice(0, 300)}`, res.status)
+      throw new AiError(`${label} request failed (${res.status}): ${raw.slice(0, 300)}`, res.status)
     }
-
-    const data = (await res.json()) as GeminiResponse
-    const parts = data.candidates?.[0]?.content?.parts
-    const text = Array.isArray(parts) ? parts.map((p) => p.text ?? "").join("") : ""
-    if (!text.trim()) throw new AiError("Gemini returned an empty response")
-    return text.trim()
+    return (await res.json()) as T
   } catch (err) {
     if (err instanceof AiError) throw err
     if (err instanceof Error && err.name === "AbortError") {
-      throw new AiError("Gemini request timed out")
+      throw new AiError(`${label} request timed out`)
     }
-    throw new AiError(err instanceof Error ? err.message : "Gemini request failed")
+    throw new AiError(err instanceof Error ? err.message : `${label} request failed`)
   } finally {
     clearTimeout(timer)
   }
 }
 
 export async function generateText(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
-  return callGemini(cfg, opts)
+  return cfg.chatProvider === "ollama" ? callOllama(cfg, opts) : callGemini(cfg, opts)
 }
 
 /** Generate a JSON object and parse it. Throws `AiError` on invalid JSON. */
 export async function generateJson<T>(cfg: AiConfig, opts: GenerateOptions): Promise<T> {
-  const raw = await callGemini(cfg, { ...opts, json: true })
+  const raw = await generateText(cfg, { ...opts, json: true })
   const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()
   try {
     return JSON.parse(cleaned) as T
   } catch {
-    throw new AiError("Gemini returned malformed JSON")
+    throw new AiError("Model returned malformed JSON")
   }
 }

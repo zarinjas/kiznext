@@ -53,9 +53,17 @@ export default async function UrusTetapanPage() {
         initialModel={ai.model}
         initialEmbedModel={ai.embedModel}
         initialName={ai.conciergeName}
+        initialChatProvider={ai.chatProvider}
+        initialEmbedProvider={ai.embedProvider}
+        initialRetrievalMode={ai.retrievalMode}
+        initialOllamaUrl={ai.ollamaUrl}
+        initialOllamaModel={ai.ollamaModel}
+        initialOllamaEmbedModel={ai.ollamaEmbedModel}
         avatarUrl={ai.avatarUrl}
         frames={ai.frames}
         knowledgeCount={ai.knowledgeCount}
+        embeddedCount={ai.embeddedCount}
+        enabled={ai.enabled}
         unanswered={unanswered}
       />
     </Box>

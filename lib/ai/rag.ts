@@ -2,12 +2,18 @@ import { createHash } from "node:crypto"
 import { prisma } from "@/lib/db"
 import { getAiConfig } from "./config"
 import { embedText, cosineSimilarity } from "./embed"
+import { bm25Rank } from "./bm25"
 
 /**
  * Retrieval-augmented knowledge index over the app's own content. Indexing is
- * idempotent: unchanged rows (same sha256) are skipped, changed rows are
- * re-embedded, removed rows are soft-deleted.
+ * idempotent (sha256 skip-unchanged, soft-delete removed) and tolerant: when
+ * embeddings are unavailable the content is still stored for BM25 keyword search.
  */
+
+/** Minimum cosine score before we trust a semantic match. */
+export const MIN_RELEVANCE = 0.62
+/** Minimum fraction of query tokens that must appear in the top keyword hit. */
+export const MIN_KEYWORD_OVERLAP = 0.5
 
 export interface KnowledgeSource {
   sourceType: string
@@ -24,6 +30,15 @@ export interface RetrievedChunk {
   content: string
   href: string | null
   score: number
+}
+
+export type RetrievalModeUsed = "embeddings" | "keyword"
+
+export interface RetrieveResult {
+  chunks: RetrievedChunk[]
+  mode: RetrievalModeUsed
+  confident: boolean
+  bestScore: number
 }
 
 function sha256(text: string): string {
@@ -107,11 +122,7 @@ function staticFaqs(): KnowledgeSource[] {
 
 async function collectSources(): Promise<KnowledgeSource[]> {
   const [announcements, facilities, offices, contents, guestHouses, events] = await Promise.all([
-    prisma.announcement.findMany({
-      where: { deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
+    prisma.announcement.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.facility.findMany({
       where: { deletedAt: null },
       include: { category: { select: { name: true, section: true } } },
@@ -145,34 +156,16 @@ async function collectSources(): Promise<KnowledgeSource[]> {
       f.price != null ? `Fee: RM ${f.price}.` : "",
       f.capacity != null ? `Capacity: ${f.capacity} people.` : "",
     ].filter(Boolean)
-    sources.push({
-      sourceType: "facility",
-      sourceId: f.id,
-      title: `Facility: ${f.name}`,
-      content: bits.join(" "),
-      href: "tempahan-fasiliti",
-    })
+    sources.push({ sourceType: "facility", sourceId: f.id, title: `Facility: ${f.name}`, content: bits.join(" "), href: "tempahan-fasiliti" })
   }
 
   for (const o of offices) {
-    sources.push({
-      sourceType: "office",
-      sourceId: o.id,
-      title: `Office: ${o.name}`,
-      content: o.description ?? "",
-      href: "pejabat",
-    })
+    sources.push({ sourceType: "office", sourceId: o.id, title: `Office: ${o.name}`, content: o.description ?? "", href: "pejabat" })
   }
 
   for (const c of contents) {
     const bits = [c.subtitle ?? "", c.body ?? "", c.phone ? `Phone: ${c.phone}.` : ""].filter(Boolean)
-    sources.push({
-      sourceType: "content",
-      sourceId: c.id,
-      title: c.title,
-      content: bits.join(" "),
-      href: "lagi",
-    })
+    sources.push({ sourceType: "content", sourceId: c.id, title: c.title, content: bits.join(" "), href: "lagi" })
   }
 
   for (const g of guestHouses) {
@@ -182,13 +175,7 @@ async function collectSources(): Promise<KnowledgeSource[]> {
       g.capacity != null ? `Capacity: ${g.capacity}.` : "",
       g.maxDays != null ? `Maximum stay: ${g.maxDays} days.` : "",
     ].filter(Boolean)
-    sources.push({
-      sourceType: "guesthouse",
-      sourceId: g.id,
-      title: `Guest house: ${g.name}`,
-      content: bits.join(" "),
-      href: "rumah-tamu",
-    })
+    sources.push({ sourceType: "guesthouse", sourceId: g.id, title: `Guest house: ${g.name}`, content: bits.join(" "), href: "rumah-tamu" })
   }
 
   for (const e of events) {
@@ -196,9 +183,7 @@ async function collectSources(): Promise<KnowledgeSource[]> {
       sourceType: "event",
       sourceId: e.id,
       title: `Event: ${e.title}`,
-      content: [e.description ?? "", e.venue ? `Venue: ${e.venue}.` : "", `Starts: ${e.startsAt.toISOString()}.`]
-        .filter(Boolean)
-        .join(" "),
+      content: [e.description ?? "", e.venue ? `Venue: ${e.venue}.` : "", `Starts: ${e.startsAt.toISOString()}.`].filter(Boolean).join(" "),
       href: null,
     })
   }
@@ -223,25 +208,39 @@ export interface IndexResult {
   indexed: number
   skipped: number
   removed: number
+  /** Rows that got a fresh embedding. */
+  embedded: number
+  /** Rows stored without an embedding (keyword-searchable). */
+  keywordOnly: number
+  /** Embedding provider used, or "keyword" when disabled. */
+  mode: "embeddings" | "keyword"
 }
 
 /** Rebuild the knowledge index from current content. Admin-triggered. */
 export async function indexKnowledge(): Promise<IndexResult> {
   const cfg = await getAiConfig()
-  if (!cfg.enabled) throw new Error("Add a Gemini API key first.")
+  if (!cfg.enabled) throw new Error("Configure a chat provider first (Gemini key or Ollama).")
 
   const sources = await collectSources()
   const existing = await prisma.aiKnowledge.findMany({ where: { deletedAt: null } })
   const byKey = new Map(existing.map((e) => [`${e.sourceType}:${e.sourceId ?? `title:${e.title}`}`, e]))
 
+  // Include the embedding identity in the hash so switching provider/model
+  // (or turning embeddings on/off) forces a re-embed, not a stale skip.
+  const embedKey = cfg.embedEnabled
+    ? `${cfg.embedProvider}:${cfg.embedProvider === "ollama" ? cfg.ollamaEmbedModel : cfg.embedModel}`
+    : "keyword"
+
   let indexed = 0
   let skipped = 0
+  let embedded = 0
+  let keywordOnly = 0
   const seen = new Set<string>()
 
   await mapLimit(sources, 4, async (s) => {
     const key = sourceKey(s)
     seen.add(key)
-    const contentHash = sha256(`${s.title}\n${s.content}`)
+    const contentHash = sha256(`${s.title}\n${s.content}\n${embedKey}`)
     const prev = byKey.get(key)
 
     if (prev && prev.hash === contentHash) {
@@ -249,8 +248,18 @@ export async function indexKnowledge(): Promise<IndexResult> {
       return
     }
 
-    const vector = await embedText(cfg, `${s.title}\n${s.content}`)
-    const embedding = JSON.stringify(vector)
+    let embedding = ""
+    if (cfg.embedEnabled) {
+      try {
+        embedding = JSON.stringify(await embedText(cfg, `${s.title}\n${s.content}`))
+        embedded++
+      } catch (err) {
+        console.error("[ai:index] embedding failed, storing keyword-only:", err)
+        keywordOnly++
+      }
+    } else {
+      keywordOnly++
+    }
 
     if (prev) {
       await prisma.aiKnowledge.update({
@@ -273,7 +282,6 @@ export async function indexKnowledge(): Promise<IndexResult> {
     indexed++
   })
 
-  // Soft-delete index rows whose source disappeared.
   let removed = 0
   for (const e of existing) {
     const key = `${e.sourceType}:${e.sourceId ?? `title:${e.title}`}`
@@ -283,18 +291,31 @@ export async function indexKnowledge(): Promise<IndexResult> {
     }
   }
 
-  return { indexed, skipped, removed }
+  return {
+    indexed,
+    skipped,
+    removed,
+    embedded,
+    keywordOnly,
+    mode: cfg.embedEnabled ? "embeddings" : "keyword",
+  }
 }
 
-/** Retrieve the top-k most similar knowledge chunks for a question. */
-export async function retrieve(question: string, k = 5): Promise<RetrievedChunk[]> {
-  const cfg = await getAiConfig()
-  if (!cfg.enabled) return []
+interface Row {
+  id: string
+  title: string
+  content: string
+  href: string | null
+  embedding: string
+}
 
+function toChunk(row: Row, score: number): RetrievedChunk {
+  return { id: row.id, title: row.title, content: row.content, href: row.href, score }
+}
+
+async function retrieveEmbeddings(cfg: Awaited<ReturnType<typeof getAiConfig>>, rows: Row[], question: string, k: number): Promise<RetrieveResult> {
   const queryVector = await embedText(cfg, question)
-  const rows = await prisma.aiKnowledge.findMany({ where: { deletedAt: null } })
-
-  return rows
+  const scored = rows
     .map((row) => {
       let vector: number[] = []
       try {
@@ -302,14 +323,47 @@ export async function retrieve(question: string, k = 5): Promise<RetrievedChunk[
       } catch {
         vector = []
       }
-      return {
-        id: row.id,
-        title: row.title,
-        content: row.content,
-        href: row.href,
-        score: cosineSimilarity(queryVector, vector),
-      }
+      return { row, score: cosineSimilarity(queryVector, vector) }
     })
+    .filter((s) => s.row.embedding.length > 0)
     .sort((a, b) => b.score - a.score)
+
+  const chunks = scored.slice(0, k).map((s) => toChunk(s.row, s.score))
+  const bestScore = chunks[0]?.score ?? 0
+  return { chunks, mode: "embeddings", confident: bestScore >= MIN_RELEVANCE, bestScore }
+}
+
+function retrieveKeyword(rows: Row[], question: string, k: number): RetrieveResult {
+  const ranked = bm25Rank(question, rows.map((r) => ({ id: r.id, text: `${r.title}\n${r.content}` }))).sort((a, b) => b.score - a.score)
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const max = ranked[0]?.score || 1
+  const chunks = ranked
     .slice(0, k)
+    .map((r) => toChunk(byId.get(r.id) as Row, max > 0 ? r.score / max : 0))
+  const top = ranked[0]
+  const bestScore = chunks[0]?.score ?? 0
+  const confident = Boolean(top) && top.score > 0 && top.overlap >= MIN_KEYWORD_OVERLAP
+  return { chunks, mode: "keyword", confident, bestScore }
+}
+
+/** Retrieve the top-k most relevant knowledge chunks for a question. */
+export async function retrieve(question: string, k = 5): Promise<RetrieveResult> {
+  const cfg = await getAiConfig()
+  const rows = (await prisma.aiKnowledge.findMany({ where: { deletedAt: null } })) as Row[]
+  if (rows.length === 0) return { chunks: [], mode: "keyword", confident: false, bestScore: 0 }
+
+  const useEmbeddings = cfg.retrievalMode !== "keyword" && cfg.embedEnabled
+  if (useEmbeddings) {
+    try {
+      const emb = await retrieveEmbeddings(cfg, rows, question, k)
+      if (emb.confident || cfg.retrievalMode === "embeddings") return emb
+      // Auto mode: semantic match was weak — try keyword and keep the better one.
+      const kw = retrieveKeyword(rows, question, k)
+      return kw.confident ? kw : emb
+    } catch (err) {
+      // Embedding provider unavailable (quota, billing, offline) — fall back.
+      console.error("[ai:retrieve] embeddings failed, using keyword search:", err)
+    }
+  }
+  return retrieveKeyword(rows, question, k)
 }
