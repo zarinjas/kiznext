@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { isOfficeHours, getOfficeHoursMessage } from "@/lib/office-hours"
-import type { HelpdeskCategory } from "@/app/generated/prisma/client"
+import type { HelpdeskCategory, HelpdeskChannel } from "@/app/generated/prisma/client"
 
 export interface CreateTicketInput {
   subject: string
@@ -12,6 +12,7 @@ export interface CreateTicketInput {
   category: HelpdeskCategory
   locationBlock: string | null
   locationDetail: string | null
+  channel?: HelpdeskChannel
 }
 
 export async function createTicket(input: CreateTicketInput) {
@@ -31,6 +32,7 @@ export async function createTicket(input: CreateTicketInput) {
       userId: session.user.id,
       subject,
       category,
+      channel: input.channel ?? "ticket",
       status: "submitted",
       locationBlock,
       locationDetail,
@@ -42,6 +44,45 @@ export async function createTicket(input: CreateTicketInput) {
       },
     },
     include: { messages: true },
+  })
+
+  if (!isOfficeHours()) {
+    await prisma.helpdeskMessage.create({
+      data: {
+        ticketId: ticket.id,
+        senderId: session.user.id,
+        message: getOfficeHoursMessage(),
+        isAutoReply: true,
+      },
+    })
+  }
+
+  revalidatePath(`/${session.user.role}/helpdesk`)
+  return ticket.id
+}
+
+/**
+ * Start a live chat — a quick question with no category form. Same thread and
+ * inbox as a ticket, just lighter: the resident types and sends.
+ */
+export async function startLiveChat(message: string) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const text = (message ?? "").trim()
+  if (!text) throw new Error("Type your question first")
+
+  const subject = text.split("\n")[0].slice(0, 120)
+
+  const ticket = await prisma.helpdeskTicket.create({
+    data: {
+      userId: session.user.id,
+      subject,
+      category: "general_enquiry",
+      channel: "live",
+      status: "submitted",
+      messages: { create: { senderId: session.user.id, message: text } },
+    },
   })
 
   if (!isOfficeHours()) {

@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { HelpdeskList } from "./helpdesk-list"
 import { NewTicketForm } from "./new-ticket-form"
+import { LiveChatForm } from "./live-chat-form"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { OfficeOpenBadge } from "@/components/shared/office-open-badge"
@@ -117,12 +118,23 @@ export default async function HelpdeskPage() {
           </Box>
         </BentoItem>
 
-        {/* Ask form */}
+        {/* Live chat — quick questions, no form */}
         <BentoItem span={12} spanXs={2}>
           <FormSection
-            title="How can we help?"
-            subtitle="Pick a category so your request reaches the right team. We usually reply within office hours."
+            title="Live Chat"
+            subtitle="Quick questions for the KIZ office — just type and send. No form, no queue."
             icon="forum"
+          >
+            <LiveChatForm role={session.user.role} officeOpen={inHours} />
+          </FormSection>
+        </BentoItem>
+
+        {/* Support ticket — structured, tracked requests */}
+        <BentoItem span={12} spanXs={2}>
+          <FormSection
+            title="Support Ticket"
+            subtitle="Formal requests and applications you can track — room changes, repairs, and more."
+            icon="assignment"
           >
             <NewTicketForm
               role={session.user.role}

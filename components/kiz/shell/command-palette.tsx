@@ -16,10 +16,12 @@ export function CommandPalette({
   open,
   onClose,
   role,
+  aiEnabled = false,
 }: {
   open: boolean
   onClose: () => void
   role: Role
+  aiEnabled?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -118,6 +120,33 @@ export function CommandPalette({
             No results for “{query}”
           </Box>
         )}
+        {aiEnabled && (query.trim() === "" || "ask kiz-ai".includes(query.trim().toLowerCase())) && (
+          <Box
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("kiz-ai:open"))
+              onClose()
+            }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.25,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1.5,
+              cursor: "pointer",
+              fontSize: 13.5,
+              fontWeight: 550,
+              color: color.brand[700],
+              backgroundColor: color.brand[50],
+              mb: 0.5,
+            }}
+          >
+            <KIcon icon="smart_toy" size={19} color={color.brand[600]} />
+            <Box sx={{ flex: 1 }}>Ask KIZ-AI</Box>
+            <KIcon icon="auto_awesome" size={16} />
+          </Box>
+        )}
+
         {filtered.map((item, i) => {
           const current = pathname === item.href
           return (

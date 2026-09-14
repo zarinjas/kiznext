@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { AppShell } from "@/components/kiz/shell/app-shell"
 import { PendingGate } from "@/components/shared/pending-gate"
 import { getAppLogoUrl } from "@/lib/settings"
+import { getAiConfig } from "@/lib/ai/config"
 import { getBilikWindowState } from "@/lib/bilik"
 import { autoUpgradePendingUser } from "@/lib/registration"
 import type { AccountStatus, Role } from "@/lib/rbac"
@@ -28,11 +29,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  const [logoUrl, bilikState] = await Promise.all([getAppLogoUrl(), getBilikWindowState()])
+  const [logoUrl, bilikState, ai] = await Promise.all([getAppLogoUrl(), getBilikWindowState(), getAiConfig()])
   const bilikOpen = bilikState === "open" || bilikState === "closing_soon"
 
   return (
-    <AppShell role={role} userName={name} logoUrl={logoUrl} bilikOpen={bilikOpen}>
+    <AppShell
+      role={role}
+      userName={name}
+      logoUrl={logoUrl}
+      bilikOpen={bilikOpen}
+      aiEnabled={ai.enabled}
+      conciergeName={ai.conciergeName}
+      conciergeAvatarUrl={ai.avatarUrl}
+      conciergeFrames={ai.frames}
+    >
       {children}
     </AppShell>
   )

@@ -35,6 +35,7 @@ const tone = {
 /** Canonical picker order — matches the approved category list. */
 export const HELPDESK_CATEGORIES: HelpdeskCategoryMeta[] = [
   { value: "accommodation_room", label: "Accommodation & Room", icon: "meeting_room", tone: tone.brand, hint: "Room placement, roommates, keys and furniture." },
+  { value: "room_change", label: "Room Change Request", icon: "swap_horiz", tone: tone.info, hint: "Apply to move to a different room or block." },
   { value: "maintenance_repair", label: "Maintenance & Repair", icon: "handyman", tone: tone.warning, hint: "Leaks, wiring, broken fittings, AC or lift faults." },
   { value: "facilities_booking", label: "Facilities & Booking", icon: "event_available", tone: tone.info, hint: "Halls, sports courts and shared facility bookings." },
   { value: "cleanliness_waste", label: "Cleanliness & Waste", icon: "cleaning_services", tone: tone.success, hint: "Common areas, waste collection and pest issues." },
@@ -83,4 +84,30 @@ export function canReplyToTicket(status: string): boolean {
 /** Tickets the admin inbox treats as "done". */
 export function isHelpdeskDone(status: string): boolean {
   return status === "resolved" || status === "closed"
+}
+
+/**
+ * Channel meta — a `live` chat is a quick Q&A (no category form, lighter
+ * lifecycle); a `ticket` is a structured, tracked request/application.
+ */
+export interface HelpdeskChannelMeta {
+  value: "live" | "ticket"
+  label: string
+  icon: string
+  tagline: string
+}
+
+export const HELPDESK_CHANNELS: Record<"live" | "ticket", HelpdeskChannelMeta> = {
+  live: {
+    value: "live",
+    label: "Live Chat",
+    icon: "forum",
+    tagline: "Quick questions — chat with the office while it's open.",
+  },
+  ticket: {
+    value: "ticket",
+    label: "Support Ticket",
+    icon: "assignment",
+    tagline: "Formal requests & applications you can track.",
+  },
 }

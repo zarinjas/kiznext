@@ -15,6 +15,8 @@ export function GlassTopBar({
   onNotifications,
   notificationCount,
   logoUrl,
+  aiEnabled = false,
+  onAskAi,
 }: {
   role: Role
   title?: string
@@ -23,6 +25,8 @@ export function GlassTopBar({
   onNotifications: () => void
   notificationCount?: number
   logoUrl?: string | null
+  aiEnabled?: boolean
+  onAskAi?: () => void
 }) {
   const iconBtn = {
     width: 34,
@@ -104,6 +108,45 @@ export function GlassTopBar({
       </Box>
 
       <Box sx={{ flex: { xs: 1, sm: 0 } }} />
+
+      {/* Ask KIZ-AI */}
+      {aiEnabled && onAskAi && (
+        <>
+          <Box
+            component="button"
+            onClick={onAskAi}
+            sx={{
+              display: { xs: "none", sm: "flex" },
+              alignItems: "center",
+              gap: 0.75,
+              height: 34,
+              px: 1.25,
+              mr: 0.5,
+              borderRadius: 2.5,
+              border: "1px solid",
+              borderColor: color.brand[200],
+              backgroundColor: color.brand[50],
+              color: color.brand[700],
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "border-color 140ms",
+              "&:hover": { borderColor: color.brand[400] },
+            }}
+          >
+            <KIcon icon="smart_toy" size={16} />
+            Ask AI
+          </Box>
+          <Box
+            component="button"
+            onClick={onAskAi}
+            aria-label="Ask KIZ-AI"
+            sx={{ ...iconBtn, display: { xs: "flex", sm: "none" }, color: color.brand[700] }}
+          >
+            <KIcon icon="smart_toy" size={19} />
+          </Box>
+        </>
+      )}
 
       {/* Search */}
       <Box

@@ -22,7 +22,8 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Kad Maya | Digital resident card with a QR code, for identification at the gate/office. |
 | Facility Booking | Browse college facilities, view availability, book a time slot, admin approves. Approved bookings get a PDF slip. |
 | Guest House Booking | Admins configure the guest houses (name, description, photos, price, capacity, max stay). Students pick a guest house and book it daily/weekly/monthly; admin approves, then check-in/check-out. Payment marked manually. |
-| Helpdesk | Per-student support tickets with a chat thread. Auto-reply outside office hours. |
+| Helpdesk | Per-student support threads with two channels: **Live Chat** (quick questions, no form) and **Support Ticket** (structured, tracked requests/applications, e.g. room change). Admin inbox splits the two; chat thread, assign, close, and out-of-hours auto-reply are shared. |
+| KIZ-AI Concierge | A Gemini-powered robot (`KIZ-AI`, admin-uploaded mascot with **3 emotions × 3 animated frames** — idle/thinking/happy — plus a name) that answers resident questions from the app's own content via retrieval-augmented generation (announcements, facilities, offices, guest houses, events, contacts, static FAQ). Replies cite their sources. When it can't answer, it offers a one-tap handoff to the KIZ office, creating a pre-filled helpdesk request. Every unanswered question is logged for an admin FAQ feedback loop. |
 | Announcements | Admin-posted feed. Tags, pinning, scheduling, expiry, file attachments. |
 | Community Chat | One shared room for all residents, staff & fellows. Reactions, replies, reports to the KIZ team, presence (members/online), image & PDF attachments, and a community info rail (guidelines, team, Helpdesk route). |
 | Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
@@ -112,8 +113,9 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `GuestHouseBookingStatus` | pending, approved, rejected, checked_in, checked_out, cancelled |
 | `PeriodType` | daily, weekly, monthly |
 | `PaymentStatus` | unpaid, paid_manual |
-| `HelpdeskCategory` | accommodation_room, maintenance_repair, facilities_booking, cleanliness_waste, internet_technology, safety_security, payment_charges, student_welfare, general_enquiry |
+| `HelpdeskCategory` | accommodation_room, room_change, maintenance_repair, facilities_booking, cleanliness_waste, internet_technology, safety_security, payment_charges, student_welfare, general_enquiry |
 | `HelpdeskStatus` | submitted, under_review, in_progress, more_info_required, resolved, closed |
+| `HelpdeskChannel` | live, ticket |
 | `LostFoundStatus` | lost, found, claimed |
 
 ### Models
@@ -128,7 +130,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `Facility` | facilities | `blockId`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `timeSlotDuration`, `maxPerDay` (default 3), `requiresApproval` |
 | `FacilityBooking` | facility_bookings | `timeSlotStart/End`, `purpose`, `status`, `approvedById`, `bookingRef` unique, `pdfUrl`, `adminNotes` |
 | `GuestHouseBooking` | guest_house_bookings | `guestHouseId`, `guestName`, `periodType`, `startDate`/`endDate` (`@db.Date`), `status`, `approvedById`, `paymentStatus` |
-| `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `category` (enum, default general_enquiry), `status`, `locationBlock` (e.g. K18A), `locationDetail` (room number or facility), `assignedTo` |
+| `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `category` (enum, default general_enquiry), `channel` (`live`/`ticket`), `origin` (`web`/`concierge`), `status`, `locationBlock` (e.g. K18A), `locationDetail` (room number or facility), `assignedTo` |
 | `HelpdeskMessage` | helpdesk_messages | `ticketId`, `senderId`, `message`, `isAutoReply` |
 | `Announcement` | announcements | `title`, `content`, `tag` (default `umum`), `attachmentUrl/Type`, `isPinned`, `scheduledAt`, `expiresAt`, `postedBy` |
 | `CommunityChatMessage` | community_chat_messages | `userId`, `message`, `replyToId` (inline quote thread), `attachmentUrl/Type/Name`, `deletedBy` (admin who removed it) |
@@ -146,6 +148,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `Intake` | intakes | one CSV import batch. `name`, `status` (draft/imported/active/archived), `importedById`, `rowCount`. One `active` intake = the current accepted list. |
 | `EligibleStudent` | eligible_students | a row from the eKolej accepted list. `matricId`, `name`, `gender`, `religion`, `race`, `nationality`, B40/OKU/Uniform flags, `merit`, `userId` (linked on first login), `selectedAt`, `assignedByAdmin`. `@@unique([intakeId, matricId])`. |
 | `RoomApplication` | room_applications | one soft-deletable preference per applicant: `type` (single/double/flexible), status, optional same-gender roommate, submission and response times. This does not allocate a physical bed. |
+| `AiKnowledge` | ai_knowledge | KIZ-AI retrieval index over app content. `sourceType` (announcement/facility/office/content/guesthouse/event/faq), `sourceId`, `title`, `content`, `embedding` (JSON `number[]`), `hash` (sha256, skip-unchanged), `href` (citation route suffix). Rebuilt by an admin "Re-index" action. |
+| `AiUnansweredLog` | ai_unanswered_log | Questions KIZ-AI couldn't answer: `userId`, `question`, `bestScore`, `ticketId` (set when escalated), `resolved`. Powers the admin "top unanswered" feedback loop. |
 
 New enums: `Gender` (male/female), `RoomType` (single/double), `RoomApplicationType`
 (single/double/flexible), `RoomApplicationStatus`, `RoomStatus`

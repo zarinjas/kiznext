@@ -415,6 +415,7 @@ model GuestHouseBooking {
 /// labels the ticket everywhere it appears. Order here drives the picker order.
 enum HelpdeskCategory {
   accommodation_room
+  room_change
   maintenance_repair
   facilities_booking
   cleanliness_waste
@@ -423,6 +424,14 @@ enum HelpdeskCategory {
   payment_charges
   student_welfare
   general_enquiry
+}
+
+/// Distinguishes a quick live Q&A with the office (`live`) from a structured,
+/// tracked request/application (`ticket`). Same chat thread + admin inbox; the
+/// channel only changes the friction (no category form) and the lifecycle.
+enum HelpdeskChannel {
+  live
+  ticket
 }
 
 /// Full ticket lifecycle. Declared in workflow order so `orderBy status` sorts
@@ -442,6 +451,10 @@ model HelpdeskTicket {
   userId         String          @map("user_id")
   subject        String?
   category       HelpdeskCategory @default(general_enquiry)
+  /// Live Q&A vs structured request — see HelpdeskChannel.
+  channel        HelpdeskChannel @default(ticket)
+  /// Where the ticket came from: "web" (default) or "concierge" (KIZ-AI handoff).
+  origin         String?         @map("origin")
   status         HelpdeskStatus  @default(submitted)
   /// Building the issue is about (e.g. "K18A"). Free text so it works before
   /// the block inventory is configured.
@@ -869,4 +882,51 @@ model LostFoundItem {
   reporter User @relation(fields: [reportedBy], references: [id])
 
   @@map("lost_found_items")
+}
+
+// ── KIZ-AI (retrieval-augmented concierge) ──────────────────────────────────
+// A flat knowledge index over the app's own content (announcements, facilities,
+// offices, events, guest houses, contacts). Embeddings are stored as a JSON
+// number[] string — no pgvector needed; cosine similarity is computed in TS.
+
+model AiKnowledge {
+  id         String   @id @default(uuid())
+  /// announcement | facility | office | content | guesthouse | event | faq
+  sourceType String   @map("source_type")
+  /// Id of the source row (null for static FAQ entries).
+  sourceId   String?  @map("source_id")
+  title      String
+  content    String
+  /// JSON-encoded embedding vector.
+  embedding  String
+  /// sha256 of title+content — lets re-index skip unchanged rows.
+  hash       String
+  /// Deep link a citation chip points at, e.g. "/ahli/pengumuman".
+  href       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  @@index([sourceType])
+  @@map("ai_knowledge")
+}
+
+/// Every question KIZ-AI couldn't answer confidently. Drives the admin
+/// "top unanswered" list — write a FAQ/announcement, re-index, and the next
+/// resident gets an instant answer (the feedback loop that reduces counter visits).
+model AiUnansweredLog {
+  id           String   @id @default(uuid())
+  userId       String?  @map("user_id")
+  question     String
+  /// Best cosine score seen for this question (null when AI was off).
+  bestScore    Float?   @map("best_score")
+  /// Set once the resident escalates this question to the office.
+  ticketId     String?  @map("ticket_id")
+  resolved     Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  @@index([createdAt])
+  @@map("ai_unanswered_log")
 }

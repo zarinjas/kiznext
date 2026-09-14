@@ -9,7 +9,11 @@ const nextConfig: NextConfig = {
     "192.168.1.*",
     "10.0.0.*",
   ],
-  serverExternalPackages: ["sharp"],
+  // `googleapis` is a 200 MB / ~1900-file server-only package. Bundling it with
+  // Turbopack blows past the 2 GB VPS build budget and the build hangs on swap
+  // (it only ever runs in the urus-bilik server action, so keeping it external
+  // is safe). `sharp` is external for the same class of reason.
+  serverExternalPackages: ["sharp", "googleapis"],
   // Runtime uploads land in public/uploads/ but `next start` only serves files
   // that existed at build time — anything uploaded live 404s as a static file.
   // Rewrite /uploads/* to a dynamic route (app/api/uploads/[...path]) that

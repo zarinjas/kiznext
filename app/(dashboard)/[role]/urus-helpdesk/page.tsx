@@ -11,6 +11,7 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { Bento, BentoItem, MetricTile } from "@/components/kiz/patterns/bento"
+import { HelpdeskTabs } from "./tabs"
 import {
   ticketRef,
   helpdeskCategoryMeta,
@@ -19,13 +20,20 @@ import {
   isHelpdeskDone,
 } from "@/lib/helpdesk-meta"
 
-export default async function UrusHelpdeskPage() {
+export default async function UrusHelpdeskPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
 
+  const { tab } = await searchParams
+  const channel = tab === "live" ? "live" : "ticket"
+
   const tickets = await prisma.helpdeskTicket.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, channel },
     include: {
       user: { select: { name: true, matricId: true } },
       messages: { take: 1, orderBy: { createdAt: "desc" } },
@@ -60,6 +68,7 @@ export default async function UrusHelpdeskPage() {
                 {" · "}
                 {cat.label}
                 {location ? ` · ${location}` : ""}
+                {ticket.origin === "concierge" ? " · via KIZ-AI" : ""}
                 {ticket.messages[0]?.message ? ` — ${ticket.messages[0].message}` : ""}
               </>
             }
@@ -122,10 +131,14 @@ export default async function UrusHelpdeskPage() {
         title="Helpdesk inbox"
         subtitle={
           activeTickets.length > 0
-            ? `${activeTickets.length} request${activeTickets.length === 1 ? "" : "s"} need${activeTickets.length === 1 ? "s" : ""} your attention.`
-            : "Reply and manage student support requests."
+            ? `${activeTickets.length} ${channel === "live" ? "live chat" : "request"}${activeTickets.length === 1 ? "" : "s"} need${activeTickets.length === 1 ? "s" : ""} your attention.`
+            : channel === "live"
+              ? "Answer quick questions from residents in real time."
+              : "Reply and manage student support requests."
         }
       />
+
+      <HelpdeskTabs role={role} tab={tab} />
 
       <Bento>
         {/* Status metrics */}

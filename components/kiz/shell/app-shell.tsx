@@ -9,7 +9,9 @@ import { BottomNav } from "./bottom-nav"
 import { MoreSheet } from "./more-sheet"
 import { CommandPalette } from "./command-palette"
 import { NotificationDrawer } from "./notification-drawer"
+import { KizAi } from "@/components/shared/concierge/kiz-ai"
 import type { Role } from "@/lib/rbac"
+import type { ConciergeFrames } from "@/lib/ai/config"
 
 /** AppShell — one shell for every role: desktop rail + mobile drawer/bottom nav. */
 export function AppShell({
@@ -19,6 +21,10 @@ export function AppShell({
   title,
   notificationCount = 0,
   bilikOpen = false,
+  aiEnabled = false,
+  conciergeName = "KIZ-AI",
+  conciergeAvatarUrl = null,
+  conciergeFrames,
   children,
 }: {
   role: Role
@@ -28,6 +34,11 @@ export function AppShell({
   notificationCount?: number
   /** True while the room-selection window is open — drives nav badges + dashboard hints. */
   bilikOpen?: boolean
+  /** Show the KIZ-AI concierge (true when a Gemini key is configured). */
+  aiEnabled?: boolean
+  conciergeName?: string
+  conciergeAvatarUrl?: string | null
+  conciergeFrames?: ConciergeFrames
   children: React.ReactNode
 }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -60,6 +71,8 @@ export function AppShell({
           onNotifications={() => setNotifOpen(true)}
           notificationCount={notificationCount}
           logoUrl={logoUrl}
+          aiEnabled={aiEnabled}
+          onAskAi={() => window.dispatchEvent(new CustomEvent("kiz-ai:open"))}
         />
         <Box
           component="main"
@@ -80,8 +93,9 @@ export function AppShell({
       <BottomNav role={role} bilikOpen={bilikOpen} />
       <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} role={role} bilikOpen={bilikOpen} />
       <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} role={role} userName={userName} logoUrl={logoUrl} bilikOpen={bilikOpen} />
-      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} role={role} />
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} role={role} aiEnabled={aiEnabled} />
       <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <KizAi role={role} name={conciergeName} avatarUrl={conciergeAvatarUrl} frames={conciergeFrames ?? { idle: [], thinking: [], happy: [] }} enabled={aiEnabled} />
     </Box>
   )
 }

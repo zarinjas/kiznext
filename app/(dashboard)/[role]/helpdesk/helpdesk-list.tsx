@@ -20,6 +20,7 @@ interface Ticket {
   displayId: number
   subject: string | null
   category: string
+  channel?: string
   status: string
   locationBlock: string | null
   locationDetail: string | null
@@ -71,9 +72,30 @@ export function HelpdeskList({ tickets, role }: Props) {
             >
               <Box sx={{ p: { xs: 1.75, sm: 2 } }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-                  <Typography variant="caption" sx={{ fontFamily: font.mono, fontWeight: 600, color: "text.secondary" }}>
-                    #{ticketRef(ticket.displayId)}
-                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                    <Typography variant="caption" sx={{ fontFamily: font.mono, fontWeight: 600, color: "text.secondary" }}>
+                      #{ticketRef(ticket.displayId)}
+                    </Typography>
+                    {ticket.channel === "live" && (
+                      <Box
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.25,
+                          px: 0.75,
+                          py: 0.125,
+                          borderRadius: 999,
+                          backgroundColor: color.brand[50],
+                          color: color.brand[700],
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <KIcon icon="forum" size={11} />
+                        Live
+                      </Box>
+                    )}
+                  </Box>
                   <StatusChip status={ticket.status} />
                 </Box>
 

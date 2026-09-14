@@ -15,6 +15,7 @@ import {
   reopenTicketAdmin,
 } from "../actions"
 import { getTicketMessages } from "../../helpdesk/actions"
+import { AiAssist } from "./ai-assist"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { color, radius } from "@/lib/theme"
 import { isHelpdeskActive } from "@/lib/helpdesk-meta"
@@ -173,6 +174,9 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
           )}
         </Box>
       )}
+
+      {/* AI assist — categorise, prioritise, draft a reply */}
+      <AiAssist ticketId={ticketId} onUseDraft={(draft) => setText(draft)} />
 
       <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5, "&::-webkit-scrollbar": { width: 6 } }}>
         {messages.map((msg) => {
