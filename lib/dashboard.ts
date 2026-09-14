@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { getBilikReminder, getResidentRoomDetail } from "@/lib/bilik"
+import { getCheckInStatusForMatrics, type CheckInStatusValue } from "@/lib/checkin"
 import { nowMalaysia, formatMalaysia } from "@/lib/timezone"
 import { isOfficeHours } from "@/lib/office-hours"
 
@@ -82,6 +83,8 @@ export interface ResidentHomeData {
   todos: HomeTodo[]
   /** done count across the todo list (for the progress bar). */
   doneCount: number
+  /** Check-in / check-out status for the current session (students only). */
+  checkInStatus: CheckInStatusValue | null
   importantNotice: ImportantNoticeView | null
   nextEvents: EventView[]
   helpdesk: HelpdeskSummaryView | null
@@ -184,6 +187,12 @@ export async function getResidentHomeData(input: {
 
   const ackedSet = new Set(ackedRows.map((a) => a.announcementId))
   const announcementDone = targetAnnouncement ? ackedSet.has(targetAnnouncement.id) : false
+
+  // Check-in / check-out status for the current session (students only).
+  const checkInStatus: CheckInStatusValue | null =
+    role === "ahli"
+      ? (await getCheckInStatusForMatrics([matricId]))[matricId.toUpperCase()] ?? "not_checked_in"
+      : null
 
   // ── Things to Do ─────────────────────────────────────────────────────────
   const todos: HomeTodo[] = []
@@ -304,6 +313,7 @@ export async function getResidentHomeData(input: {
       : null,
     todos,
     doneCount: todos.filter((t) => t.done).length,
+    checkInStatus,
     importantNotice,
     nextEvents: nextEventViews,
     helpdesk,

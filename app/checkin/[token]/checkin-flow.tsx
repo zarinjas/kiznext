@@ -19,6 +19,7 @@ import {
 
 type Step =
   | { name: "matric" }
+  | { name: "loginRequired" }
   | { name: "confirm" }
   | { name: "already" }
   | { name: "noRoom" }
@@ -29,6 +30,9 @@ interface Props {
   type: "check_in" | "check_out"
   sessionName: string
   logoUrl: string | null
+  directionsImageUrl: string | null
+  /** Matric of the logged-in user, if any — prefills the field + passes the account gate. */
+  loggedInMatric: string | null
 }
 
 const ACTION_LABEL: Record<"check_in" | "check_out", string> = {
@@ -39,9 +43,15 @@ const ACTION_LABEL: Record<"check_in" | "check_out", string> = {
 /** KIZ college green (matches lib/pdf.ts). */
 const KIZ_GREEN = { deep: "#004B23", mid: "#0B6B33", soft: "#EAF7EE" }
 
-export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
+/** Small Mandarin helper line shown under the counter instructions. */
+const ZH_COUNTER: Record<"check_in" | "check_out", string> = {
+  check_in: "请前往 2 号柜台（UKM Real Estate）领取房间钥匙。",
+  check_out: "请前往 2 号柜台（UKM Real Estate）交还房间钥匙。",
+}
+
+export function CheckinFlow({ token, type, sessionName, logoUrl, directionsImageUrl, loggedInMatric }: Props) {
   const [step, setStep] = useState<Step>({ name: "matric" })
-  const [matric, setMatric] = useState("")
+  const [matric, setMatric] = useState(loggedInMatric ?? "")
   const [lookup, setLookup] = useState<StudentLookup | null>(null)
   const [signature, setSignature] = useState<string | null>(null)
   const [error, setError] = useState<string>("")
@@ -50,17 +60,22 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
   const action = ACTION_LABEL[type]
   const verbPast = type === "check_in" ? "checked in" : "checked out"
 
-  async function findStudent() {
+  async function findStudent(matricToUse?: string) {
+    const value = (matricToUse ?? matric).trim().toUpperCase()
     setError("")
     setBusy(true)
     try {
-      const res = await lookupCheckInStudent(token, matric)
+      const res = await lookupCheckInStudent(token, value)
       if (!res.ok || !res.name) {
         setError(res.error ?? "We couldn't find that Matric No.")
+        setStep({ name: "matric" })
         return
       }
       setLookup(res)
-      if (!res.canSign) {
+      // Account holders must sign in first (unless already signed in as them).
+      if (res.hasAccount && res.matricId !== (loggedInMatric ?? "").toUpperCase()) {
+        setStep({ name: "loginRequired" })
+      } else if (!res.canSign) {
         setStep({ name: "already" })
       } else if (!res.roomLabel) {
         setStep({ name: "noRoom" })
@@ -95,7 +110,7 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
     setError("")
     setLookup(null)
     setSignature(null)
-    setMatric("")
+    setMatric(loggedInMatric ?? "")
     setStep({ name: "matric" })
   }
 
@@ -175,6 +190,47 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
             p: 3,
           }}
         >
+          {step.name === "loginRequired" && (
+            <>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  mx: "auto",
+                  mb: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: color.info.soft,
+                  color: color.info.ink,
+                }}
+              >
+                <KIcon icon="lock" size={28} />
+              </Box>
+              <Typography sx={{ textAlign: "center", fontWeight: 700, fontSize: 17 }}>
+                {lookup?.name}, please sign in
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", mt: 1, mb: 2 }}>
+                You already have a KIZ account for <b>{lookup?.matricId}</b>. Sign in
+                to verify it&apos;s you, then continue checking in.
+              </Typography>
+              <Button
+                component="a"
+                href={`/login?callbackUrl=${encodeURIComponent(`/checkin/${token}`)}`}
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={<KIcon icon="login" size={18} />}
+              >
+                Sign in
+              </Button>
+              <Button size="small" color="inherit" fullWidth sx={{ mt: 1 }} onClick={resetMatric}>
+                Not you? Use another Matric No.
+              </Button>
+            </>
+          )}
+
           {step.name === "matric" && (
             <>
               <Typography sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -203,7 +259,7 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
                 size="large"
                 fullWidth
                 disabled={busy || !matric.trim()}
-                onClick={findStudent}
+                onClick={() => findStudent()}
                 sx={{ mt: 2 }}
                 startIcon={busy ? <CircularProgress size={15} color="inherit" /> : <KIcon icon="arrow_forward" size={18} />}
               >
@@ -358,17 +414,73 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
                 }}
               >
                 <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 0.5 }}>
-                  Your room
+                  Your room · 你的房间
                 </Typography>
                 <Typography sx={{ fontWeight: 800, fontSize: 26, letterSpacing: "-0.02em" }}>
                   {lookup?.roomLabel}
                 </Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
-                  Collect your key at the UKM Real Estate counter.
-                </Typography>
               </Box>
 
-              {type === "check_in" && (
+              {/* Next step — collect / return the key at Counter 2 */}
+              <Box
+                sx={{
+                  mt: 2,
+                  p: 2.5,
+                  borderRadius: `${radius.cardLg}px`,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  textAlign: "left",
+                }}
+              >
+                <Box sx={{ display: "flex", gap: 1.25, alignItems: "flex-start" }}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: color.warning.soft,
+                      color: color.warning.ink,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <KIcon icon="key" size={22} />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                      Next: go to Counter 2 (UKM Real Estate)
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
+                      {type === "check_in"
+                        ? "Collect your room key at the UKM Real Estate counter."
+                        : "Return your room key at the UKM Real Estate counter."}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
+                      {ZH_COUNTER[type]}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {directionsImageUrl && (
+                  <Box
+                    component="img"
+                    src={directionsImageUrl}
+                    alt="Directions to Counter 2 — UKM Real Estate"
+                    sx={{
+                      display: "block",
+                      width: "100%",
+                      mt: 1.75,
+                      borderRadius: `${radius.card}px`,
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  />
+                )}
+              </Box>
+
+              {type === "check_in" && !lookup?.hasAccount && (
                 <Box
                   sx={{
                     mt: 2,
@@ -397,10 +509,10 @@ export function CheckinFlow({ token, type, sessionName, logoUrl }: Props) {
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography sx={{ fontWeight: 700, fontSize: 16, color: KIZ_GREEN.deep }}>
-                        Get the KIZ app
+                        Want to use the KIZ app?
                       </Typography>
                       <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                        One app for everything at Kolej Ibu Zain.
+                        Optional — your check-in is already recorded.
                       </Typography>
                     </Box>
                   </Box>

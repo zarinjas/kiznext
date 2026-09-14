@@ -16,6 +16,7 @@ import { quickSignIn } from "./actions"
 interface Props {
   logoUrl: string | null
   loginBackgroundUrl: string | null
+  callbackUrl?: string
 }
 
 const highlights = [
@@ -24,7 +25,7 @@ const highlights = [
   { icon: "support_agent", title: "Support", body: "Helpdesk, lost & found and community in one place." },
 ]
 
-export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
+export function LoginForm({ logoUrl, loginBackgroundUrl, callbackUrl = "/dashboard" }: Props) {
   const [error, setError] = useState<string>("")
   const [emailNotice, setEmailNotice] = useState<string>("")
   const [unverified, setUnverified] = useState(false)
@@ -42,7 +43,7 @@ export function LoginForm({ logoUrl, loginBackgroundUrl }: Props) {
         matricId: matricId.trim().toUpperCase(),
         password,
         redirect: false,
-        callbackUrl: "/dashboard",
+        callbackUrl,
       })
 
       if (!result?.url || result?.error) {

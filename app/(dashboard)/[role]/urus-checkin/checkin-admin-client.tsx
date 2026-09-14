@@ -14,7 +14,9 @@ import Snackbar from "@mui/material/Snackbar"
 import Dialog from "@mui/material/Dialog"
 import DialogTitle from "@mui/material/DialogTitle"
 import DialogContent from "@mui/material/DialogContent"
+import DialogActions from "@mui/material/DialogActions"
 import InputAdornment from "@mui/material/InputAdornment"
+import CircularProgress from "@mui/material/CircularProgress"
 import { KButton } from "@/components/kiz/primitives/k-button"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
@@ -25,11 +27,20 @@ import { color, radius } from "@/lib/theme"
 import { formatMalaysia } from "@/lib/timezone"
 import { toCsv } from "@/lib/csv"
 import { buildXlsx } from "@/lib/xlsx"
-import { createCheckInSession, setCheckInSessionActive } from "@/lib/checkin"
+import {
+  createCheckInSession,
+  updateCheckInSession,
+  setCheckInSessionActive,
+  deleteCheckInSession,
+  adminLookupStudent,
+  adminManualCheckIn,
+  uploadCheckinDirectionsImage,
+  removeCheckinDirectionsImage,
+} from "@/lib/checkin"
 import type { GridColDef } from "@mui/x-data-grid"
 
 type TypeVal = "check_in" | "check_out"
-type PillTone = "info" | "warning" | "success" | "neutral"
+type PillTone = "info" | "warning" | "success" | "danger" | "neutral"
 
 interface SessionRow {
   id: string
@@ -37,6 +48,8 @@ interface SessionRow {
   type: TypeVal
   token: string
   isActive: boolean
+  opensAt: string | null
+  closesAt: string | null
   createdAt: string
   recordCount: number
   url: string
@@ -52,6 +65,8 @@ interface RecordRow {
   type: TypeVal
   roomLabel: string | null
   signatureUrl: string | null
+  /** True when an admin recorded it on the student's behalf (no signature). */
+  manual: boolean
   signedAt: string
 }
 
@@ -67,6 +82,8 @@ interface ConsolidatedRow {
   checkOutSession: string | null
   checkInSignatureUrl: string | null
   checkOutSignatureUrl: string | null
+  checkInManual: boolean
+  checkOutManual: boolean
   /** Session ids the student appears in (for the session filter). */
   sessionIds: string[]
 }
@@ -93,6 +110,8 @@ function consolidate(records: RecordRow[]): ConsolidatedRow[] {
         checkOutSession: null,
         checkInSignatureUrl: null,
         checkOutSignatureUrl: null,
+        checkInManual: false,
+        checkOutManual: false,
         sessionIds: [],
       }
       map.set(key, row)
@@ -106,12 +125,14 @@ function consolidate(records: RecordRow[]): ConsolidatedRow[] {
         row.checkInAt = r.signedAt
         row.checkInSession = r.sessionName
         row.checkInSignatureUrl = r.signatureUrl
+        row.checkInManual = r.manual
       }
     } else {
       if (!row.checkOutAt || new Date(r.signedAt) > new Date(row.checkOutAt)) {
         row.checkOutAt = r.signedAt
         row.checkOutSession = r.sessionName
         row.checkOutSignatureUrl = r.signatureUrl
+        row.checkOutManual = r.manual
       }
     }
   }
@@ -125,6 +146,30 @@ const TYPE_META: Record<TypeVal, { label: string; tone: PillTone }> = {
 
 function typeLabel(t: TypeVal) {
   return TYPE_META[t].label
+}
+
+/** ISO → value for a native datetime-local input (browser-local time). */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Live status of a session's validity window. */
+function sessionStatus(s: SessionRow): { label: string; tone: PillTone } {
+  if (!s.isActive) return { label: "Inactive", tone: "neutral" }
+  const now = Date.now()
+  if (s.opensAt && now < new Date(s.opensAt).getTime()) return { label: "Not open yet", tone: "warning" }
+  if (s.closesAt && now > new Date(s.closesAt).getTime()) return { label: "Closed", tone: "danger" }
+  return { label: "Open now", tone: "success" }
+}
+
+function sessionWindowLabel(s: SessionRow): string {
+  if (!s.opensAt && !s.closesAt) return "No time limit"
+  const from = s.opensAt ? formatMalaysia(new Date(s.opensAt)) : "anytime"
+  const to = s.closesAt ? formatMalaysia(new Date(s.closesAt)) : "open-ended"
+  return `${from} → ${to}`
 }
 
 /** Block prefix from a room label ("K18A-101 (Bed A)" → "K18A"). */
@@ -147,18 +192,21 @@ function Pill({ tone, children }: { tone: PillTone; children: React.ReactNode })
     info: color.info.soft,
     warning: color.warning.soft,
     success: color.success.soft,
+    danger: color.danger.soft,
     neutral: color.canvasSunk,
   }
   const ink: Record<PillTone, string> = {
     info: color.info.ink,
     warning: color.warning.ink,
     success: color.success.ink,
+    danger: color.danger.ink,
     neutral: color.ink[700],
   }
   const main: Record<PillTone, string> = {
     info: color.info.main,
     warning: color.warning.main,
     success: color.success.main,
+    danger: color.danger.main,
     neutral: color.ink[300],
   }
   return (
@@ -234,7 +282,8 @@ const PRINT_STYLES = `
   .poster .steps li { position: relative; padding-left: 36px; margin: 11px 0; font-size: 14px; color: #334155; }
   .poster .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 24px; height: 24px; border-radius: 999px; background: linear-gradient(135deg, #0B6B33, #004B23); color: #fff; font-size: 12px; font-weight: 800; line-height: 24px; text-align: center; }
   .poster .steps li b { color: #0F172A; }
-  .poster .footer { margin-top: 18px; color: #94A3B8; font-size: 12px; }
+  .poster .zh { margin-top: 14px; font-size: 13px; color: #64748B; }
+  .poster .footer { margin-top: 8px; color: #94A3B8; font-size: 12px; }
 `
 
 /** Build the shared A4 document header with the UKM + myKIZ logos. */
@@ -333,6 +382,7 @@ function buildPosterHtml(s: SessionRow, logos: PrintLogos) {
         ${isIn ? "<li>Collect your room key at the <b>UKM Real Estate</b> counter.</li>" : "<li>Return your room key at the <b>UKM Real Estate</b> counter.</li>"}
       </ol>
     </div>
+    <p class="zh">${isIn ? "请前往 2 号柜台（UKM Real Estate）领取房间钥匙。" : "请前往 2 号柜台（UKM Real Estate）交还房间钥匙。"}</p>
     <p class="footer">Need help? Ask the staff at the KIZ counter.</p>
   </div>`
 }
@@ -342,11 +392,13 @@ export function CheckinAdminClient({
   sessions,
   records,
   logos,
+  directionsImageUrl,
 }: {
   readOnly: boolean
   sessions: SessionRow[]
   records: RecordRow[]
   logos: PrintLogos
+  directionsImageUrl: string | null
 }) {
   const router = useRouter()
   const [tab, setTab] = useState(readOnly ? 1 : 0)
@@ -356,7 +408,32 @@ export function CheckinAdminClient({
   // Sessions state
   const [newName, setNewName] = useState("")
   const [newType, setNewType] = useState<TypeVal>("check_in")
+  const [newOpensAt, setNewOpensAt] = useState("")
+  const [newClosesAt, setNewClosesAt] = useState("")
   const [creating, setCreating] = useState(false)
+
+  // Edit-session dialog
+  const [editing, setEditing] = useState<SessionRow | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editOpensAt, setEditOpensAt] = useState("")
+  const [editClosesAt, setEditClosesAt] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  // Delete-session confirm
+  const [deleting, setDeleting] = useState<SessionRow | null>(null)
+  const [removing, setRemoving] = useState(false)
+
+  // Manual check-in dialog
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualMatric, setManualMatric] = useState("")
+  const [manualSessionId, setManualSessionId] = useState("")
+  const [manualLookup, setManualLookup] = useState<{ name: string; roomLabel: string | null } | null>(null)
+  const [manualLooking, setManualLooking] = useState(false)
+  const [manualSaving, setManualSaving] = useState(false)
+  const [manualError, setManualError] = useState("")
+
+  // Directions image upload
+  const [uploadingDirections, setUploadingDirections] = useState(false)
 
   // Records filters
   const [sessionFilter, setSessionFilter] = useState<string>("all")
@@ -366,14 +443,71 @@ export function CheckinAdminClient({
 
   async function onCreate() {
     setCreating(true)
-    const res = await createCheckInSession({ name: newName, type: newType })
+    const res = await createCheckInSession({
+      name: newName,
+      type: newType,
+      opensAt: newOpensAt || null,
+      closesAt: newClosesAt || null,
+    })
     setCreating(false)
     if (res.ok) {
       notify(`Session created — print the QR sheet and paste it at the counter.`)
       setNewName("")
+      setNewOpensAt("")
+      setNewClosesAt("")
       router.refresh()
     } else {
       notify(res.error ?? "Couldn't create the session", "error")
+    }
+  }
+
+  function openEdit(s: SessionRow) {
+    setEditing(s)
+    setEditName(s.name)
+    setEditOpensAt(toLocalInput(s.opensAt))
+    setEditClosesAt(toLocalInput(s.closesAt))
+  }
+
+  async function onSaveEdit() {
+    if (!editing) return
+    setSavingEdit(true)
+    const res = await updateCheckInSession({
+      id: editing.id,
+      name: editName,
+      opensAt: editOpensAt || null,
+      closesAt: editClosesAt || null,
+    })
+    setSavingEdit(false)
+    if (res.ok) {
+      notify("Session updated.")
+      setEditing(null)
+      router.refresh()
+    } else {
+      notify(res.error ?? "Couldn't update the session", "error")
+    }
+  }
+
+  async function onUploadDirections(file: File) {
+    setUploadingDirections(true)
+    const fd = new FormData()
+    fd.append("image", file)
+    const res = await uploadCheckinDirectionsImage(fd)
+    setUploadingDirections(false)
+    if (res.ok) {
+      notify("Directions image updated.")
+      router.refresh()
+    } else {
+      notify(res.error ?? "Upload failed", "error")
+    }
+  }
+
+  async function onRemoveDirections() {
+    const res = await removeCheckinDirectionsImage()
+    if (res.ok) {
+      notify("Directions image removed.")
+      router.refresh()
+    } else {
+      notify(res.error ?? "Couldn't remove the image", "error")
     }
   }
 
@@ -384,6 +518,62 @@ export function CheckinAdminClient({
       router.refresh()
     } else {
       notify(res.error ?? "Couldn't update the session", "error")
+    }
+  }
+
+  async function onDeleteSession() {
+    if (!deleting) return
+    setRemoving(true)
+    const res = await deleteCheckInSession(deleting.id)
+    setRemoving(false)
+    if (res.ok) {
+      notify(`Deleted "${deleting.name}". Any records it captured are kept.`)
+      setDeleting(null)
+      router.refresh()
+    } else {
+      notify(res.error ?? "Couldn't delete the session", "error")
+    }
+  }
+
+  function openManual() {
+    setManualMatric("")
+    setManualLookup(null)
+    setManualError("")
+    // Default to the active session of the current tab's type, else the newest.
+    const preferred = sessions.find((s) => sessionStatus(s).label === "Open now") ?? sessions[0]
+    setManualSessionId(preferred?.id ?? "")
+    setManualOpen(true)
+  }
+
+  async function onLookupManual() {
+    setManualError("")
+    setManualLookup(null)
+    setManualLooking(true)
+    const res = await adminLookupStudent(manualMatric)
+    setManualLooking(false)
+    if (res.ok && res.name) {
+      setManualLookup({ name: res.name, roomLabel: res.roomLabel ?? null })
+    } else {
+      setManualError(res.error ?? "Student not found.")
+    }
+  }
+
+  async function onManualSubmit() {
+    setManualError("")
+    if (!manualSessionId) {
+      setManualError("Pick a session first.")
+      return
+    }
+    setManualSaving(true)
+    const res = await adminManualCheckIn({ matricId: manualMatric, sessionId: manualSessionId })
+    setManualSaving(false)
+    if (res.ok) {
+      const t = res.type === "check_out" ? "Check-out" : "Check-in"
+      notify(`${t} recorded for ${manualLookup?.name ?? manualMatric}.`)
+      setManualOpen(false)
+      router.refresh()
+    } else {
+      setManualError(res.error ?? "Could not record the check-in.")
     }
   }
 
@@ -565,11 +755,11 @@ export function CheckinAdminClient({
             </BentoItem>
           </Bento>
 
-          <FormSection title="New session" subtitle="One QR per period — open check-in at move-in, switch to check-out at move-out." icon="add_circle">
+          <FormSection title="New session" subtitle="One QR per period — set the session and year, and the dates it is open. Open check-in at move-in, switch to check-out at move-out." icon="add_circle">
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <TextField
-                label="Session name"
-                placeholder="e.g. Move-in Long Sem 1"
+                label="Session / year"
+                placeholder="e.g. Move-in Long Sem 1 · 2026/2027"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 fullWidth
@@ -590,6 +780,26 @@ export function CheckinAdminClient({
                     </Button>
                   ))}
                 </Box>
+              </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Opens"
+                  type="datetime-local"
+                  value={newOpensAt}
+                  onChange={(e) => setNewOpensAt(e.target.value)}
+                  helperText="Optional — scans are rejected before this."
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  fullWidth
+                  label="Closes"
+                  type="datetime-local"
+                  value={newClosesAt}
+                  onChange={(e) => setNewClosesAt(e.target.value)}
+                  helperText="Optional — scans are rejected after this."
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
               </Box>
               <Box>
                 <KButton icon="qr_code" loading={creating} disabled={!newName.trim()} onClick={onCreate}>
@@ -621,11 +831,14 @@ export function CheckinAdminClient({
                   >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", flex: 1 }}>
                       <Pill tone={TYPE_META[s.type].tone}>{typeLabel(s.type)}</Pill>
-                      <Pill tone={s.isActive ? "success" : "neutral"}>{s.isActive ? "Active" : "Inactive"}</Pill>
+                      <Pill tone={sessionStatus(s).tone}>{sessionStatus(s).label}</Pill>
                       <Box sx={{ width: "100%" }}>
                         <Typography sx={{ fontWeight: 700, mt: 0.5 }}>{s.name}</Typography>
-                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", overflowWrap: "anywhere" }}>
-                          {s.url} · {s.recordCount} record{s.recordCount === 1 ? "" : "s"}
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                          {sessionWindowLabel(s)} · {s.recordCount} record{s.recordCount === 1 ? "" : "s"}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "text.disabled", display: "block", overflowWrap: "anywhere" }}>
+                          {s.url}
                         </Typography>
                       </Box>
                     </Box>
@@ -643,6 +856,14 @@ export function CheckinAdminClient({
                       </Button>
                       <Button
                         variant="outlined"
+                        fullWidth
+                        onClick={() => openEdit(s)}
+                        startIcon={<KIcon icon="edit_calendar" size={16} />}
+                      >
+                        Edit period
+                      </Button>
+                      <Button
+                        variant="outlined"
                         color={s.isActive ? "error" : "inherit"}
                         fullWidth
                         onClick={() => onToggle(s)}
@@ -650,9 +871,60 @@ export function CheckinAdminClient({
                       >
                         {s.isActive ? "Deactivate" : "Activate"}
                       </Button>
+                      <Button
+                        variant="text"
+                        color="error"
+                        fullWidth
+                        onClick={() => setDeleting(s)}
+                        startIcon={<KIcon icon="delete" size={16} />}
+                      >
+                        Delete
+                      </Button>
                     </Box>
                   </Box>
                 ))}
+              </Box>
+            )}
+          </FormSection>
+
+          <FormSection title="Counter 2 directions" subtitle="Shown to students right after they check in — e.g. a map or photo pointing to the UKM Real Estate counter." icon="directions">
+            {directionsImageUrl ? (
+              <Box>
+                <Box
+                  component="img"
+                  src={directionsImageUrl}
+                  alt="Directions to Counter 2 — UKM Real Estate"
+                  sx={{ display: "block", width: "100%", maxWidth: 420, borderRadius: `${radius.card}px`, border: "1px solid", borderColor: "divider" }}
+                />
+                <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+                  <Button component="label" variant="outlined" disabled={uploadingDirections} startIcon={<KIcon icon="swap_horiz" size={16} />}>
+                    Replace image
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/*"
+                      onChange={(e) => e.target.files?.[0] && onUploadDirections(e.target.files[0])}
+                    />
+                  </Button>
+                  <Button variant="outlined" color="error" onClick={onRemoveDirections} startIcon={<KIcon icon="delete" size={16} />}>
+                    Remove
+                  </Button>
+                </Box>
+              </Box>
+            ) : (
+              <Box>
+                <Button component="label" variant="contained" disabled={uploadingDirections} startIcon={uploadingDirections ? <CircularProgress size={15} color="inherit" /> : <KIcon icon="upload" size={16} />}>
+                  {uploadingDirections ? "Uploading…" : "Upload directions image"}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => e.target.files?.[0] && onUploadDirections(e.target.files[0])}
+                  />
+                </Button>
+                <Typography variant="caption" sx={{ display: "block", mt: 1, color: "text.secondary" }}>
+                  Not set — students will only see the text instruction.
+                </Typography>
               </Box>
             )}
           </FormSection>
@@ -717,6 +989,9 @@ export function CheckinAdminClient({
               }}
             />
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <Button variant="contained" color="success" onClick={openManual} startIcon={<KIcon icon="how_to_reg" size={16} />}>
+                Manual check-in
+              </Button>
               <Button variant="contained" onClick={onExportExcel} startIcon={<KIcon icon="table_view" size={16} />}>
                 Excel (.xlsx)
               </Button>
@@ -775,8 +1050,8 @@ export function CheckinAdminClient({
               </Box>
 
               {([
-                { label: "Check-in", at: detail.checkInAt, session: detail.checkInSession, sig: detail.checkInSignatureUrl },
-                { label: "Check-out", at: detail.checkOutAt, session: detail.checkOutSession, sig: detail.checkOutSignatureUrl },
+                { label: "Check-in", at: detail.checkInAt, session: detail.checkInSession, sig: detail.checkInSignatureUrl, manual: detail.checkInManual },
+                { label: "Check-out", at: detail.checkOutAt, session: detail.checkOutSession, sig: detail.checkOutSignatureUrl, manual: detail.checkOutManual },
               ] as const).map((block) => (
                 <Box key={block.label}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
@@ -789,6 +1064,7 @@ export function CheckinAdminClient({
                     ) : (
                       <Pill tone="neutral">Not yet</Pill>
                     )}
+                    {block.manual && <Pill tone="info">Manual</Pill>}
                   </Box>
                   {block.sig ? (
                     <Box
@@ -806,7 +1082,11 @@ export function CheckinAdminClient({
                     />
                   ) : (
                     <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
-                      {block.at ? "No signature was captured." : `No ${block.label.toLowerCase()} yet.`}
+                      {block.manual
+                        ? "Recorded manually by an admin (no signature)."
+                        : block.at
+                          ? "No signature was captured."
+                          : `No ${block.label.toLowerCase()} yet.`}
                     </Alert>
                   )}
                 </Box>
@@ -814,6 +1094,179 @@ export function CheckinAdminClient({
             </DialogContent>
           </>
         )}
+      </Dialog>
+
+      {/* Edit session period */}
+      <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} maxWidth="sm" fullWidth>
+        {editing && (
+          <>
+            <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: color.brand[50],
+                  color: color.brand[700],
+                }}
+              >
+                <KIcon icon="edit_calendar" size={20} />
+              </span>
+              Edit session
+            </DialogTitle>
+            <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+              <TextField
+                label="Session / year"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                fullWidth
+              />
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Opens"
+                  type="datetime-local"
+                  value={editOpensAt}
+                  onChange={(e) => setEditOpensAt(e.target.value)}
+                  helperText="Optional"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  fullWidth
+                  label="Closes"
+                  type="datetime-local"
+                  value={editClosesAt}
+                  onChange={(e) => setEditClosesAt(e.target.value)}
+                  helperText="Optional"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Box>
+              <Alert severity="info" variant="standard" sx={{ borderRadius: 2 }}>
+                The QR code link stays the same — only the name and dates change.
+              </Alert>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+              <Button variant="outlined" onClick={() => setEditing(null)}>Cancel</Button>
+              <KButton icon="save" loading={savingEdit} disabled={!editName.trim()} onClick={onSaveEdit}>
+                Save changes
+              </KButton>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Delete session confirm */}
+      <Dialog open={Boolean(deleting)} onClose={() => setDeleting(null)} maxWidth="xs" fullWidth>
+        {deleting && (
+          <>
+            <DialogTitle>Delete this session?</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                <b>{deleting.name}</b> will be removed and its QR code will stop
+                working. Any records it already captured are kept in the admin file.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+              <Button variant="outlined" onClick={() => setDeleting(null)}>Cancel</Button>
+              <KButton icon="delete" loading={removing} onClick={onDeleteSession}>
+                Delete session
+              </KButton>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Manual check-in */}
+      <Dialog open={manualOpen} onClose={() => setManualOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+          <span
+            style={{
+              display: "inline-flex",
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: color.success.soft,
+              color: color.success.ink,
+            }}
+          >
+            <KIcon icon="how_to_reg" size={20} />
+          </span>
+          Manual check-in
+        </DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <Alert severity="info" variant="standard" sx={{ borderRadius: 2 }}>
+            Use this when a student can&apos;t scan (or to test). No signature is
+            captured — it&apos;s recorded under your name.
+          </Alert>
+
+          <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+            <TextField
+              label="Matric No."
+              placeholder="A123456"
+              value={manualMatric}
+              onChange={(e) => {
+                setManualMatric(e.target.value.toUpperCase())
+                setManualLookup(null)
+              }}
+              onKeyDown={(e) => e.key === "Enter" && onLookupManual()}
+              fullWidth
+              slotProps={{ htmlInput: { sx: { textTransform: "uppercase" } } }}
+            />
+            <Button
+              variant="outlined"
+              onClick={onLookupManual}
+              disabled={manualLooking || !manualMatric.trim()}
+              sx={{ height: 56, whiteSpace: "nowrap" }}
+              startIcon={manualLooking ? <CircularProgress size={15} /> : <KIcon icon="search" size={16} />}
+            >
+              Look up
+            </Button>
+          </Box>
+
+          {manualLookup && (
+            <Alert severity="success" variant="outlined" sx={{ borderRadius: 2 }}>
+              <b>{manualLookup.name}</b> · {manualLookup.roomLabel ?? "No room assigned"}
+            </Alert>
+          )}
+
+          <TextField
+            select
+            label="Session"
+            value={manualSessionId}
+            onChange={(e) => setManualSessionId(e.target.value)}
+            fullWidth
+            helperText="The record's type follows the session."
+          >
+            {sessions.length === 0 && <MenuItem value="" disabled>No sessions — create one first</MenuItem>}
+            {sessions.map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {typeLabel(s.type)} · {s.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          {manualError && (
+            <Alert severity="error" variant="standard" sx={{ borderRadius: 2 }}>
+              {manualError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button variant="outlined" onClick={() => setManualOpen(false)}>Cancel</Button>
+          <KButton
+            icon="how_to_reg"
+            loading={manualSaving}
+            disabled={!manualLookup || !manualSessionId}
+            onClick={onManualSubmit}
+          >
+            Record {sessions.find((s) => s.id === manualSessionId)?.type === "check_out" ? "check-out" : "check-in"}
+          </KButton>
+        </DialogActions>
       </Dialog>
 
       <Snackbar

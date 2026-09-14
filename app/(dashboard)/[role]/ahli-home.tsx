@@ -157,6 +157,31 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
                       {data.room.session}
                     </Box>
                   )}
+                  {data.checkInStatus && (
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 999,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        ...(data.checkInStatus === "checked_in"
+                          ? { backgroundColor: color.success.soft, color: color.success.ink }
+                          : data.checkInStatus === "checked_out"
+                            ? { backgroundColor: color.info.soft, color: color.info.ink }
+                            : { backgroundColor: "background.paper", border: "1px solid", borderColor: "divider", color: "text.secondary" }),
+                      }}
+                    >
+                      <KIcon
+                        icon={data.checkInStatus === "checked_in" ? "login" : data.checkInStatus === "checked_out" ? "logout" : "pending"}
+                        size={14}
+                      />
+                      {data.checkInStatus === "checked_in" ? "Checked in" : data.checkInStatus === "checked_out" ? "Checked out" : "Not checked in yet"}
+                    </Box>
+                  )}
                 </Box>
                 {data.room.roommateName && (
                   <Typography variant="caption" sx={{ color: "text.secondary", display: "inline-flex", alignItems: "center", gap: 0.5 }}>

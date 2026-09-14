@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { requireRole, type Role } from "@/lib/rbac"
 import { siteUrl } from "@/lib/site-url"
 import { getAppLogoUrl, getStudentCardLogos } from "@/lib/settings"
+import { getCheckinDirectionsImage } from "@/lib/checkin"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { CheckinAdminClient } from "./checkin-admin-client"
@@ -16,7 +17,7 @@ export default async function UrusCheckinPage() {
 
   const readOnly = session.user.role === "pengetua"
 
-  const [sessions, records, appLogoUrl, cardLogos] = await Promise.all([
+  const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl] = await Promise.all([
     prisma.checkInSession.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -30,6 +31,7 @@ export default async function UrusCheckinPage() {
     }),
     getAppLogoUrl(),
     getStudentCardLogos(),
+    getCheckinDirectionsImage(),
   ])
 
   const sessionsData = await Promise.all(
@@ -39,6 +41,8 @@ export default async function UrusCheckinPage() {
       type: s.type,
       token: s.token,
       isActive: s.isActive,
+      opensAt: s.opensAt ? s.opensAt.toISOString() : null,
+      closesAt: s.closesAt ? s.closesAt.toISOString() : null,
       createdAt: s.createdAt.toISOString(),
       recordCount: s._count.records,
       url: siteUrl(`/checkin/${s.token}`),
@@ -55,6 +59,7 @@ export default async function UrusCheckinPage() {
     type: r.type,
     roomLabel: r.roomLabel,
     signatureUrl: r.signatureUrl,
+    manual: Boolean(r.manualById),
     signedAt: r.signedAt.toISOString(),
   }))
 
@@ -70,6 +75,7 @@ export default async function UrusCheckinPage() {
         sessions={sessionsData}
         records={recordsData}
         logos={{ ukmLogoUrl: cardLogos.ukmLogoUrl, appLogoUrl }}
+        directionsImageUrl={directionsImageUrl}
       />
     </Box>
   )

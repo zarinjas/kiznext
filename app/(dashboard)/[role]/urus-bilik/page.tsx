@@ -5,6 +5,7 @@ import { requireRole, type Role } from "@/lib/rbac"
 import { areAllocationsPublished, getOccupancySummary, getRoomFees } from "@/lib/bilik"
 import { nowMalaysia } from "@/lib/room-selection"
 import { roomAssignmentLabel } from "@/lib/bilik-format"
+import { getCheckInStatusForMatrics } from "@/lib/checkin"
 import { UrusBilikClient } from "./urus-bilik-client"
 import { getOccupancy } from "./actions"
 
@@ -61,6 +62,8 @@ export default async function UrusBilikPage() {
     : []
 
   // Serialize to plain objects for the client component.
+  const checkInStatus = await getCheckInStatusForMatrics(students.map((s) => s.matricId))
+
   const blocksData = blocks.map((b) => ({
     id: b.id,
     name: b.name,
@@ -112,6 +115,7 @@ export default async function UrusBilikPage() {
     applicationType: s.roomApplication?.type ?? (s.roommateApplications[0] ? "double" : null),
     applicationStatus: s.roomApplication?.status ?? (s.roommateApplications[0] ? "roommate_confirmed" : null),
     roommate: s.roomApplication?.roommate ? `${s.roomApplication.roommate.name} · ${s.roomApplication.roommate.matricId}` : s.roommateApplications[0] ? `${s.roommateApplications[0].applicant.name} · ${s.roommateApplications[0].applicant.matricId}` : null,
+    checkInStatus: checkInStatus[s.matricId.toUpperCase()] ?? "not_checked_in",
   }))
 
   const freeBeds = activeIntake

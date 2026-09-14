@@ -43,8 +43,14 @@ import {
   updateRoomType,
   adminAssign,
   setAllocationsPublished,
+  previewSync,
+  applySync,
+  getSheetConfigView,
+  saveSheetConfig,
+  fetchGoogleSheetCsv,
   type ImportPreview,
 } from "./actions"
+import type { SyncPreview } from "@/lib/bilik-sync"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
 type Gender = "male" | "female"
@@ -90,6 +96,7 @@ interface StudentData {
   applicationType: "single" | "double" | "flexible" | null
   applicationStatus: string | null
   roommate: string | null
+  checkInStatus: "checked_out" | "checked_in" | "not_checked_in"
 }
 interface IntakeData {
   id: string
@@ -454,6 +461,170 @@ function IntakeTab({
           </Box>
         )}
       </FormSection>
+
+      <SyncSection notify={notify} />
+    </Box>
+  )
+}
+
+// ── Sync from Google Sheet / CSV ─────────────────────────────────────────────
+
+function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") => void }) {
+  const [hasKey, setHasKey] = useState(false)
+  const [serviceAccount, setServiceAccount] = useState("")
+  const [spreadsheetId, setSpreadsheetId] = useState("")
+  const [range, setRange] = useState("")
+  const [csv, setCsv] = useState("")
+  const [source, setSource] = useState("")
+  const [preview, setPreview] = useState<SyncPreview | null>(null)
+  const [pending, start] = useTransition()
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    getSheetConfigView()
+      .then((cfg) => {
+        setHasKey(cfg.hasServiceAccount)
+        setSpreadsheetId(cfg.spreadsheetId)
+        setRange(cfg.range)
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveConfig = () => start(async () => {
+    try {
+      await saveSheetConfig({ serviceAccount: serviceAccount.trim() || undefined, spreadsheetId, range })
+      setServiceAccount("")
+      const cfg = await getSheetConfigView()
+      setHasKey(cfg.hasServiceAccount)
+      setSpreadsheetId(cfg.spreadsheetId)
+      setRange(cfg.range)
+      notify("Google Sheet config saved.")
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Could not save config", "error")
+    }
+  })
+
+  const previewFromSheet = () => start(async () => {
+    const res = await fetchGoogleSheetCsv()
+    if (!res.ok || !res.csv) {
+      notify(res.error ?? "Could not read the sheet", "error")
+      return
+    }
+    setCsv(res.csv)
+    setSource("Google Sheet")
+    try {
+      setPreview(await previewSync(res.csv))
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Preview failed", "error")
+    }
+  })
+
+  const onFile = async (file: File) => {
+    if (/\.xlsx?$/i.test(file.name)) {
+      notify("Export the sheet as CSV first, or use the Google Sheet button.", "error")
+      return
+    }
+    const text = await file.text()
+    setCsv(text)
+    setSource(file.name)
+    start(async () => {
+      try {
+        setPreview(await previewSync(text))
+      } catch (e) {
+        notify(e instanceof Error ? e.message : "Preview failed", "error")
+      }
+    })
+  }
+
+  const apply = () => start(async () => {
+    const res = await applySync(csv)
+    if (res.ok) {
+      notify(`Sync done — ${res.added ?? 0} added, ${res.moved ?? 0} moved, ${res.released ?? 0} released, ${res.roomsSynced ?? 0} rooms synced.`)
+      setPreview(null)
+      setCsv("")
+      setSource("")
+    } else {
+      notify(res.error ?? "Sync failed", "error")
+    }
+  })
+
+  return (
+    <FormSection
+      title="Sync from Google Sheet"
+      subtitle="Update the active intake in place — students who changed rooms, new students, and room status changes. Nothing is applied until you review the diff and press Apply sync."
+      icon="sync"
+    >
+      <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+        <b>How sync works:</b> the sheet is the source of truth. A student&apos;s room follows
+        their matric number — a new matric is added, a changed room is moved, and a matric
+        no longer in the sheet has its bed released (the record stays). Room type, damaged /
+        reserved status and reserved beds are reconciled too.
+      </Alert>
+
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
+        <TextField label="Spreadsheet ID" value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="1AbC...xyz" helperText="The long ID in the sheet URL between /d/ and /edit." />
+        <TextField label="Range / tab" value={range} onChange={(e) => setRange(e.target.value)} placeholder="Sheet1" helperText="Tab name, e.g. Sheet1 (or Sheet1!A1:Z1000)." />
+      </Box>
+      <TextField
+        label={hasKey ? "Service account JSON (leave blank to keep current)" : "Service account JSON"}
+        value={serviceAccount}
+        onChange={(e) => setServiceAccount(e.target.value)}
+        placeholder={hasKey ? "•••••• configured ••••••" : '{ "type": "service_account", ... }'}
+        multiline
+        minRows={2}
+        fullWidth
+        sx={{ mt: 2 }}
+        helperText={hasKey ? "A key is already saved. Paste a new one to replace it." : "Paste the whole JSON key file from Google Cloud."}
+      />
+      <Box sx={{ mt: 1.5 }}>
+        <KButton size="small" variant="outlined" loading={pending} onClick={saveConfig} icon="save">Save config</KButton>
+      </Box>
+
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
+        <KButton onClick={previewFromSheet} loading={pending} icon="cloud_download">Preview from Google Sheet</KButton>
+        <input ref={inputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        <KButton variant="outlined" onClick={() => inputRef.current?.click()} icon="upload_file">Preview from CSV</KButton>
+      </Box>
+
+      {preview && (
+        <Box sx={{ mt: 2 }}>
+          <Bento sx={{ mb: 2 }}>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Add" value={preview.toAdd.length} icon="person_add" /></BentoItem>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Move" value={preview.toMove.length} icon="swap_horiz" /></BentoItem>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Release" value={preview.toRelease.length} icon="person_remove" /></BentoItem>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Unchanged" value={preview.unchanged} icon="check_circle" /></BentoItem>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Rooms new" value={preview.roomsNew} icon="meeting_room" /></BentoItem>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Rooms changed" value={preview.roomsChanged} icon="edit" /></BentoItem>
+          </Bento>
+
+          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1.5 }}>
+            Source: <b>{source}</b> · intake: <b>{preview.intakeName ?? "—"}</b> · {preview.studentsInSheet} students · {preview.roomsTotal} rooms ({preview.reservedRooms} with reserved beds)
+          </Typography>
+
+          <SyncDiffList title="To move" tone={color.info} items={preview.toMove.map((m) => `${m.name} (${m.matricId}): ${m.from} → ${m.to}`)} />
+          <SyncDiffList title="To add" tone={color.success} items={preview.toAdd.map((m) => `${m.name} (${m.matricId}) → ${m.room}`)} />
+          <SyncDiffList title="To release" tone={color.warning} items={preview.toRelease.map((m) => `${m.name} (${m.matricId}) — was ${m.from}`)} />
+
+          <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
+            <KButton onClick={apply} loading={pending} icon="sync">Apply sync</KButton>
+            <KButton variant="outlined" onClick={() => { setPreview(null); setCsv(""); setSource("") }}>Cancel</KButton>
+          </Box>
+        </Box>
+      )}
+    </FormSection>
+  )
+}
+
+function SyncDiffList({ title, tone, items }: { title: string; tone: { soft: string; ink: string; main: string }; items: string[] }) {
+  if (items.length === 0) return null
+  const shown = items.slice(0, 20)
+  return (
+    <Box sx={{ mb: 1.5, p: 1.5, borderRadius: 2, backgroundColor: tone.soft, border: "1px solid", borderColor: tone.main }}>
+      <Typography sx={{ fontWeight: 700, color: tone.ink, mb: 0.5 }}>{title} ({items.length})</Typography>
+      {shown.map((line, i) => (
+        <Typography key={i} variant="caption" sx={{ display: "block", color: tone.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line}</Typography>
+      ))}
+      {items.length > shown.length && <Typography variant="caption" sx={{ color: tone.ink }}>…and {items.length - shown.length} more</Typography>}
     </Box>
   )
 }
@@ -1083,6 +1254,7 @@ function StudentsTab({
                 <TableCell>Application</TableCell>
                 <TableCell>Roommate</TableCell>
                 <TableCell>Room</TableCell>
+                <TableCell>Check-in</TableCell>
                 <TableCell>Action</TableCell>
               </TableRow>
             </TableHead>
@@ -1114,6 +1286,9 @@ function StudentsTab({
                       <Typography variant="body2" sx={{ color: "text.disabled" }}>—</Typography>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <CheckInBadge status={s.checkInStatus} />
+                  </TableCell>
                   <TableCell align="right">
                     <KButton size="small" variant="text" onClick={() => setDetail(s)}>View details</KButton>
                   </TableCell>
@@ -1138,7 +1313,10 @@ function StudentDetailDialog({ student, freeBeds, notify, onClose }: {
   return <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { borderRadius: `${radius.cardLg}px`, m: { xs: 1.5, sm: 2 } } } }}>
     <DialogTitle sx={{ fontWeight: 650 }}>Student details</DialogTitle>
     <DialogContent>
-      <Typography variant="h6" sx={{ mb: 0.25 }}>{student.name}</Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.25 }}>
+        <Typography variant="h6">{student.name}</Typography>
+        <CheckInBadge status={student.checkInStatus} />
+      </Box>
       <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>{student.matricId} · {student.gender}</Typography>
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(3, 1fr)" }, gap: 1.5, mb: 2 }}>
         <Detail label="Race" value={student.race} />
@@ -1176,6 +1354,36 @@ function MiniTag({ label }: { label: string }) {
   return (
     <Box sx={{ px: 0.75, py: 0.125, borderRadius: 1, fontSize: 10, fontWeight: 700, backgroundColor: color.brand[50], color: color.brand[700] }}>
       {label}
+    </Box>
+  )
+}
+
+/** Check-in / check-out status pill for the current session. */
+function CheckInBadge({ status }: { status: "checked_out" | "checked_in" | "not_checked_in" }) {
+  const map = {
+    checked_in: { label: "Checked in", bg: color.success.soft, fg: color.success.ink, dot: color.success.main },
+    checked_out: { label: "Checked out", bg: color.info.soft, fg: color.info.ink, dot: color.info.main },
+    not_checked_in: { label: "Not checked in", bg: color.canvasSunk, fg: color.ink[500], dot: color.ink[300] },
+  } as const
+  const m = map[status]
+  return (
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.5,
+        px: 0.875,
+        py: 0.25,
+        borderRadius: 999,
+        fontSize: 10.5,
+        fontWeight: 700,
+        backgroundColor: m.bg,
+        color: m.fg,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Box sx={{ width: 6, height: 6, borderRadius: 999, backgroundColor: m.dot }} />
+      {m.label}
     </Box>
   )
 }

@@ -66,6 +66,7 @@ model User {
   announcementReactions AnnouncementReaction[]
   announcementReads AnnouncementRead[]
   createdCheckInSessions CheckInSession[]   @relation("CreatedCheckInSessions")
+  manualCheckInRecords   CheckInRecord[]    @relation("ManualCheckInRecords")
 
   @@map("users")
 }
@@ -86,6 +87,9 @@ model CheckInSession {
   type        CheckInType
   /// Random token embedded in the QR URL (`/checkin/<token>`). Public-facing.
   token       String       @unique
+  /// Optional validity window (Malaysia time). Scans outside it are rejected.
+  opensAt     DateTime?    @map("opens_at")
+  closesAt    DateTime?    @map("closes_at")
   isActive    Boolean      @default(true) @map("is_active")
   createdById String       @map("created_by")
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -110,16 +114,20 @@ model CheckInRecord {
   type              CheckInType
   roomLabel         String?     @map("room_label")
   signatureUrl      String?     @map("signature_url")
+  /// Set when an admin recorded this on the student's behalf (no signature).
+  manualById        String?     @map("manual_by")
   signedAt          DateTime    @map("signed_at")
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
   deletedAt         DateTime?   @map("deleted_at")
 
-  session CheckInSession   @relation(fields: [sessionId], references: [id])
-  student EligibleStudent? @relation(fields: [eligibleStudentId], references: [id])
+  session  CheckInSession  @relation(fields: [sessionId], references: [id])
+  student  EligibleStudent? @relation(fields: [eligibleStudentId], references: [id])
+  manualBy User?           @relation("ManualCheckInRecords", fields: [manualById], references: [id])
 
   @@index([sessionId])
   @@index([eligibleStudentId])
+  @@index([manualById])
   @@map("check_in_records")
 }
 

@@ -28,6 +28,7 @@ Status: MVP feature-complete, not production-ready.
 | File storage | Local filesystem under `public/uploads/` |
 | Chat realtime | Client polling every 3s against a Server Action (no Pusher/WebSocket) |
 | PDF / QR | `pdf-lib` / `qrcode` |
+| Google Sheets | `googleapis` — service-account **read-only** pull of the accepted-list sheet for the accommodation sync (approved exception to the no-new-libs rule). |
 | Deployment | Not decided. Note: local-filesystem uploads will not survive a stateless host. |
 
 > Do not add libraries outside this list. If one seems necessary, stop and ask.
