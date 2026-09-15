@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
 
 concurrency:
+  # `cancel-in-progress: false` on purpose: cancelling mid-deploy can leave the
+  # remote process orphaned while a new run races it on node_modules/.next.
+  # GitHub already cancels superseded *pending* runs, so rapid pushes queue at
+  # most one run deep. `scripts/remote-deploy.sh` also takes a flock guard.
   group: deploy
   cancel-in-progress: false
 
@@ -15,6 +19,7 @@ jobs:
   # `typescript.ignoreBuildErrors`; this job is what actually enforces types.
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +36,9 @@ jobs:
   deploy:
     needs: typecheck
     runs-on: ubuntu-latest
+    # Fail fast: a bad build used to sit on `Creating an optimized production
+    # build …` until the 30m SSH timeout. 15m is well above the ~2m happy path.
+    timeout-minutes: 15
     steps:
       - name: Deploy to VPS over SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -39,6 +47,6 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_KEY }}
           port: 22
-          command_timeout: 30m
+          command_timeout: 8m
           script: |
             sudo bash /home/mykiz.my/kiznext/scripts/remote-deploy.sh

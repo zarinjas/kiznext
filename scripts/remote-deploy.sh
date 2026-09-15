@@ -2,8 +2,9 @@
 # Remote deploy script — runs on the VPS as root (invoked by the GitHub Action
 # over SSH via `sudo bash ...`, or manually on the server).
 #
-# Flow: git fetch+reset -> npm ci -> prisma generate + db push -> next build ->
-# restart the systemd service -> health check.
+# Flow: git fetch+reset -> npm ci (only if package-lock.json changed) ->
+# prisma generate + db push -> next build -> restart the systemd service ->
+# health check.
 #
 # Note: prisma db push runs with `--accept-data-loss` because routine schema
 # changes (adding unique constraints / enum values / defaulted columns) trip
@@ -14,6 +15,15 @@
 # always an exact mirror of main. Safe to hard-reset: everything server-local
 # (.env, public/uploads, node_modules, .next) is untracked/gitignored.
 set -euo pipefail
+
+# Serialize deploys on this host. If a previous run is still finishing (e.g. a
+# cancelled GitHub job whose remote process outlived the SSH session), wait for
+# it instead of racing it on node_modules/.next.
+exec 9>/var/lock/kiznext-deploy.lock
+if ! flock -w 300 9; then
+  echo "ERROR: timed out waiting for another deploy to finish on this host" >&2
+  exit 1
+fi
 
 APP=/home/mykiz.my/kiznext
 SERVICE=mykiznext
@@ -51,8 +61,16 @@ else
 fi
 chown "$RUNUSER:$RUNUSER" "$ENV_FILE"
 
-echo "==> [3/7] npm ci"
-as_app "npm ci --no-audit --no-fund"
+echo "==> [3/7] npm ci (skipped when package-lock.json is unchanged)"
+LOCK_HASH_FILE="$APP/.deploy-lock-hash"
+LOCK_HASH="$(sha256sum "$APP/package-lock.json" | cut -d' ' -f1)"
+if [ -d "$APP/node_modules" ] && [ -f "$LOCK_HASH_FILE" ] && [ "$(cat "$LOCK_HASH_FILE")" = "$LOCK_HASH" ]; then
+  echo "   -> deps unchanged, reusing node_modules"
+else
+  as_app "npm ci --no-audit --no-fund --prefer-offline"
+  printf '%s\n' "$LOCK_HASH" > "$LOCK_HASH_FILE"
+  chown "$RUNUSER:$RUNUSER" "$LOCK_HASH_FILE"
+fi
 
 echo "==> [4/7] prisma generate"
 as_app "npx prisma generate"
