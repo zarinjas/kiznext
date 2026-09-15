@@ -8,6 +8,7 @@ import Drawer from "@mui/material/Drawer"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
+import { ArMiniMap } from "@/components/shared/ar/ar-minimap"
 import { TYPE_TONES } from "@/lib/direktori-meta"
 import { bearingDeg, haversineMeters, headingDelta, formatDistanceMeters } from "@/lib/geo"
 import { color, font, radius } from "@/lib/theme"
@@ -78,6 +79,7 @@ export function ArNavigator({ destinations }: Props) {
   const [camError, setCamError] = useState<string | null>(null)
   const [compass, setCompass] = useState<SensorStatus>("idle")
   const [hint, setHint] = useState("Straight ahead")
+  const [headingDisplay, setHeadingDisplay] = useState(0)
   const [arView, setArView] = useState(true)
   const [pickerOpen, setPickerOpen] = useState(false)
   const compassReady = compass === "on"
@@ -98,6 +100,15 @@ export function ArNavigator({ destinations }: Props) {
 
   const cameraOn = camStatus === "on"
   const showAr = cameraOn && compassReady && Boolean(selected)
+
+  // Mini-map only needs the heading a few times a second (a radar wedge, not
+  // a smooth animation), so it reads the same ref the 60fps arrow loop
+  // writes to without forcing this component to re-render every frame.
+  useEffect(() => {
+    if (!showAr) return
+    const id = setInterval(() => setHeadingDisplay(smoothRef.current), 250)
+    return () => clearInterval(id)
+  }, [showAr])
 
   // ── Camera ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -497,6 +508,8 @@ export function ArNavigator({ destinations }: Props) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                perspective: "480px",
+                perspectiveOrigin: "50% 20%",
               }}
             >
               <Box
@@ -510,46 +523,79 @@ export function ArNavigator({ destinations }: Props) {
                   alignItems: "center",
                 }}
               >
+                {/* Static ground tilt — the arrow lies flat and rotates on
+                    that plane (like a compass needle), rather than facing
+                    the viewer flat-on. This is what actually reads as "3D"
+                    instead of a flat icon spinning in place. */}
                 <Box
-                  ref={arrowRef}
                   sx={{
+                    transform: "rotateX(58deg)",
+                    transformStyle: "preserve-3d",
                     transformOrigin: "50% 100%",
-                    willChange: "transform",
-                    display: "flex",
                   }}
                 >
-                  <svg
-                    width="150"
-                    height="180"
-                    viewBox="0 0 120 150"
-                    fill="none"
-                    style={{ overflow: "visible", display: "block" }}
+                  <Box
+                    ref={arrowRef}
+                    sx={{
+                      transformOrigin: "50% 100%",
+                      willChange: "transform",
+                      display: "flex",
+                    }}
                   >
-                    <defs>
-                      <filter id="kiz-nav-glow" x="-60%" y="-60%" width="220%" height="220%">
-                        <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
-                      </filter>
-                    </defs>
-                    <g filter="url(#kiz-nav-glow)" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 140 L60 102 L98 140" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
-                      <path d="M22 104 L60 66 L98 104" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
-                      <path d="M22 68 L60 30 L98 68" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
-                      <path d="M22 140 L60 102 L98 140" stroke="#FFFFFF" strokeWidth="8" />
-                      <path d="M22 104 L60 66 L98 104" stroke="#FFFFFF" strokeWidth="8" />
-                      <path d="M22 68 L60 30 L98 68" stroke="#FFFFFF" strokeWidth="8" />
-                    </g>
-                  </svg>
+                    <svg
+                      width="132"
+                      height="150"
+                      viewBox="0 0 100 116"
+                      fill="none"
+                      style={{ overflow: "visible", display: "block" }}
+                    >
+                      <defs>
+                        <filter id="kiz-nav-glow" x="-80%" y="-80%" width="260%" height="260%">
+                          <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="#000" floodOpacity="0.4" />
+                        </filter>
+                        {/* Top-lit face: light at the tip, deeper at the base — the
+                            single biggest cue that sells volume over a flat icon. */}
+                        <linearGradient id="kiz-arrow-face" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={arrived ? "#6FDB9A" : "#5B9CFB"} />
+                          <stop offset="55%" stopColor={arrived ? color.success.main : NAV_BLUE} />
+                          <stop offset="100%" stopColor={arrived ? "#1E8E5A" : "#0B4EA8"} />
+                        </linearGradient>
+                        {/* Left half in shadow, right half lit — the second cue,
+                            simulating a shaded flank without full 3D geometry. */}
+                        <linearGradient id="kiz-arrow-shadow-side" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#000000" stopOpacity="0.32" />
+                          <stop offset="45%" stopColor="#000000" stopOpacity="0" />
+                        </linearGradient>
+                        <clipPath id="kiz-arrow-clip">
+                          <path d="M50 4 L92 108 L50 84 L8 108 Z" />
+                        </clipPath>
+                      </defs>
+                      <g filter="url(#kiz-nav-glow)">
+                        <path d="M50 4 L92 108 L50 84 L8 108 Z" fill="url(#kiz-arrow-face)" />
+                        <rect x="0" y="0" width="50" height="116" fill="url(#kiz-arrow-shadow-side)" clipPath="url(#kiz-arrow-clip)" />
+                        {/* Glossy highlight streak near the nose, like a lit edge. */}
+                        <path d="M50 4 L68 62 L50 52 Z" fill="#FFFFFF" opacity="0.35" />
+                        <path
+                          d="M50 4 L92 108 L50 84 L8 108 Z"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.55)"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                        />
+                      </g>
+                    </svg>
+                  </Box>
                 </Box>
 
                 {/* Ground shadow — anchors the arrow to the floor ahead. */}
                 <Box
                   sx={{
-                    width: 92,
-                    height: 16,
+                    width: 80,
+                    height: 14,
                     borderRadius: "50%",
                     backgroundColor: "rgba(0,0,0,0.38)",
                     filter: "blur(4px)",
-                    mt: -1,
+                    mt: -0.5,
                   }}
                 />
               </Box>
@@ -588,6 +634,16 @@ export function ArNavigator({ destinations }: Props) {
               </Box>
             </Box>
           </Box>
+
+          {/* Radar mini-map — where you are vs. where you're headed. */}
+          {selected && (
+            <ArMiniMap
+              key={selected.id}
+              position={position}
+              destination={{ lat: selected.latitude, lng: selected.longitude }}
+              heading={headingDisplay}
+            />
+          )}
 
           {/* Bottom hint */}
           <Box

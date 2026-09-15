@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     "192.168.0.*",
     "192.168.1.*",
     "10.0.0.*",
+    "*.ngrok-free.app",
+    "*.ngrok-free.dev",
+    "*.ngrok.app",
+    "*.ngrok.dev",
   ],
   // `googleapis` is a 200 MB / ~1900-file server-only package. Bundling it with
   // Turbopack blows past the 2 GB VPS build budget and the build hangs on swap
