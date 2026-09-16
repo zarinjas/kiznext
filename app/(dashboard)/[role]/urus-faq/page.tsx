@@ -6,19 +6,22 @@ import type { Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { FaqAdmin } from "./faq-admin"
+import { FaqSheetSync } from "./faq-sheet-sync"
 import { getUnansweredQuestions } from "@/lib/ai/admin-actions"
+import { getFaqSheetStatus } from "@/lib/ai/faq-actions"
 
 export default async function UrusFaqPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
 
-  const [faqs, unanswered] = await Promise.all([
+  const [faqs, unanswered, sheet] = await Promise.all([
     prisma.faq.findMany({
       where: { deletedAt: null },
       orderBy: [{ category: "asc" }, { createdAt: "asc" }],
     }),
     getUnansweredQuestions(),
+    getFaqSheetStatus(),
   ])
 
   return (
@@ -26,19 +29,26 @@ export default async function UrusFaqPage() {
       <PageHeader
         overline="AI"
         title="FAQ Knowledge"
-        subtitle="The questions KIZ-AI answers. Fill them in, import in bulk, then re-index."
+        subtitle="The questions KIZ-AI answers. Fill them in, import or sync from Google Sheets, then re-index."
       />
-      <FaqAdmin
-        faqs={faqs.map((f) => ({
-          id: f.id,
-          category: f.category,
-          question: f.question,
-          answer: f.answer,
-          keywords: f.keywords,
-          published: f.published,
-        }))}
-        unanswered={unanswered}
-      />
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <FaqSheetSync
+          serviceAccountSet={sheet.serviceAccountSet}
+          initialSpreadsheetId={sheet.spreadsheetId ?? ""}
+          initialRange={sheet.range ?? ""}
+        />
+        <FaqAdmin
+          faqs={faqs.map((f) => ({
+            id: f.id,
+            category: f.category,
+            question: f.question,
+            answer: f.answer,
+            keywords: f.keywords,
+            published: f.published,
+          }))}
+          unanswered={unanswered}
+        />
+      </Box>
     </Box>
   )
 }

@@ -7,6 +7,8 @@ import type { Role } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { parseCsvToObjects, toCsv } from "@/lib/csv"
 import { readXlsxGrid } from "@/lib/xlsx-read"
+import { SHEET_SA_KEY } from "@/lib/google-sheets"
+import { getFaqSheetConfig, fetchFaqSheetRows, FAQ_SHEET_ID_KEY, FAQ_SHEET_RANGE_KEY } from "./faq-sheet"
 import { FAQ_SEED, FAQ_CSV_HEADERS } from "./faq-seed"
 
 async function requireAdmin(): Promise<Role> {
@@ -14,6 +16,10 @@ async function requireAdmin(): Promise<Role> {
   if (!session?.user?.id) throw new Error("Unauthorized")
   requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
   return session.user.role as Role
+}
+
+async function upsertSetting(key: string, value: string) {
+  await prisma.appSetting.upsert({ where: { key }, update: { value }, create: { key, value } })
 }
 
 function revalidate(role: Role) {
@@ -224,4 +230,61 @@ export async function exportFaqsCsv(): Promise<string> {
       published: String(f.published),
     })),
   )
+}
+
+// ── Google Sheet sync ────────────────────────────────────────────────────────
+// Staff edit the FAQ in a shared Google Sheet; the admin pulls it on demand —
+// no re-uploading. Shares the service account with the accommodation sync.
+
+interface FaqSheetStatus {
+  serviceAccountSet: boolean
+  spreadsheetId: string | null
+  range: string | null
+}
+
+export async function getFaqSheetStatus(): Promise<FaqSheetStatus> {
+  await requireAdmin()
+  const cfg = await getFaqSheetConfig()
+  return { serviceAccountSet: cfg.serviceAccountSet, spreadsheetId: cfg.spreadsheetId, range: cfg.range }
+}
+
+export async function saveFaqSheetConfig(input: {
+  serviceAccount: string
+  spreadsheetId: string
+  range: string
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const role = await requireAdmin()
+
+    if (input.serviceAccount.trim()) {
+      try {
+        JSON.parse(input.serviceAccount)
+      } catch {
+        return { success: false, error: "The service account key is not valid JSON." }
+      }
+      await upsertSetting(SHEET_SA_KEY, input.serviceAccount.trim())
+    }
+
+    await upsertSetting(FAQ_SHEET_ID_KEY, input.spreadsheetId.trim())
+    await upsertSetting(FAQ_SHEET_RANGE_KEY, input.range.trim())
+
+    revalidate(role)
+    return { success: true }
+  } catch (err) {
+    console.error("[faq:saveSheetConfig]", err)
+    return { success: false, error: err instanceof Error ? err.message : "Couldn't save." }
+  }
+}
+
+/** Pull the FAQ sheet and import it (same matching rules as a file upload). */
+export async function syncFaqsFromSheet(): Promise<FaqImportResult & { fetched?: number }> {
+  try {
+    const role = await requireAdmin()
+    const { rows } = await fetchFaqSheetRows()
+    const result = await doImport(rows, role)
+    return { ...result, fetched: rows.length }
+  } catch (err) {
+    console.error("[faq:syncSheet]", err)
+    return { success: false, error: err instanceof Error ? err.message : "Sync failed." }
+  }
 }
