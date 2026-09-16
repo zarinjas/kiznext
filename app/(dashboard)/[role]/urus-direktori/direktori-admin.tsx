@@ -25,6 +25,7 @@ interface DestinationView {
   building: string | null
   description: string | null
   sortOrder: number
+  verified: boolean
 }
 
 interface Props {
@@ -96,6 +97,28 @@ export function DirektoriAdmin({ destinations }: Props) {
               trailing={
                 <>
                   <TypeTag type={d.type} />
+                  {!d.verified && (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        px: 1,
+                        py: 0.375,
+                        borderRadius: 999,
+                        backgroundColor: color.warning.soft,
+                        color: color.warning.ink,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <KIcon icon="warning" size={13} />
+                      Unverified
+                    </Box>
+                  )}
                   {d.indoor && (
                     <Box
                       component="span"
@@ -129,6 +152,30 @@ export function DirektoriAdmin({ destinations }: Props) {
             />
           ))}
         </ListGroup>
+      )}
+
+      {destinations.some((d) => !d.verified) && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 1,
+            p: 1.5,
+            borderRadius: `${8}px`,
+            backgroundColor: color.warning.soft,
+            color: color.warning.ink,
+            fontSize: 12.5,
+          }}
+        >
+          <KIcon icon="warning" size={16} sx={{ flexShrink: 0, marginTop: 0.25 }} />
+          <Box>
+            {destinations.filter((d) => !d.verified).length} pin
+            {destinations.filter((d) => !d.verified).length === 1 ? "" : "s"} marked{" "}
+            <strong>Unverified</strong>. Their coordinates were estimated, not surveyed. Confirm
+            each one on a real device or against Google Maps (“What’s here?”) and switch on
+            “GPS verified” when editing.
+          </Box>
+        </Box>
       )}
 
       {destinations.length > 0 && !destinations.some((d) => d.indoor) && (

@@ -36,6 +36,7 @@ export default async function UrusDirektoriPage() {
           building: d.building,
           description: d.description,
           sortOrder: d.sortOrder,
+          verified: d.verified,
         }))}
       />
     </Box>

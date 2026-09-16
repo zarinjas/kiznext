@@ -27,9 +27,21 @@ const NAV_BLUE = "#1A73E8"
  * walking-navigation mini-map does. Leaflet + plain OSM tiles (no API key);
  * loaded client-side only since it touches `window`/the DOM directly.
  */
+function userIconHtml() {
+  return `<div style="position:relative;width:14px;height:14px;">
+    <div style="position:absolute;inset:-8px;border-radius:50%;background:rgba(26,115,232,0.25);"></div>
+    <div style="width:14px;height:14px;border-radius:50%;background:${NAV_BLUE};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>
+  </div>`
+}
+
 export function ArMiniMap({ position, destination, heading }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
+  // Leaflet's own map object can outlive the point where we've called
+  // `.remove()` on it (an in-flight `await import("leaflet")` elsewhere still
+  // holds the reference), so `mapRef.current` alone isn't a safe "is this
+  // still usable" check. This flag is the source of truth for that.
+  const aliveRef = useRef(false)
   const userMarkerRef = useRef<Marker | null>(null)
   const destMarkerRef = useRef<Marker | null>(null)
   const lineRef = useRef<Polyline | null>(null)
@@ -69,10 +81,7 @@ export function ArMiniMap({ position, destination, heading }: Props) {
 
       const userIcon = L.divIcon({
         className: "",
-        html: `<div style="position:relative;width:14px;height:14px;">
-          <div style="position:absolute;inset:-8px;border-radius:50%;background:rgba(26,115,232,0.25);"></div>
-          <div style="width:14px;height:14px;border-radius:50%;background:${NAV_BLUE};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>
-        </div>`,
+        html: userIconHtml(),
         iconSize: [14, 14],
         iconAnchor: [7, 7],
       })
@@ -95,11 +104,13 @@ export function ArMiniMap({ position, destination, heading }: Props) {
       }
 
       mapRef.current = map
+      aliveRef.current = true
     }
 
     void init()
     return () => {
       cancelled = true
+      aliveRef.current = false
       map?.remove()
       mapRef.current = null
       userMarkerRef.current = null
@@ -111,20 +122,24 @@ export function ArMiniMap({ position, destination, heading }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Keep the user dot + line live without re-creating the map.
+  // Keep the user dot + line live without re-creating the map. Guarded with
+  // its own `cancelled` flag and the shared `aliveRef` because this effect
+  // re-runs on every position tick — if the map got torn down (destination
+  // switched, component unmounted) while an earlier run's `import("leaflet")`
+  // was still pending, that stale run must not touch the dead map.
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !position) return
+    if (!position) return
+    let cancelled = false
     void (async () => {
       const L = (await import("leaflet")).default
+      if (cancelled || !aliveRef.current || !mapRef.current) return
+      const map = mapRef.current
       const latlng: [number, number] = [position.lat, position.lng]
+
       if (!userMarkerRef.current) {
         const userIcon = L.divIcon({
           className: "",
-          html: `<div style="position:relative;width:14px;height:14px;">
-            <div style="position:absolute;inset:-8px;border-radius:50%;background:rgba(26,115,232,0.25);"></div>
-            <div style="width:14px;height:14px;border-radius:50%;background:${NAV_BLUE};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>
-          </div>`,
+          html: userIconHtml(),
           iconSize: [14, 14],
           iconAnchor: [7, 7],
         })
@@ -146,6 +161,9 @@ export function ArMiniMap({ position, destination, heading }: Props) {
 
       map.fitBounds([latlng, [destination.lat, destination.lng]], { padding: [18, 18], maxZoom: 18 })
     })()
+    return () => {
+      cancelled = true
+    }
   }, [position, destination])
 
   return (
@@ -153,9 +171,17 @@ export function ArMiniMap({ position, destination, heading }: Props) {
       sx={{
         position: "absolute",
         right: 14,
-        bottom: "calc(env(safe-area-inset-bottom) + 76px)",
-        width: 128,
-        height: 128,
+        // Bottom-right, sitting above the single consolidated bottom bar
+        // (turn hint + distance + accuracy note now live together there,
+        // not as three separate floating pieces). The arrow itself is
+        // narrow and centred, so a corner box doesn't visually collide with
+        // it even where their bounding boxes share the same vertical band —
+        // the earlier collisions were always with wide, centred text
+        // (the old distance pill and the "Locating you…" hints), not the
+        // arrow. Those are what actually needed to shrink, not this map.
+        bottom: "calc(env(safe-area-inset-bottom) + 128px)",
+        width: 100,
+        height: 100,
         borderRadius: "16px",
         overflow: "hidden",
         border: "2px solid rgba(255,255,255,0.85)",

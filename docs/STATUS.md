@@ -247,6 +247,22 @@ Not started, roughly in priority order.
   (bookings per week, ticket status mix). MUI X Charts are installed and ready.
 - **Dynamic / signed QR** — addresses #9.
 - **Tests** — no test framework is set up at all.
+- **AR Directory: 10 destinations still Unverified** — `Blok K18B`, `Blok K19D`,
+  `Bilik Seminar`, `Meeting Room`, `Pejabat Pentadbiran KIZ`, `Pejabat UKM Real
+  Estate`, `Cafeteria`, `Dapur Siswa`, `Futsal Court`, `Sick Bay`, `Parcel
+  Locker` — coordinates are interpolated/estimated, not confirmed against a
+  real Google Maps pin (unlike the other 13 destinations, which were fixed on
+  2026-09-16 using real long-pressed coordinates). Grab each one's real pin
+  (long-press in Google Maps → coordinates) and update via `/urus-direktori`
+  → edit → set lat/lng + toggle "GPS verified" on.
+- **AR mini-map hotlinks OpenStreetMap's free public tile servers** —
+  `components/shared/ar/ar-minimap.tsx` pulls tiles straight from
+  `tile.openstreetmap.org`, which explicitly discourages production-scale
+  traffic. Fine for a single residential college's user base today; revisit
+  (switch to a managed provider like MapTiler/Stadia Maps/Geoapify, or throttle
+  tile refetches) only if usage grows enough for OSM to start rate-limiting
+  the app's IP, which would silently break just the mini-map (arrow/camera/GPS
+  keep working either way).
 
 ---
 

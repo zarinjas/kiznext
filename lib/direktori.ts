@@ -18,6 +18,7 @@ export type DestinationInput = {
   description?: string | null
   sortOrder?: number
   icon?: string
+  verified?: boolean
 }
 
 async function requireAdmin(): Promise<Role> {
@@ -46,6 +47,7 @@ function validateInput(data: DestinationInput): DestinationInput {
     description: data.description?.trim() || null,
     sortOrder: Number.isFinite(data.sortOrder) ? data.sortOrder! : 0,
     icon: (data.icon?.trim() || typeIcon(data.type)).trim() || "place",
+    verified: Boolean(data.verified),
   }
 }
 
@@ -68,6 +70,7 @@ export async function createDestination(data: DestinationInput) {
       description: d.description,
       sortOrder: d.sortOrder,
       icon: d.icon,
+      verified: d.verified,
     },
   })
   revalidateFor(role)
@@ -88,6 +91,7 @@ export async function updateDestination(id: string, data: DestinationInput) {
       description: d.description,
       sortOrder: d.sortOrder,
       icon: d.icon,
+      verified: d.verified,
     },
   })
   revalidateFor(role)
