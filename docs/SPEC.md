@@ -131,7 +131,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 |---|---|---|
 | `User` | users | `matricId` unique (login ID), `email` unique, `emailVerifiedAt`, `accountStatus` (enum), `passwordHash`, `role`, `block`, `roomNumber`, `residentCardQr`, `phone`, `avatarUrl` |
 | `Block` | blocks | `name` unique, `description`, `navigationNotes` |
-| `Destination` | destinations | AR Directory pin — `name`, `type` (enum), `latitude`/`longitude`, `indoor` (bool, for rooms in the single-floor admin building), `building`, `sortOrder`. Admin CRUD at `urus-direktori`. |
+| `Destination` | destinations | AR Directory pin — `name`, `type` (enum), `latitude`/`longitude`, `indoor` (bool, for rooms in the single-floor admin building), `building`, `verified` (bool, default false — has this pin's lat/lng been confirmed against a real device or Google Maps), `sortOrder`. Admin CRUD at `urus-direktori`. |
 | `Office` | offices | `name`, `description`, `featuredImage`, `gallery`, `sortOrder` |
 | `GuestHouse` | guest_houses | `name` unique, `description`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `maxDays`, `requiresApproval` |
 | `Facility` | facilities | `blockId`, `featuredImage`, `gallery` (String[]), `price`, `capacity`, `timeSlotDuration`, `maxPerDay` (default 3), `requiresApproval` |
