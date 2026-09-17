@@ -141,13 +141,73 @@ export async function registerAccount(input: RegisterInput): Promise<RegisterRes
   const existing = await prisma.user.findUnique({ where: { matricId } })
 
   if (existing) {
+    // A soft-deleted account still holds the unique matric ID. The office can
+    // delete an account, but the resident is allowed to come back and
+    // re-register — so revive the row in place instead of dead-ending them.
+    // Only the email on file (or an admin invitation) can reclaim it, and the
+    // account drops back to `unverified` so ownership is proven again.
     if (existing.deletedAt) {
-      return { ok: false, error: "This Matric No. was deactivated. Contact the KIZ management office." }
+      const sameEmail = (existing.email ?? "").toLowerCase() === email
+      if (!sameEmail && !invitation) {
+        return {
+          ok: false,
+          error: "This Matric No. belongs to a deactivated account with a different email. Contact the KIZ management office.",
+          code: "duplicate",
+        }
+      }
+
+      const taken = await prisma.user.findFirst({
+        where: { email, deletedAt: null, id: { not: existing.id } },
+        select: { id: true },
+      })
+      if (taken) {
+        return { ok: false, error: "This email is already registered to another account.", code: "duplicate" }
+      }
+
+      const revived = await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          email,
+          role,
+          passwordHash: await bcrypt.hash(password, 10),
+          accountStatus: "unverified",
+          emailVerifiedAt: null,
+          deletedAt: null,
+          residentCardQr: matricId,
+        },
+      })
+
+      try {
+        await issueVerificationTokenAndEmail(revived)
+      } catch {
+        return { ok: false, error: "Couldn't send the verification email right now. Try again in a moment." }
+      }
+      if (invitation) await markInvitationAccepted(invitation.id, revived.id)
+
+      return {
+        ok: true,
+        role: revived.role,
+        message: `Welcome back! Your account has been restored — we've sent a fresh verification link to ${revived.email}.`,
+      }
     }
     if (existing.accountStatus === "unverified") {
-      // Same person re-submitting before clicking the link — just re-send it.
+      // Same person re-submitting before clicking the link. Adopt the
+      // credentials they just chose — a second attempt used to silently keep
+      // the first password, so the student signed in with the one they'd just
+      // set and got "password doesn't match". Only refresh when the submitted
+      // email matches the one on file, so a known matric alone can't rewrite
+      // credentials. Then re-send the link.
+      const sameEmail = (existing.email ?? "").toLowerCase() === email
+      const nameForEmail = sameEmail ? name : existing.name
       try {
-        await issueVerificationTokenAndEmail(existing)
+        if (sameEmail) {
+          await prisma.user.update({
+            where: { id: existing.id },
+            data: { name, passwordHash: await bcrypt.hash(password, 10) },
+          })
+        }
+        await issueVerificationTokenAndEmail({ ...existing, name: nameForEmail })
       } catch {
         return { ok: false, error: "Couldn't send the verification email right now. Try again in a moment." }
       }
@@ -161,7 +221,7 @@ export async function registerAccount(input: RegisterInput): Promise<RegisterRes
     }
     return {
       ok: false,
-      error: "This Matric No. is already registered — sign in instead.",
+      error: "This Matric No. is already registered — sign in instead. Forgotten your password? Ask the KIZ office to reset it.",
       code: "duplicate",
     }
   }
