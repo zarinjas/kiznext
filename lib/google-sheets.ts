@@ -31,6 +31,19 @@ function isOfficeFileError(e: unknown): boolean {
   return /Office file/i.test(msg) || /not supported for this document/i.test(msg)
 }
 
+/** Human-readable message from a Google API (Gaxios) error, not just "403". */
+function googleErrorMessage(e: unknown): string {
+  if (e && typeof e === "object") {
+    const err = e as {
+      response?: { data?: { error?: { message?: string } } }
+      errors?: { message?: string }[]
+      message?: string
+    }
+    return err.response?.data?.error?.message || err.errors?.[0]?.message || err.message || String(e)
+  }
+  return String(e)
+}
+
 /** The tab part of an A1 range ("'My Tab'!A1:Z9" → "My Tab"). */
 function rangeSheetName(range: string): string | null {
   const tab = range.split("!")[0]?.trim() ?? ""
@@ -56,17 +69,25 @@ export async function fetchSpreadsheetGrid(opts: {
     })
     return (res.data.values ?? []) as (string | number | null)[][]
   } catch (e) {
-    if (!isOfficeFileError(e)) throw e
+    if (!isOfficeFileError(e)) {
+      throw new Error(`Could not read the Google Sheet: ${googleErrorMessage(e)}`)
+    }
   }
 
   const drive = google.drive({ version: "v3", auth })
-  const file = await drive.files.get(
-    { fileId: opts.spreadsheetId, alt: "media" },
-    { responseType: "arraybuffer" },
-  )
-  const buf = Buffer.from(file.data as unknown as ArrayBuffer)
-  const sheetName = opts.range ? rangeSheetName(opts.range) : null
-  return readXlsxSheetGrid(buf, sheetName)
+  try {
+    const file = await drive.files.get(
+      { fileId: opts.spreadsheetId, alt: "media", supportsAllDrives: true },
+      { responseType: "arraybuffer" },
+    )
+    const buf = Buffer.from(file.data as unknown as ArrayBuffer)
+    const sheetName = opts.range ? rangeSheetName(opts.range) : null
+    return readXlsxSheetGrid(buf, sheetName)
+  } catch (e) {
+    throw new Error(
+      `Could not download the Office file from Google Drive: ${googleErrorMessage(e)}`,
+    )
+  }
 }
 
 export const SHEET_SA_KEY = "google_service_account"
