@@ -125,6 +125,100 @@ function parseSheet(xml: string, shared: string[]): string[][] {
   return grid
 }
 
+interface SheetRef {
+  name: string
+  path: string
+}
+
+/**
+ * Map workbook tab names to their worksheet part paths. Uses `xl/workbook.xml`
+ * + its rels so a named tab can be selected; falls back to sheet order when the
+ * workbook part is missing.
+ */
+function resolveSheetRefs(buf: Buffer, entries: ZipEntry[]): SheetRef[] {
+  const fallback = () =>
+    entries
+      .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      .map((e, i) => ({ name: `Sheet${i + 1}`, path: e.name }))
+
+  const workbook = entries.find((e) => e.name === "xl/workbook.xml")
+  if (!workbook) return fallback()
+
+  const relMap = new Map<string, string>()
+  const relEntry = entries.find((e) => e.name === "xl/_rels/workbook.xml.rels")
+  if (relEntry) {
+    const relXml = extractEntry(buf, relEntry).toString("utf8")
+    const re = /<Relationship\b[^>]*>/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(relXml))) {
+      const id = /\bId="([^"]+)"/.exec(m[0])?.[1]
+      const target = /\bTarget="([^"]+)"/.exec(m[0])?.[1]
+      if (id && target) relMap.set(id, target)
+    }
+  }
+
+  const refs: SheetRef[] = []
+  const wbXml = extractEntry(buf, workbook).toString("utf8")
+  const re = /<sheet\b[^>]*>/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(wbXml))) {
+    const name = decodeXml(/\bname="([^"]*)"/.exec(m[0])?.[1] ?? "")
+    const rid = /\br:id="([^"]+)"/.exec(m[0])?.[1]
+    const target = rid ? relMap.get(rid) : undefined
+    if (!target) continue
+    const path = target.startsWith("/")
+      ? target.slice(1)
+      : target.startsWith("xl/")
+        ? target
+        : `xl/${target}`
+    refs.push({ name, path })
+  }
+  return refs.length > 0 ? refs : fallback()
+}
+
+/** Strip A1-notation quoting from a sheet name ("'My Tab'" → "My Tab"). */
+function normaliseSheetName(raw: string | null | undefined): string {
+  return (raw ?? "").trim().replace(/^'(.*)'$/, "$1").trim()
+}
+
+/**
+ * Read any worksheet into a 2-D grid. When `sheetName` is given the matching tab
+ * is used (exact, then partial match); otherwise the first non-empty tab wins.
+ * Cells are strings; numbers keep their raw value.
+ */
+export function readXlsxSheetGrid(buf: Buffer, sheetName?: string | null): string[][] {
+  const entries = readZipEntries(buf)
+  const sharedEntry = entries.find((e) => e.name === "xl/sharedStrings.xml")
+  const shared = sharedEntry ? parseSharedStrings(extractEntry(buf, sharedEntry).toString("utf8")) : []
+  const refs = resolveSheetRefs(buf, entries)
+
+  const gridOf = (path: string): string[][] | null => {
+    const entry = entries.find((e) => e.name === path)
+    return entry ? parseSheet(extractEntry(buf, entry).toString("utf8"), shared) : null
+  }
+
+  // xlsx forbids `/ : \ ? * [ ]` in tab names, so Google's tab ("...2026/2027")
+  // and the exported worksheet name can differ. Compare alphanumerics only.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "")
+  const wanted = norm(normaliseSheetName(sheetName))
+  if (wanted) {
+    const match =
+      refs.find((r) => norm(r.name) === wanted) ??
+      refs.find((r) => {
+        const n = norm(r.name)
+        return n.includes(wanted) || wanted.includes(n)
+      })
+    if (match) return gridOf(match.path) ?? []
+  }
+
+  for (const ref of refs) {
+    const grid = gridOf(ref.path)
+    if (grid && grid.length > 0) return grid
+  }
+  return []
+}
+
 export interface XlsxGrid {
   headers: string[]
   rows: Record<string, string>[]

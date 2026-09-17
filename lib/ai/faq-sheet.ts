@@ -1,6 +1,5 @@
-import { google } from "googleapis"
 import { prisma } from "@/lib/db"
-import { SHEET_SA_KEY } from "@/lib/google-sheets"
+import { SHEET_SA_KEY, fetchSpreadsheetGrid } from "@/lib/google-sheets"
 
 /**
  * Google Sheets reader for the FAQ knowledge base. Shares the service account
@@ -58,17 +57,11 @@ export async function fetchFaqSheetRows(): Promise<FaqSheetRows> {
     throw new Error("The Google service account key is not valid JSON.")
   }
 
-  const auth = new google.auth.GoogleAuth({
+  const values = await fetchSpreadsheetGrid({
     credentials,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  })
-  const sheets = google.sheets({ version: "v4", auth })
-  const res = await sheets.spreadsheets.values.get({
     spreadsheetId: cfg.spreadsheetId,
     range: cfg.range?.trim() || "A1:Z2000",
   })
-
-  const values = (res.data.values ?? []) as (string | number | null)[][]
   if (values.length === 0) throw new Error("The FAQ sheet returned no rows.")
 
   const grid = values.map((row) => row.map((cell) => (cell == null ? "" : String(cell)).trim()))
