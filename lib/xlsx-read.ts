@@ -114,7 +114,17 @@ function parseSheet(xml: string, shared: string[]): string[][] {
         value = textRuns(inner)
       } else {
         const v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1]
-        value = v != null ? decodeXml(v) : ""
+        if (v == null || v.trim() === "") {
+          value = ""
+        } else if (type == null) {
+          // Numeric cell. Excel stores every number as a double, so `101` comes
+          // back as `<v>101.0</v>` and a phone as `<v>1.110010675E9</v>`.
+          // Normalise to the plain number so parsers see "101", not "101.0".
+          const n = Number(v)
+          value = Number.isFinite(n) ? String(n) : decodeXml(v)
+        } else {
+          value = decodeXml(v)
+        }
       }
       cells[idx] = value
     }

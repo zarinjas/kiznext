@@ -148,6 +148,17 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
     const { intake, students } = await loadActiveStudents()
     if (!intake) return { ok: false, error: "No active intake — import a list first." }
 
+    // Safety net: a sheet that parses to zero students (wrong tab, unreadable
+    // ROOM/NO.MATRIK columns, an Office file whose numbers came back as "101.0")
+    // would otherwise release EVERY bed. Refuse instead of wiping the intake.
+    if (sheetStudents.size === 0) {
+      return {
+        ok: false,
+        error:
+          "The sheet has no readable student rows — check the tab name and that the BLOCK / ROOM / NO.MATRIK / NAME columns are present. Nothing was changed.",
+      }
+    }
+
     const byMatric = new Map<string, { id: string; bed: BedRoomRef }>(
       students.map((s) => [s.matricId, { id: s.id, bed: s.bed }]),
     )
