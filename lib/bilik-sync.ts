@@ -199,9 +199,9 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
         }
       }
 
-      // Pass 1 — release only the beds of students who are moving / leaving (or
-      // in a type-changing room), so cross-room moves never collide on the
-      // unique occupant id while unchanged students keep their seat.
+      // Pass 1 — release the beds of students who are moving / leaving (or in a
+      // type-changing room), so cross-room moves never collide on the unique
+      // occupant id while unchanged students keep their seat.
       const clearIds = students.filter((s) => s.bed && !unchanged.has(s.matricId)).map((s) => s.id)
       if (clearIds.length > 0) {
         await tx.bed.updateMany({ where: { occupantId: { in: clearIds } }, data: { occupantId: null } })
@@ -211,6 +211,19 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
         .filter((r) => sheetCodes.has(roomCode(r.block.name, r.number)))
         .map((r) => r.id)
       if (sheetRoomIds.length > 0) {
+        // The sheet is authoritative for the rooms it lists: also free beds held
+        // by a STALE occupant — someone from a previous intake (or demo data) who
+        // is not in the active intake, so `clearIds` never covered them. Without
+        // this the room reads as "already full" and the sync aborts.
+        const keepIds = students.filter((s) => unchanged.has(s.matricId)).map((s) => s.id)
+        await tx.bed.updateMany({
+          where: {
+            roomId: { in: sheetRoomIds },
+            occupantId: { not: null },
+            ...(keepIds.length > 0 ? { NOT: { occupantId: { in: keepIds } } } : {}),
+          },
+          data: { occupantId: null },
+        })
         await tx.bed.updateMany({ where: { roomId: { in: sheetRoomIds } }, data: { reserved: false } })
       }
 
