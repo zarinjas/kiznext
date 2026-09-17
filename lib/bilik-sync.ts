@@ -4,6 +4,7 @@ import {
   mapEkolejRows,
   groupMappedRooms,
   blockGender,
+  nowMalaysia,
   type GroupedRoom,
   type RoomStatus,
 } from "@/lib/room-selection"
@@ -26,6 +27,8 @@ export interface SyncPreview {
   toAdd: { matricId: string; name: string; room: string }[]
   toMove: { matricId: string; name: string; from: string; to: string }[]
   toRelease: { matricId: string; name: string; from: string }[]
+  /** Students no longer in the sheet — their record is soft-deleted on apply. */
+  toRemove: { matricId: string; name: string }[]
   unchanged: number
   roomsTotal: number
   roomsNew: number
@@ -38,6 +41,7 @@ export interface SyncResult {
   added?: number
   moved?: number
   released?: number
+  removed?: number
   roomsSynced?: number
   error?: string
 }
@@ -105,8 +109,10 @@ export async function runPreviewSync(csvText: string): Promise<SyncPreview> {
   }
 
   const toRelease: SyncPreview["toRelease"] = []
+  const toRemove: SyncPreview["toRemove"] = []
   for (const student of students) {
     if (sheetStudents.has(student.matricId)) continue
+    toRemove.push({ matricId: student.matricId, name: student.name })
     const from = bedRoomCode(student.bed)
     if (from) toRelease.push({ matricId: student.matricId, name: student.name, from })
   }
@@ -133,6 +139,7 @@ export async function runPreviewSync(csvText: string): Promise<SyncPreview> {
     toAdd,
     toMove,
     toRelease,
+    toRemove,
     unchanged,
     roomsTotal: rooms.length,
     roomsNew,
@@ -177,6 +184,7 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
       }
     }
     const released = students.filter((s) => !sheetStudents.has(s.matricId) && s.bed).length
+    const removed = students.filter((s) => !sheetStudents.has(s.matricId)).length
 
     let roomsSynced = 0
     await prisma.$transaction(async (tx) => {
@@ -256,6 +264,9 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
                 choice1: student.choice1,
                 applicationDate: student.applicationDate,
                 applicationStatus: student.applicationStatus,
+                isRegistered: student.isRegistered,
+                contractStart: student.contractStart,
+                contractEnd: student.contractEnd,
                 isB40: student.isB40,
                 isOku: student.isOku,
                 isUniform: student.isUniform,
@@ -278,6 +289,9 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
                 choice1: student.choice1,
                 applicationDate: student.applicationDate,
                 applicationStatus: student.applicationStatus,
+                isRegistered: student.isRegistered,
+                contractStart: student.contractStart,
+                contractEnd: student.contractEnd,
                 isB40: student.isB40,
                 isOku: student.isOku,
                 isUniform: student.isUniform,
@@ -295,14 +309,20 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
         if (room.reservedBeds > 0) await markReservedBeds(tx, roomId, room.reservedBeds)
       }
 
-      // Students no longer anywhere in the sheet lose their bed (record kept).
+      // Students no longer anywhere in the sheet are removed from the intake —
+      // soft-deleted (record kept, per the no-hard-delete rule) so they drop off
+      // the roster and no longer block publishing with "still awaiting
+      // allocation". The sheet is the source of truth.
       for (const student of students) {
-        if (sheetStudents.has(student.matricId) || !student.bed) continue
-        await tx.eligibleStudent.update({ where: { id: student.id }, data: { selectedAt: null } })
+        if (sheetStudents.has(student.matricId)) continue
+        await tx.eligibleStudent.update({
+          where: { id: student.id },
+          data: { selectedAt: null, deletedAt: nowMalaysia() },
+        })
       }
     }, { timeout: 120_000, maxWait: 15_000 })
 
-    return { ok: true, added, moved, released, roomsSynced }
+    return { ok: true, added, moved, released, removed, roomsSynced }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Sync failed" }
   }

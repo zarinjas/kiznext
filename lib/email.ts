@@ -198,6 +198,68 @@ function buildInvitationHtml({
   })
 }
 
+// ── Password reset email ─────────────────────────────────────────────────────
+
+export interface PasswordResetMail {
+  to: string
+  name: string
+  matricId: string
+  resetUrl: string
+}
+
+/**
+ * Sends the password-reset message. In local dev without an API key the reset
+ * link is written to the server console instead of sent.
+ */
+export async function sendPasswordResetEmail({ to, name, matricId, resetUrl }: PasswordResetMail): Promise<void> {
+  const client = await resendClient()
+
+  if (!client) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info(`[email:dev] password reset link for ${to}: ${resetUrl}`)
+      return
+    }
+    throw new Error("Email is not configured. Set your Resend API key in App Settings.")
+  }
+
+  const html = buildPasswordResetHtml({ name, matricId, resetUrl })
+
+  const { error } = await client.emails.send({
+    from: await sender(),
+    to,
+    subject: "Reset your password — KIZ Super App",
+    html,
+  })
+
+  if (error) throw new Error(error.message)
+}
+
+function buildPasswordResetHtml({
+  name,
+  matricId,
+  resetUrl,
+}: {
+  name: string
+  matricId: string
+  resetUrl: string
+}): string {
+  return renderEmailShell({
+    heading: "Reset your password",
+    bodyHtml: `Hi ${escapeHtml(name)},<br />
+      We got a request to reset the password for your KIZ account
+      (<strong style="color:#111827;">${escapeHtml(matricId)}</strong>). Choose a new one below —
+      this link works once and expires in 1 hour.`,
+    cta: { label: "Choose a new password", url: resetUrl },
+    footerHtml: `
+      <p style="margin:0 0 6px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#8a8f98;">
+        If you didn't ask for this, you can safely ignore this email — your password stays the same.
+      </p>
+      <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#8a8f98;">
+        Need help? Contact the KIZ management office.
+      </p>`,
+  })
+}
+
 // ── Shared shell ─────────────────────────────────────────────────────────────
 
 /**

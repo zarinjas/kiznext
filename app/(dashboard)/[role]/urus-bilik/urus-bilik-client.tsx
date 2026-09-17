@@ -97,6 +97,11 @@ interface StudentData {
   applicationStatus: string | null
   roommate: string | null
   checkInStatus: "checked_out" | "checked_in" | "not_checked_in"
+  /** UKM Real Estate registration (deposit paid at the counter). */
+  isRegistered: boolean
+  /** Tenancy period from UKM RE — read-only in KIZ. */
+  contractStart: string | null
+  contractEnd: string | null
 }
 interface IntakeData {
   id: string
@@ -173,6 +178,7 @@ export function UrusBilikClient({
         {!readOnly && <Tab label="1. Applications & allocation" value={0} />}
         {!readOnly && <Tab label="2. Cycle setup" value={1} />}
         <Tab label={readOnly ? "Occupancy overview" : "3. Room inventory"} value={2} />
+        <Tab label="Senarai pelajar" value={3} />
       </Tabs>
 
       {tab === 0 && !readOnly && (
@@ -180,6 +186,7 @@ export function UrusBilikClient({
       )}
       {tab === 1 && !readOnly && <Box><IntakeTab intakes={intakes} notify={notify} /><WindowTab window={win} fees={fees} allocationsPublished={allocationsPublished} windowClosed={windowClosed} notify={notify} /></Box>}
       {tab === 2 && <Box>{!readOnly && <BuildingTab blocks={blocks} students={students} notify={notify} />}<OccupancyTab blocks={blocks} occupancy={occupancy} /></Box>}
+      {tab === 3 && <StudentListTab students={students} />}
 
       <Snackbar
         open={Boolean(toast)}
@@ -539,7 +546,7 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
   const apply = () => start(async () => {
     const res = await applySync(csv)
     if (res.ok) {
-      notify(`Sync done — ${res.added ?? 0} added, ${res.moved ?? 0} moved, ${res.released ?? 0} released, ${res.roomsSynced ?? 0} rooms synced.`)
+      notify(`Sync done — ${res.added ?? 0} added, ${res.moved ?? 0} moved, ${res.removed ?? 0} removed, ${res.roomsSynced ?? 0} rooms synced.`)
       setPreview(null)
       setCsv("")
       setSource("")
@@ -557,8 +564,8 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
         <b>How sync works:</b> the sheet is the source of truth. A student&apos;s room follows
         their matric number — a new matric is added, a changed room is moved, and a matric
-        no longer in the sheet has its bed released (the record stays). Room type, damaged /
-        reserved status and reserved beds are reconciled too.
+        no longer in the sheet is <b>removed from the list</b> (soft-deleted, recoverable).
+        Room type, damaged / reserved status and reserved beds are reconciled too.
       </Alert>
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
@@ -591,7 +598,7 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
           <Bento sx={{ mb: 2 }}>
             <BentoItem span={2} spanXs={1}><MetricTile label="Add" value={preview.toAdd.length} icon="person_add" /></BentoItem>
             <BentoItem span={2} spanXs={1}><MetricTile label="Move" value={preview.toMove.length} icon="swap_horiz" /></BentoItem>
-            <BentoItem span={2} spanXs={1}><MetricTile label="Release" value={preview.toRelease.length} icon="person_remove" /></BentoItem>
+            <BentoItem span={2} spanXs={1}><MetricTile label="Remove" value={preview.toRemove.length} icon="person_remove" /></BentoItem>
             <BentoItem span={2} spanXs={1}><MetricTile label="Unchanged" value={preview.unchanged} icon="check_circle" /></BentoItem>
             <BentoItem span={2} spanXs={1}><MetricTile label="Rooms new" value={preview.roomsNew} icon="meeting_room" /></BentoItem>
             <BentoItem span={2} spanXs={1}><MetricTile label="Rooms changed" value={preview.roomsChanged} icon="edit" /></BentoItem>
@@ -603,7 +610,7 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
 
           <SyncDiffList title="To move" tone={color.info} items={preview.toMove.map((m) => `${m.name} (${m.matricId}): ${m.from} → ${m.to}`)} />
           <SyncDiffList title="To add" tone={color.success} items={preview.toAdd.map((m) => `${m.name} (${m.matricId}) → ${m.room}`)} />
-          <SyncDiffList title="To release" tone={color.warning} items={preview.toRelease.map((m) => `${m.name} (${m.matricId}) — was ${m.from}`)} />
+          <SyncDiffList title="To remove (no longer in sheet)" tone={color.warning} items={preview.toRemove.map((m) => `${m.name} (${m.matricId})`)} />
 
           <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
             <KButton onClick={apply} loading={pending} icon="sync">Apply sync</KButton>
@@ -1167,6 +1174,137 @@ function OccupancyTab({ blocks, occupancy }: { blocks: BlockData[]; occupancy: O
 }
 
 // ── Tab 5: Students ──────────────────────────────────────────────────────────
+
+// ── Senarai pelajar (full roster, read-only) ────────────────────────────────
+
+/** UKM RE contract date (ISO) → dd/mm/yyyy in Malaysia time. */
+function formatContractDate(iso: string | null): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Kuala_Lumpur",
+  }).format(d)
+}
+
+function StudentListTab({ students }: { students: StudentData[] }) {
+  const [filter, setFilter] = useState<"all" | "registered" | "not_registered" | "no_room">("all")
+  const [search, setSearch] = useState("")
+
+  const filtered = students.filter((s) => {
+    if (filter === "registered" && !s.isRegistered) return false
+    if (filter === "not_registered" && s.isRegistered) return false
+    if (filter === "no_room" && s.room) return false
+    if (search && !`${s.matricId} ${s.name} ${s.faculty ?? ""} ${s.room ?? ""}`.toLowerCase().includes(search.toLowerCase()))
+      return false
+    return true
+  })
+
+  const registered = students.filter((s) => s.isRegistered).length
+
+  return (
+    <Box>
+      <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+        Senarai penuh pelajar intake aktif. <b>Mendaftar</b> bermaksud pelajar sudah ke kaunter UKM Real
+        Estate, daftar dan bayar deposit — KIZ hanya menentukan bilik. Tarikh kontrak datang dari sheet
+        UKM RE dan tidak boleh diubah di sini.
+      </Alert>
+      <Bento sx={{ mb: 2 }}>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Jumlah pelajar" value={students.length} icon="groups" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Mendaftar" value={registered} icon="how_to_reg" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Belum mendaftar" value={students.length - registered} icon="pending" /></BentoItem>
+        <BentoItem span={3} spanXs={1}><MetricTile label="Ada bilik" value={students.filter((s) => s.room).length} icon="meeting_room" /></BentoItem>
+      </Bento>
+      <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap", alignItems: "center" }}>
+        <TextField
+          placeholder="Cari matric, nama, fakulti atau bilik"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ flex: 1, minWidth: 220 }}
+        />
+        {(["all", "registered", "not_registered", "no_room"] as const).map((f) => (
+          <Box
+            key={f}
+            component="button"
+            onClick={() => setFilter(f)}
+            sx={{
+              px: 1.5, py: 0.75, borderRadius: 999, border: "1px solid",
+              borderColor: filter === f ? "transparent" : "divider",
+              backgroundColor: filter === f ? "primary.main" : "background.paper",
+              color: filter === f ? "primary.contrastText" : "text.secondary",
+              fontWeight: 600, fontSize: 12.5, cursor: "pointer",
+            }}
+          >
+            {f === "all" ? "Semua" : f === "registered" ? "Mendaftar" : f === "not_registered" ? "Belum mendaftar" : "Tiada bilik"}
+          </Box>
+        ))}
+      </Box>
+
+      {filtered.length === 0 ? (
+        <KEmpty icon="group" title="Tiada pelajar" body="Tiada pelajar sepadan dengan carian atau filter, atau tiada intake aktif." />
+      ) : (
+        <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: `${radius.card}px`, overflow: "auto", backgroundColor: "background.paper", "& .MuiTableCell-root": { fontSize: "0.8125rem" }, "& .MuiTableCell-head": { fontSize: "0.6875rem", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }, "& .MuiTableRow-root:hover": { backgroundColor: "rgba(9,9,11,0.035)" } }}>
+          <Table size="small" sx={{ minWidth: 980 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Matric</TableCell>
+                <TableCell>Nama</TableCell>
+                <TableCell>Fakulti</TableCell>
+                <TableCell>Bilik · Katil</TableCell>
+                <TableCell>Rakan sebilik</TableCell>
+                <TableCell>Mendaftar</TableCell>
+                <TableCell>Tempoh kontrak</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filtered.map((s) => {
+                const start = formatContractDate(s.contractStart)
+                const end = formatContractDate(s.contractEnd)
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell>{s.matricId}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{s.name}</Typography>
+                      <Typography variant="caption" sx={{ color: "text.secondary" }}>{s.gender} · {s.nationality}</Typography>
+                    </TableCell>
+                    <TableCell>{s.faculty ?? "—"}</TableCell>
+                    <TableCell>
+                      {s.room ? (
+                        <Typography variant="body2">{s.room}</Typography>
+                      ) : (
+                        <Typography variant="body2" sx={{ color: "text.disabled" }}>Belum diassign</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell><Typography variant="caption">{s.roommate ?? "—"}</Typography></TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{
+                          display: "inline-block", px: 0.75, py: 0.125, borderRadius: 1, fontSize: 10, fontWeight: 700,
+                          backgroundColor: s.isRegistered ? color.success.soft : color.brand[50],
+                          color: s.isRegistered ? color.success.ink : color.brand[700],
+                        }}
+                      >
+                        {s.isRegistered ? "Mendaftar" : "Belum"}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">
+                        {start || end ? `${start ?? "—"} – ${end ?? "—"}` : "—"}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </Box>
+      )}
+    </Box>
+  )
+}
 
 function StudentsTab({
   students,

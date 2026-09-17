@@ -161,6 +161,16 @@ export function LoginForm({ logoUrl, loginBackgroundUrl, callbackUrl = "/dashboa
             >
               {loading ? "Signing in…" : "Sign in"}
             </Button>
+            <Box sx={{ textAlign: "right", mt: -0.5 }}>
+              <Typography
+                component={Link}
+                href="/lupa-kata-laluan"
+                variant="caption"
+                sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}
+              >
+                Forgot password?
+              </Typography>
+            </Box>
             {unverified && (
               <Button
                 type="button"

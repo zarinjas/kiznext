@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/db"
-import { appOrigin, sendVerificationEmail } from "@/lib/email"
+import { appOrigin, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email"
 import { markInvitationAccepted, resolvePendingInvitation } from "@/lib/invitations"
 import type { AccountStatus, Role } from "@/lib/rbac"
 
@@ -25,6 +25,7 @@ import type { AccountStatus, Role } from "@/lib/rbac"
 export const STUDENT_EMAIL_DOMAIN = "siswa.ukm.edu.my"
 export const STAFF_EMAIL_DOMAIN = "ukm.edu.my"
 export const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
+export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000
 export const MIN_PASSWORD_LENGTH = 8
 
 export function normalizeMatric(raw: string): string {
@@ -277,6 +278,141 @@ export async function resendVerificationEmail(
   } catch {
     return { ok: false, error: "Couldn't send the email right now. Try again in a moment." }
   }
+  return { ok: true }
+}
+
+/**
+ * Starts the "Forgot password?" flow: emails a single-use reset link to the
+ * address on file. The reply is always the same whether or not the matric
+ * exists, so the form can't be used to discover who has an account.
+ */
+export async function requestPasswordReset(
+  matricId: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const normalized = normalizeMatric(matricId)
+  if (!normalized) return { ok: false, error: "Enter your Matric No." }
+
+  const genericMessage =
+    "If that Matric No. has a KIZ account with an email on file, we've sent a reset link. Check your inbox (and spam folder)."
+
+  const user = await prisma.user.findUnique({ where: { matricId: normalized } })
+  if (!user || user.deletedAt || !user.email) {
+    return { ok: true, message: genericMessage }
+  }
+
+  const raw = randomBytes(24).toString("base64url")
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MS)
+
+  // One live token at a time — requesting again invalidates the previous link.
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null, deletedAt: null },
+      data: { deletedAt: now },
+    }),
+    prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash: hashToken(raw), expiresAt },
+    }),
+  ])
+
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      matricId: user.matricId,
+      resetUrl: `${appOrigin()}/set-kata-laluan?token=${encodeURIComponent(raw)}`,
+    })
+  } catch {
+    return { ok: false, error: "Couldn't send the reset email right now. Try again in a moment." }
+  }
+
+  return { ok: true, message: genericMessage }
+}
+
+/** Read-only peek at a reset link so the page can render before submit. */
+export async function getPasswordResetInfo(
+  rawToken: string,
+): Promise<{ ok: true; name: string; matricId: string } | { ok: false; error: string }> {
+  if (!rawToken) return { ok: false, error: "This reset link is missing its code." }
+
+  const token = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(rawToken) },
+    include: { user: true },
+  })
+  if (!token || token.deletedAt || token.usedAt) {
+    return { ok: false, error: "This reset link is invalid or has already been used." }
+  }
+  if (token.expiresAt.getTime() < Date.now()) {
+    return { ok: false, error: "This reset link has expired. Request a new one from the sign-in page." }
+  }
+  if (token.user.deletedAt) {
+    return { ok: false, error: "This account is no longer active." }
+  }
+
+  return { ok: true, name: token.user.name, matricId: token.user.matricId }
+}
+
+/**
+ * Applies a reset link: stores the new password and burns the token. Clicking
+ * the emailed link also proves control of the address, so a still-unverified
+ * account is verified (and unlocked like `/sahkan` would) in the same step.
+ */
+export async function resetPasswordWithToken(
+  rawToken: string,
+  newPassword: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!rawToken) return { ok: false, error: "This reset link is missing its code." }
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` }
+  }
+
+  const token = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(rawToken) },
+    include: { user: true },
+  })
+  if (!token || token.deletedAt) {
+    return { ok: false, error: "This reset link is invalid or has already been used." }
+  }
+  if (token.usedAt || token.expiresAt.getTime() < Date.now()) {
+    return { ok: false, error: "This reset link has expired. Request a new one from the sign-in page." }
+  }
+  if (token.user.deletedAt) {
+    return { ok: false, error: "This account is no longer active." }
+  }
+
+  const user = token.user
+  const now = new Date()
+
+  let accountStatus: AccountStatus = user.accountStatus
+  if (user.accountStatus === "unverified") {
+    if (user.role === "ahli") {
+      accountStatus = (await eligibleOnActiveIntake(user.matricId)) ? "active" : "pending"
+    } else {
+      accountStatus = "active"
+    }
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10)
+
+  await prisma.$transaction([
+    prisma.passwordResetToken.update({
+      where: { id: token.id },
+      data: { usedAt: now, deletedAt: now },
+    }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null, deletedAt: null },
+      data: { deletedAt: now },
+    }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        emailVerifiedAt: user.emailVerifiedAt ?? now,
+        accountStatus,
+      },
+    }),
+  ])
+
   return { ok: true }
 }
 

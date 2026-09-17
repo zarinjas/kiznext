@@ -89,7 +89,60 @@ function colIndex(ref: string): number {
   return n - 1
 }
 
-function parseSheet(xml: string, shared: string[]): string[][] {
+/**
+ * Excel stores dates as a serial day count. Convert to "YYYY-MM-DD" (the epoch
+ * 1899-12-30 absorbs Excel's 1900 leap-year bug for every modern date).
+ */
+function excelSerialToDate(serial: number): string | null {
+  if (!Number.isFinite(serial) || serial <= 0 || serial > 2958465) return null
+  const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000)
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
+/** Built-in numFmtId values that render as a date/time. */
+const BUILTIN_DATE_FORMATS = new Set([
+  14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56,
+  57, 58,
+])
+
+/** A custom format code is a date when it uses a y/d/h/s token (quotes stripped). */
+function looksLikeDateFormat(formatCode: string): boolean {
+  const cleaned = formatCode.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "")
+  return /[ydhs]/i.test(cleaned)
+}
+
+/**
+ * The set of `cellXfs` style indices that render as dates, so numeric cells can
+ * be converted from their serial. Without this a date cell like `15/09/2026`
+ * comes back as `"46279"`.
+ */
+function parseDateStyles(stylesXml: string | undefined): Set<number> {
+  const dateStyles = new Set<number>()
+  if (!stylesXml) return dateStyles
+
+  const dateIds = new Set<number>(BUILTIN_DATE_FORMATS)
+  const numFmtRe = /<numFmt\b[^>]*>/g
+  let fmt: RegExpExecArray | null
+  while ((fmt = numFmtRe.exec(stylesXml))) {
+    const id = /\bnumFmtId="(\d+)"/.exec(fmt[0])?.[1]
+    const code = /\bformatCode="([^"]*)"/.exec(fmt[0])?.[1]
+    if (id && code && looksLikeDateFormat(code)) dateIds.add(Number(id))
+  }
+
+  const xfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1]
+  if (!xfs) return dateStyles
+  const xfRe = /<xf\b[^>]*>/g
+  let index = 0
+  let xf: RegExpExecArray | null
+  while ((xf = xfRe.exec(xfs))) {
+    const id = /\bnumFmtId="(\d+)"/.exec(xf[0])?.[1]
+    if (id && dateIds.has(Number(id))) dateStyles.add(index)
+    index++
+  }
+  return dateStyles
+}
+
+function parseSheet(xml: string, shared: string[], dateStyles: Set<number>): string[][] {
   const grid: string[][] = []
   const rowRe = /<row[^>]*>([\s\S]*?)<\/row>/g
   let rowMatch: RegExpExecArray | null
@@ -104,6 +157,7 @@ function parseSheet(xml: string, shared: string[]): string[][] {
       const inner = cellMatch[3] ?? ""
       const ref = /r="([A-Z]+)\d+"/.exec(attrs)?.[1]
       const type = /t="([^"]+)"/.exec(attrs)?.[1]
+      const style = Number(/\bs="(\d+)"/.exec(attrs)?.[1] ?? "-1")
       const idx = ref ? colIndex(ref) : cells.length
 
       let value = ""
@@ -121,7 +175,8 @@ function parseSheet(xml: string, shared: string[]): string[][] {
           // back as `<v>101.0</v>` and a phone as `<v>1.110010675E9</v>`.
           // Normalise to the plain number so parsers see "101", not "101.0".
           const n = Number(v)
-          value = Number.isFinite(n) ? String(n) : decodeXml(v)
+          const asDate = dateStyles.has(style) ? excelSerialToDate(n) : null
+          value = asDate ?? (Number.isFinite(n) ? String(n) : decodeXml(v))
         } else {
           value = decodeXml(v)
         }
@@ -201,11 +256,13 @@ export function readXlsxSheetGrid(buf: Buffer, sheetName?: string | null): strin
   const entries = readZipEntries(buf)
   const sharedEntry = entries.find((e) => e.name === "xl/sharedStrings.xml")
   const shared = sharedEntry ? parseSharedStrings(extractEntry(buf, sharedEntry).toString("utf8")) : []
+  const stylesEntry = entries.find((e) => e.name === "xl/styles.xml")
+  const dateStyles = parseDateStyles(stylesEntry ? extractEntry(buf, stylesEntry).toString("utf8") : undefined)
   const refs = resolveSheetRefs(buf, entries)
 
   const gridOf = (path: string): string[][] | null => {
     const entry = entries.find((e) => e.name === path)
-    return entry ? parseSheet(extractEntry(buf, entry).toString("utf8"), shared) : null
+    return entry ? parseSheet(extractEntry(buf, entry).toString("utf8"), shared, dateStyles) : null
   }
 
   // xlsx forbids `/ : \ ? * [ ]` in tab names, so Google's tab ("...2026/2027")
@@ -245,13 +302,15 @@ export function readXlsxGrid(buf: Buffer): XlsxGrid {
       ? extractEntry(buf, entries.find((e) => e.name === "xl/sharedStrings.xml")!).toString("utf8")
       : undefined,
   )
+  const stylesEntry = entries.find((e) => e.name === "xl/styles.xml")
+  const dateStyles = parseDateStyles(stylesEntry ? extractEntry(buf, stylesEntry).toString("utf8") : undefined)
 
   const sheetEntries = entries
     .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   for (const sheet of sheetEntries) {
-    const grid = parseSheet(extractEntry(buf, sheet).toString("utf8"), shared)
+    const grid = parseSheet(extractEntry(buf, sheet).toString("utf8"), shared, dateStyles)
     if (grid.length === 0) continue
     const headers = grid[0].map((h) => (h ?? "").trim())
     if (!headers.some((h) => h.toLowerCase() === "question")) continue

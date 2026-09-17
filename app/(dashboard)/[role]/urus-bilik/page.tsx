@@ -87,6 +87,19 @@ export default async function UrusBilikPage() {
     })),
   }))
 
+  // Roommate = the other occupant of the same room. KIZ assigns rooms straight
+  // from the UKM RE sheet, so there is usually no RoomApplication to read a
+  // partner from — fall back to the sibling bed in the room.
+  const roomOccupants = new Map<string, { id: string; name: string; matricId: string }[]>()
+  for (const b of blocks) {
+    for (const r of b.rooms) {
+      roomOccupants.set(
+        r.id,
+        r.beds.filter((x) => x.occupant).map((x) => x.occupant!),
+      )
+    }
+  }
+
   const studentsData = students.map((s) => ({
     id: s.id,
     matricId: s.matricId,
@@ -114,8 +127,20 @@ export default async function UrusBilikPage() {
     assignedByAdmin: s.assignedByAdmin,
     applicationType: s.roomApplication?.type ?? (s.roommateApplications[0] ? "double" : null),
     applicationStatus: s.roomApplication?.status ?? (s.roommateApplications[0] ? "roommate_confirmed" : null),
-    roommate: s.roomApplication?.roommate ? `${s.roomApplication.roommate.name} · ${s.roomApplication.roommate.matricId}` : s.roommateApplications[0] ? `${s.roommateApplications[0].applicant.name} · ${s.roommateApplications[0].applicant.matricId}` : null,
+    roommate: s.roomApplication?.roommate
+      ? `${s.roomApplication.roommate.name} · ${s.roomApplication.roommate.matricId}`
+      : s.roommateApplications[0]
+        ? `${s.roommateApplications[0].applicant.name} · ${s.roommateApplications[0].applicant.matricId}`
+        : s.bed
+          ? (roomOccupants.get(s.bed.room.id) ?? [])
+              .filter((o) => o.id !== s.id)
+              .map((o) => `${o.name} · ${o.matricId}`)
+              .join(", ") || null
+          : null,
     checkInStatus: checkInStatus[s.matricId.toUpperCase()] ?? "not_checked_in",
+    isRegistered: s.isRegistered,
+    contractStart: s.contractStart ? s.contractStart.toISOString() : null,
+    contractEnd: s.contractEnd ? s.contractEnd.toISOString() : null,
   }))
 
   const freeBeds = activeIntake

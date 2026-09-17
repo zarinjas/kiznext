@@ -139,6 +139,12 @@ export interface MappedStudent {
   choice1: string | null
   applicationDate: Date | null
   applicationStatus: string | null
+  /** UKM Real Estate: "Mendaftar" = registered + deposit paid at the counter. */
+  isRegistered: boolean
+  /** Tenancy start from UKM RE (read-only in KIZ). */
+  contractStart: Date | null
+  /** Tenancy end from UKM RE (read-only in KIZ). */
+  contractEnd: Date | null
   isB40: boolean
   isOku: boolean
   isUniform: boolean
@@ -189,7 +195,10 @@ const HEADER_ALIASES: Record<keyof MappedStudent | "bil" | "block" | "room", str
   currentCollege: ["Kolej Semasa", "Kolej", "Current College"],
   choice1: ["Pilihan 1", "Pilihan1", "Pilihan"],
   applicationDate: ["Tarikh Permohonan", "Tarikh"],
-  applicationStatus: ["Status Permohonan", "Status"],
+  applicationStatus: ["Status Permohonan"],
+  isRegistered: ["Status", "Mendaftar", "Registration"],
+  contractStart: ["Tarikh Mula Kontrak", "Tarikh Mula", "Contract Start"],
+  contractEnd: ["Tarikh Tamat Kontrak", "Tarikh Tamat", "Contract End"],
   isB40: ["B40"],
   isOku: ["OKU"],
   isUniform: ["Uniform", "Unit Beruniform"],
@@ -217,6 +226,18 @@ function parseGender(v: string): Gender | null {
 function parseBool(v: string): boolean {
   const s = v.trim().toLowerCase()
   return ["ya", "yes", "y", "true", "1", "ada"].includes(s)
+}
+
+/**
+ * UKM Real Estate registration status: "Mendaftar" means the student has been to
+ * the counter, registered and paid the deposit. Anything negative ("belum",
+ * "tidak", "not") is treated as not registered.
+ */
+function parseRegistered(v: string): boolean {
+  const s = v.trim().toLowerCase()
+  if (!s) return false
+  if (/\b(belum|tidak|tak|not)\b/.test(s)) return false
+  return s.includes("mendaftar") || ["ya", "yes", "y", "true", "1"].includes(s)
 }
 
 function parseDate(v: string): Date | null {
@@ -379,6 +400,9 @@ export function mapEkolejRows(rows: Record<string, string>[]): MappedRow[] {
       choice1: pick(raw, "choice1") || null,
       applicationDate: parseDate(pick(raw, "applicationDate")),
       applicationStatus: pick(raw, "applicationStatus") || null,
+      isRegistered: parseRegistered(pick(raw, "isRegistered")),
+      contractStart: parseDate(pick(raw, "contractStart")),
+      contractEnd: parseDate(pick(raw, "contractEnd")),
       isB40: parseBool(pick(raw, "isB40")),
       isOku: parseBool(pick(raw, "isOku")),
       isUniform: parseBool(pick(raw, "isUniform")),
