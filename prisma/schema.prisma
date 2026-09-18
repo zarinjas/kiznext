@@ -70,6 +70,8 @@ model User {
   announcementReads AnnouncementRead[]
   createdCheckInSessions CheckInSession[]   @relation("CreatedCheckInSessions")
   manualCheckInRecords   CheckInRecord[]    @relation("ManualCheckInRecords")
+  uploadedGuides         Guide[]            @relation("UploadedGuides")
+  guideReads             GuideRead[]
 
   @@map("users")
 }
@@ -960,6 +962,64 @@ model AppSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("app_settings")
+}
+
+// ── Digital Guide ───────────────────────────────────────────────────────────
+// Admin-uploaded PDFs (orientation guide, rules, programme guide) that every
+// resident can read in-app as a flipbook or download. Read state is tracked per
+// user so the library can flag "New" documents.
+
+/// Fixed sections of the Digital Guide library.
+enum GuideCategory {
+  orientation
+  rules
+  program
+  other
+}
+
+model Guide {
+  id           String        @id @default(uuid())
+  title        String
+  description  String?
+  category     GuideCategory @default(orientation)
+  /// Path to the uploaded PDF under public/uploads/guides/.
+  fileUrl      String        @map("file_url")
+  /// Size of the stored PDF in bytes (for display).
+  fileSize     Int?          @map("file_size")
+  /// Optional cover image shown on the library card.
+  coverImage   String?       @map("cover_image")
+  /// Page count read from the PDF (for display; optional).
+  pageCount    Int?          @map("page_count")
+  published    Boolean       @default(true)
+  isPinned     Boolean       @default(false) @map("is_pinned")
+  sortOrder    Int           @default(0) @map("sort_order")
+  uploadedById String?       @map("uploaded_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  deletedAt    DateTime?     @map("deleted_at")
+
+  uploadedBy User?       @relation("UploadedGuides", fields: [uploadedById], references: [id])
+  reads      GuideRead[]
+
+  @@index([category])
+  @@map("guides")
+}
+
+/// Per-user "opened this guide" marker — drives the New badge in the library.
+model GuideRead {
+  id        String   @id @default(uuid())
+  guideId   String   @map("guide_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([guideId, userId])
+  @@index([userId])
+  @@map("guide_reads")
 }
 
 model LostFoundItem {

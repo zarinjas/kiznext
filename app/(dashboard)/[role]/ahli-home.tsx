@@ -8,6 +8,7 @@ import LinearProgress from "@mui/material/LinearProgress"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { Bento, BentoItem } from "@/components/kiz/patterns/bento"
 import { AvatarPicker } from "@/components/shared/avatar-picker"
+import { PdfThumbnail } from "@/components/shared/pdf-thumbnail"
 import { HomeWidgets } from "@/components/shared/home/home-widgets"
 import { StayConnected } from "@/components/shared/home/stay-connected"
 import { color, font, radius, gradient } from "@/lib/theme"
@@ -413,6 +414,8 @@ function PinnedAnnouncementCard({
 }) {
   const meta = announcementTagMeta(a.tag)
   const hasImage = a.attachmentType === "image" && Boolean(a.attachmentUrl)
+  const hasPdf = a.attachmentType === "pdf" && Boolean(a.attachmentUrl)
+  const hasMedia = hasImage || hasPdf
 
   return (
     <Box
@@ -420,7 +423,7 @@ function PinnedAnnouncementCard({
       href={`/${role}/pengumuman`}
       sx={{
         display: "flex",
-        flexDirection: { xs: hasImage ? "column" : "row", sm: "row" },
+        flexDirection: { xs: hasMedia ? "column" : "row", sm: "row" },
         alignItems: "stretch",
         overflow: "hidden",
         borderRadius: `${radius.cardLg}px`,
@@ -437,23 +440,58 @@ function PinnedAnnouncementCard({
         "&:active": { opacity: 0.94 },
       }}
     >
-      {hasImage && (
+      {hasMedia && (
         <Box
-          component="img"
-          src={a.attachmentUrl!}
-          alt=""
           sx={{
-            display: "block",
-            width: { xs: "100%", sm: 220 },
-            height: { xs: 180, sm: "auto" },
-            minHeight: { sm: 150 },
-            objectFit: "cover",
+            position: "relative",
             flexShrink: 0,
+            width: { xs: "100%", sm: 250 },
+            height: { xs: 240, sm: "auto" },
+            minHeight: { sm: 210 },
+            overflow: "hidden",
+            backgroundColor: color.canvasSunk,
             borderRight: { xs: 0, sm: "1px solid" },
             borderBottom: { xs: "1px solid", sm: 0 },
             borderColor: "divider",
           }}
-        />
+        >
+          {hasImage ? (
+            <Box
+              component="img"
+              src={a.attachmentUrl!}
+              alt=""
+              sx={{ position: "absolute", inset: 0, display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            <PdfThumbnail url={a.attachmentUrl!} label={a.title} />
+          )}
+
+          {hasPdf && (
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: 8,
+                right: 8,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.375,
+                px: 0.75,
+                py: 0.25,
+                borderRadius: 999,
+                backgroundColor: "rgba(9,9,11,0.62)",
+                color: "#fff",
+                fontSize: 10.5,
+                fontWeight: 700,
+                letterSpacing: "0.02em",
+                backdropFilter: "blur(4px)",
+                pointerEvents: "none",
+              }}
+            >
+              <KIcon icon="picture_as_pdf" size={12} />
+              PDF
+            </Box>
+          )}
+        </Box>
       )}
 
       <Box
@@ -515,7 +553,7 @@ function PinnedAnnouncementCard({
             lineHeight: 1.55,
             fontSize: 13.5,
             display: "-webkit-box",
-            WebkitLineClamp: hasImage ? 2 : 3,
+            WebkitLineClamp: hasMedia ? 2 : 3,
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
           }}

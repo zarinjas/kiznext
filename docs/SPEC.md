@@ -25,6 +25,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Helpdesk | Per-student support threads with two channels: **Live Chat** (quick questions, no form) and **Support Ticket** (structured, tracked requests/applications, e.g. room change). Admin inbox splits the two; chat thread, assign, close, and out-of-hours auto-reply are shared. |
 | KIZ-AI Concierge | A Gemini/Ollama-powered robot (`KIZ-AI`, admin-uploaded mascot with **3 emotions × 3 animated frames** — idle/thinking/happy — plus a name) that answers resident questions from the app's own content via retrieval-augmented generation (announcements, facilities, offices, guest houses, events, contacts, and an **admin-curated FAQ knowledge base**). Chat and embeddings can use different providers, and retrieval falls back to keyword search. Replies cite their sources and follow the asker's language. When it can't answer, it offers a one-tap handoff to the KIZ office, creating a pre-filled helpdesk request. Every unanswered question is logged so staff can turn it into a FAQ — the feedback loop that keeps improving answers. |
 | Announcements | Admin-posted feed. Tags, pinning, scheduling, expiry, file attachments. |
+| Digital Guide | Admin-uploaded PDF library (orientation, rules, programme handbooks) that every role reads in-app as a flipbook or downloads. Per-user read state drives a "New" badge. |
 | Community Chat | One shared room for all residents, staff & fellows. Reactions, replies, reports to the KIZ team, presence (members/online), image & PDF attachments, and a community info rail (guidelines, team, Helpdesk route). |
 | Parcel Tracker | Admin registers an arriving parcel against a matric ID; student sees it and it is marked collected on pickup. |
 | Lost & Found | Community-reported lost/found items with a photo. |
@@ -55,6 +56,7 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
 | Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | read-only | — | — | ✓ |
 | Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | read-only | — | — | — |
 | Post / edit announcements | ✓ | ✓ | — | — | — | — |
+| Manage digital guides (`urus-panduan`) | ✓ | ✓ | — | — | — | — |
 | Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — |
 | Manage facilities, parcels | ✓ | ✓ | — | — | — | — |
 | App settings (logo) | ✓ | ✓ | — | — | — | — |
@@ -133,6 +135,7 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `HelpdeskStatus` | submitted, under_review, in_progress, more_info_required, resolved, closed |
 | `HelpdeskChannel` | live, ticket |
 | `LostFoundStatus` | lost, found, claimed |
+| `GuideCategory` | orientation, rules, program, other |
 
 ### Models
 
@@ -149,6 +152,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `HelpdeskTicket` | helpdesk_tickets | `displayId` (autoincrement, human-friendly), `subject`, `category` (enum, default general_enquiry), `channel` (`live`/`ticket`), `origin` (`web`/`concierge`), `status`, `locationBlock` (e.g. K18A), `locationDetail` (room number or facility), `assignedTo` |
 | `HelpdeskMessage` | helpdesk_messages | `ticketId`, `senderId`, `message`, `isAutoReply` |
 | `Announcement` | announcements | `title`, `content`, `tag` (default `umum`), `attachmentUrl/Type`, `isPinned`, `scheduledAt`, `expiresAt`, `postedBy` |
+| `Guide` | guides | Digital Guide PDF — `title`, `description`, `category` (enum), `fileUrl`, `fileSize`, `coverImage`, `pageCount`, `published`, `isPinned`, `sortOrder`, `uploadedById`. Admin CRUD at `urus-panduan`; read by all roles at `panduan`. |
+| `GuideRead` | guide_reads | Per-user "opened this guide" marker (`@@unique([guideId, userId])`) — drives the library's New badge. |
 | `CommunityChatMessage` | community_chat_messages | `userId`, `message`, `replyToId` (inline quote thread), `attachmentUrl/Type/Name`, `deletedBy` (admin who removed it) |
 | `ChatMessageReaction` | chat_message_reactions | `userId`, `messageId`, `emoji` — unique (user×message×emoji), soft delete |
 | `ChatMessageReport` | chat_message_reports | `messageId`, `reporterId`, `reason` (preset), `note`, soft delete; admins delete the message / dismiss |
@@ -199,6 +204,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 |---|---|
 | `/` | Dashboard. `ahli`/`staf` render the member home (`ahli-home`, hero tag Resident/Staff); everyone else `admin-home` (pending-count cards). |
 | `pengumuman` | Announcement feed — tag filter, pinned first, "Baru" badge for 24h. |
+| `panduan`, `panduan/[id]` | Digital Guide library (category tabs, New badge) and the PDF reader — a flipbook (two-page spread on desktop, single page on mobile) with prev/next, keyboard/swipe, and a Download button. All roles. |
 | `chat` | Community chat — wide two-pane room (chat + community info rail), polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
 | `rumah-tamu` | Guest house booking + own bookings + cancel. Admins and `pengetua` are redirected to `urus-rumah-tamu` (admin view only). |
@@ -217,6 +223,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | Route | Feature |
 |---|---|
 | `urus-pengumuman` | Announcement CRUD + soft delete. |
+| `urus-panduan` | Digital Guide CRUD — upload/replace a PDF (`/api/upload` → `public/uploads/guides/`), auto-detect page count, optional cover image, category, publish/draft, pin, order; soft delete. `superadmin`/`admin_kiz`. |
 | `urus-pejabat` | Administrative-office CRUD (name/function, featured + gallery photos) and the block panorama image + label positions. |
 | `urus-direktori` | AR Directory destination pins — add/edit/soft-delete a place (name, kind, lat/lng, indoor flag, building) with a live map preview of the pin. |
 | `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |

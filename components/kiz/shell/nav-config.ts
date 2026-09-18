@@ -49,6 +49,7 @@ export function navForRole(role: Role): NavGroup[] {
       items: [
         { label: "Dashboard", href: `/${role}`, icon: "dashboard" },
         { label: "Announcements", href: `/${role}/pengumuman`, icon: "campaign" },
+        { label: "Digital Guide", href: `/${role}/panduan`, icon: "menu_book" },
       ],
     },
     {
@@ -92,6 +93,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Content",
       items: [
         { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true, roles: ADMIN_ROLES },
+        { label: "Digital Guides", href: `/${role}/urus-panduan`, icon: "menu_book", admin: true, roles: ADMIN_ROLES },
         { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true, roles: ADMIN_ROLES },
         { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true, roles: ADMIN_ROLES },
         { label: "Stay Connected", href: `/${role}/urus-sosial`, icon: "link", admin: true, roles: ADMIN_ROLES },
