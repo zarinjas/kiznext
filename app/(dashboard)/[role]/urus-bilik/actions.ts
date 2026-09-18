@@ -429,6 +429,15 @@ export async function activateIntake(intakeId: string) {
   revalidatePath(`/${session.user.role}/urus-bilik`)
 }
 
+/** Rename an intake (label only — status, students and rooms are untouched). */
+export async function renameIntake(intakeId: string, name: string) {
+  const session = await requireAdmin()
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Give the intake a name")
+  await prisma.intake.update({ where: { id: intakeId }, data: { name: trimmed } })
+  revalidatePath(`/${session.user.role}/urus-bilik`)
+}
+
 // ── Selection window ──────────────────────────────────────────────────────
 
 export async function saveWindow(input: {

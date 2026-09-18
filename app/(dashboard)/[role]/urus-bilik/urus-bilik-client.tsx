@@ -32,6 +32,7 @@ import {
   previewImport,
   confirmImport,
   activateIntake,
+  renameIntake,
   saveWindow,
   saveRoomFees,
   upsertBlock,
@@ -460,6 +461,7 @@ function IntakeTab({
                   tone={i.status === "active" ? "success" : i.status === "archived" ? "neutral" : "info"}
                   status={i.status === "active" ? "found" : undefined}
                 />
+                <RenameIntakeButton intake={i} notify={notify} />
                 {i.status !== "active" && (
                   <ActivateButton intakeId={i.id} notify={notify} />
                 )}
@@ -650,6 +652,53 @@ function ActivateButton({ intakeId, notify }: { intakeId: string; notify: (m: st
     >
       Activate
     </KButton>
+  )
+}
+
+function RenameIntakeButton({ intake, notify }: { intake: IntakeData; notify: (m: string, s?: "success" | "error") => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(intake.name)
+  const [pending, start] = useTransition()
+
+  const save = () => start(async () => {
+    try {
+      await renameIntake(intake.id, name)
+      setOpen(false)
+      notify("Intake renamed.")
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Could not rename intake", "error")
+    }
+  })
+
+  return (
+    <>
+      <IconButtonSmall
+        title={`Rename ${intake.name}`}
+        icon="edit"
+        onClick={() => { setName(intake.name); setOpen(true) }}
+      />
+      {open && (
+        <Dialog open onClose={() => setOpen(false)} fullWidth maxWidth="xs" slotProps={{ paper: { sx: { borderRadius: `${radius.cardLg}px`, m: 2 } } }}>
+          <DialogTitle sx={{ fontWeight: 640, letterSpacing: "-0.02em" }}>Rename intake</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              fullWidth
+              size="small"
+              label="Intake name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) save() }}
+              sx={{ mt: 1 }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <KButton variant="text" onClick={() => setOpen(false)} disabled={pending}>Cancel</KButton>
+            <KButton loading={pending} disabled={!name.trim() || name.trim() === intake.name} onClick={save}>Save</KButton>
+          </DialogActions>
+        </Dialog>
+      )}
+    </>
   )
 }
 

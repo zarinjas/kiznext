@@ -74,13 +74,19 @@ async function loadActiveStudents() {
     where: { status: "active", deletedAt: null },
     select: { id: true, name: true },
   })
+  // Load soft-deleted rows too. A student removed by an earlier sync (their
+  // matric was absent from the sheet then) must be revivable when they reappear
+  // — otherwise apply would `create` a duplicate `(intakeId, matricId)` and hit
+  // the unique constraint, silently dropping them. The sheet is the source of
+  // truth, so "delete then re-add" just re-binds the existing record.
   const students = intake
     ? await prisma.eligibleStudent.findMany({
-        where: { intakeId: intake.id, deletedAt: null },
+        where: { intakeId: intake.id },
         select: {
           id: true,
           matricId: true,
           name: true,
+          deletedAt: true,
           bed: { select: { room: { select: { number: true, block: { select: { name: true } } } } } },
         },
       })
@@ -99,19 +105,20 @@ export async function runPreviewSync(csvText: string): Promise<SyncPreview> {
   let unchanged = 0
   for (const [matricId, info] of sheetStudents) {
     const db = byMatric.get(matricId)
-    if (!db) {
+    // New matric — or one a previous sync removed — is (re)added.
+    if (!db || db.deletedAt) {
       toAdd.push({ matricId, name: info.name, room: info.room })
       continue
     }
     const from = bedRoomCode(db.bed)
-    if (from && from !== info.room) toMove.push({ matricId, name: info.name, from, to: info.room })
+    if (from !== info.room) toMove.push({ matricId, name: info.name, from: from ?? "—", to: info.room })
     else unchanged++
   }
 
   const toRelease: SyncPreview["toRelease"] = []
   const toRemove: SyncPreview["toRemove"] = []
   for (const student of students) {
-    if (sheetStudents.has(student.matricId)) continue
+    if (student.deletedAt || sheetStudents.has(student.matricId)) continue
     toRemove.push({ matricId: student.matricId, name: student.name })
     const from = bedRoomCode(student.bed)
     if (from) toRelease.push({ matricId: student.matricId, name: student.name, from })
@@ -166,8 +173,8 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
       }
     }
 
-    const byMatric = new Map<string, { id: string; bed: BedRoomRef }>(
-      students.map((s) => [s.matricId, { id: s.id, bed: s.bed }]),
+    const byMatric = new Map<string, { id: string; bed: BedRoomRef; deletedAt: Date | null }>(
+      students.map((s) => [s.matricId, { id: s.id, bed: s.bed, deletedAt: s.deletedAt }]),
     )
 
     let added = 0
@@ -175,16 +182,16 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
     for (const room of rooms) {
       for (const student of room.students) {
         const db = byMatric.get(student.matricId)
-        if (!db) {
+        if (!db || db.deletedAt) {
           added++
           continue
         }
         const from = bedRoomCode(db.bed)
-        if (from && from !== room.code) moved++
+        if (from !== room.code) moved++
       }
     }
-    const released = students.filter((s) => !sheetStudents.has(s.matricId) && s.bed).length
-    const removed = students.filter((s) => !sheetStudents.has(s.matricId)).length
+    const released = students.filter((s) => !s.deletedAt && !sheetStudents.has(s.matricId) && s.bed).length
+    const removed = students.filter((s) => !s.deletedAt && !sheetStudents.has(s.matricId)).length
 
     let roomsSynced = 0
     await prisma.$transaction(async (tx) => {
@@ -203,7 +210,7 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
         const typeChanging = dbRoom != null && dbRoom.type !== room.type
         for (const student of room.students) {
           const db = byMatric.get(student.matricId)
-          if (db && bedRoomCode(db.bed) === room.code && !typeChanging) unchanged.add(student.matricId)
+          if (db && !db.deletedAt && bedRoomCode(db.bed) === room.code && !typeChanging) unchanged.add(student.matricId)
         }
       }
 
@@ -250,9 +257,13 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
         for (const student of room.students) {
           let target = byMatric.get(student.matricId)
           if (target) {
+            // `deletedAt: null` revives a row a previous sync removed — the
+            // sheet is authoritative, so re-adding a matric re-binds the record
+            // instead of colliding with the (intakeId, matricId) unique key.
             await tx.eligibleStudent.update({
               where: { id: target.id },
               data: {
+                deletedAt: null,
                 name: student.name,
                 gender: student.gender,
                 faculty: student.faculty,
@@ -298,7 +309,7 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
                 merit: student.merit,
               },
             })
-            target = { id: created.id, bed: null }
+            target = { id: created.id, bed: null, deletedAt: null }
             byMatric.set(student.matricId, target)
           }
           // Unchanged students keep their bed (and selectedAt) — no re-claim.
@@ -314,7 +325,7 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
       // the roster and no longer block publishing with "still awaiting
       // allocation". The sheet is the source of truth.
       for (const student of students) {
-        if (sheetStudents.has(student.matricId)) continue
+        if (student.deletedAt || sheetStudents.has(student.matricId)) continue
         await tx.eligibleStudent.update({
           where: { id: student.id },
           data: { selectedAt: null, deletedAt: nowMalaysia() },
