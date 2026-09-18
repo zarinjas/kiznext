@@ -35,7 +35,7 @@ img { max-width: 100%; display: block; }
 .pt-safe { padding-top: env(safe-area-inset-top); }
 
 .material-symbols-rounded {
-  font-family: "Material Symbols Rounded";
+  font-family: var(--font-icon), "Material Symbols Rounded";
   font-weight: normal;
   font-style: normal;
   font-size: 20px;

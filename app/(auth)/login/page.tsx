@@ -1,4 +1,5 @@
 import { getAppLogoUrl, getLoginBackgroundUrl } from "@/lib/settings"
+import { PwaInstallPrompt } from "@/components/shared/pwa-install-prompt"
 import { LoginForm } from "./login-form"
 
 /** Only allow same-site relative paths, so ?callbackUrl can't open-redirect. */
@@ -17,10 +18,13 @@ export default async function LoginPage({
   const [logoUrl, loginBackgroundUrl] = await Promise.all([getAppLogoUrl(), getLoginBackgroundUrl()])
 
   return (
-    <LoginForm
-      logoUrl={logoUrl}
-      loginBackgroundUrl={loginBackgroundUrl}
-      callbackUrl={safeCallback(callbackUrl)}
-    />
+    <>
+      <LoginForm
+        logoUrl={logoUrl}
+        loginBackgroundUrl={loginBackgroundUrl}
+        callbackUrl={safeCallback(callbackUrl)}
+      />
+      <PwaInstallPrompt />
+    </>
   )
 }

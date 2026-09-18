@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-const PUBLIC_PATHS = ["/login", "/daftar", "/sahkan", "/lupa-kata-laluan", "/set-kata-laluan", "/checkin"]
+const PUBLIC_PATHS = ["/login", "/daftar", "/sahkan", "/lupa-kata-laluan", "/set-kata-laluan", "/checkin", "/manifest.webmanifest"]
 
 /** Take the first comma-separated value and strip any scheme. */
 function cleanSingle(value: string | null | undefined): string | undefined {

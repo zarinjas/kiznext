@@ -1,8 +1,9 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
 import InitColorSchemeScript from "@mui/material/InitColorSchemeScript"
 import { AppProviders } from "@/components/providers/app-providers"
 import { siteUrl } from "@/lib/site-url"
+import { color } from "@/lib/theme"
 import "./globals.css"
 
 // Single clean sans across the whole product — modern SaaS, no serif.
@@ -19,6 +20,14 @@ const geistMono = localFont({
   variable: "--font-mono",
   display: "swap",
   src: [{ path: "./fonts/GeistMono-Variable.woff2", weight: "100 900", style: "normal" }],
+})
+// Icon font is self-hosted too. `display: "block"` (not "swap") hides the
+// ligature source text until the font loads — otherwise the raw names like
+// "arrow_forward" flash on screen. Vendored from the `material-symbols` pkg.
+const materialSymbols = localFont({
+  variable: "--font-icon",
+  display: "block",
+  src: [{ path: "./fonts/MaterialSymbolsRounded.woff2", weight: "100 700", style: "normal" }],
 })
 
 export const metadata: Metadata = {
@@ -52,17 +61,25 @@ export const metadata: Metadata = {
     icon: [{ url: "/api/app-icon", type: "image/png", sizes: "512x512" }],
     apple: "/api/app-icon",
   },
+  // iOS standalone install ("Add to Home Screen") — title under the icon and a
+  // normal status bar so the app doesn't overlap the notch.
+  appleWebApp: {
+    capable: true,
+    title: "KIZ",
+    statusBarStyle: "default",
+  },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: color.brand[600],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ms" className={`${inter.variable} ${geistMono.variable}`} suppressHydrationWarning>
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-        />
-      </head>
+    <html lang="ms" className={`${inter.variable} ${geistMono.variable} ${materialSymbols.variable}`} suppressHydrationWarning>
       <body>
         <InitColorSchemeScript attribute="data" defaultMode="light" />
         <AppProviders>{children}</AppProviders>

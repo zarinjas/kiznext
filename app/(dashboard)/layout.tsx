@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { AppShell } from "@/components/kiz/shell/app-shell"
 import { PendingGate } from "@/components/shared/pending-gate"
+import { PwaInstallPrompt } from "@/components/shared/pwa-install-prompt"
 import { getAppLogoUrl } from "@/lib/settings"
 import { getAiConfig } from "@/lib/ai/config"
 import { getBilikWindowState } from "@/lib/bilik"
@@ -33,17 +34,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const bilikOpen = bilikState === "open" || bilikState === "closing_soon"
 
   return (
-    <AppShell
-      role={role}
-      userName={name}
-      logoUrl={logoUrl}
-      bilikOpen={bilikOpen}
-      aiEnabled={ai.enabled}
-      conciergeName={ai.conciergeName}
-      conciergeAvatarUrl={ai.avatarUrl}
-      conciergeFrames={ai.frames}
-    >
-      {children}
-    </AppShell>
+    <>
+      <AppShell
+        role={role}
+        userName={name}
+        logoUrl={logoUrl}
+        bilikOpen={bilikOpen}
+        aiEnabled={ai.enabled}
+        conciergeName={ai.conciergeName}
+        conciergeAvatarUrl={ai.avatarUrl}
+        conciergeFrames={ai.frames}
+      >
+        {children}
+      </AppShell>
+      <PwaInstallPrompt />
+    </>
   )
 }
