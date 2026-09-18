@@ -35,6 +35,8 @@ export function StudentCardFace({
   kizLogoUrl,
   qrDataUrl,
   validUntil,
+  roleLabel,
+  idLabel,
 }: {
   name: string
   /** Student ID — the matric number, always shown below the name. */
@@ -57,8 +59,17 @@ export function StudentCardFace({
   qrDataUrl?: string | null
   /** "Valid until" line, e.g. "30 September 2027". */
   validUntil?: string | null
+  /**
+   * Non-student role label (e.g. "Admin KIZ"). When set, the card renders in
+   * the same layout but the status badge shows this role instead of "Active
+   * Student" and the residence lines are hidden (no room/session).
+   */
+  roleLabel?: string | null
+  /** Label above the ID number. Defaults to "Student ID". */
+  idLabel?: string
 }) {
   const initial = name.trim().charAt(0).toUpperCase() || "K"
+  const isStudent = !roleLabel
 
   const roomLine = (() => {
     const parts: string[] = []
@@ -148,7 +159,7 @@ export function StudentCardFace({
               color: color.ink[500],
             }}
           >
-            myKIZ Digital Student Card
+            {isStudent ? "myKIZ Digital Student Card" : "myKIZ Digital ID Card"}
           </Typography>
         </Box>
 
@@ -163,13 +174,22 @@ export function StudentCardFace({
             px: 1.5,
             py: 0.375,
             borderRadius: 999,
-            backgroundColor: color.success.soft,
-            color: color.success.ink,
+            backgroundColor: isStudent ? color.success.soft : color.brand[50],
+            color: isStudent ? color.success.ink : color.brand[700],
           }}
         >
-          <Box component="span" sx={{ width: 6, height: 6, borderRadius: 999, backgroundColor: color.success.main, flexShrink: 0 }} />
+          <Box
+            component="span"
+            sx={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              backgroundColor: isStudent ? color.success.main : color.brand[700],
+              flexShrink: 0,
+            }}
+          />
           <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", lineHeight: 1.2, textTransform: "uppercase" }}>
-            Active Student
+            {isStudent ? "Active Student" : roleLabel}
           </Typography>
         </Box>
 
@@ -238,7 +258,7 @@ export function StudentCardFace({
               color: color.ink[300],
             }}
           >
-            Student ID
+            {idLabel ?? "Student ID"}
           </Typography>
           <Typography
             sx={{
@@ -258,7 +278,7 @@ export function StudentCardFace({
         </Box>
 
         {/* 7. Residence lines: short centred divider, then block · room · bed + session */}
-        {hasResidence && (
+        {isStudent && hasResidence && (
           <Box sx={{ flexShrink: 0, mt: "4px", display: "flex", flexDirection: "column", alignItems: "center" }}>
             <Box sx={{ width: "40%", height: "1px", backgroundColor: "divider" }} />
             {roomLine && (

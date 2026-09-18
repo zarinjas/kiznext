@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_MANAGE_ROLES, type Role } from "@/lib/rbac"
 import { getOccupancySummary, getActiveWindow, ALLOCATIONS_PUBLISHED_KEY, ROOM_FEE_SINGLE_KEY, ROOM_FEE_DOUBLE_KEY } from "@/lib/bilik"
 import { revalidatePath } from "next/cache"
 import { parseCsvToObjects } from "@/lib/csv"
@@ -14,7 +14,7 @@ import { reconcileIntakeStudents } from "@/lib/registration"
 import { fetchSheetCsv, getSheetConfig, SHEET_SA_KEY, SHEET_ID_KEY, SHEET_RANGE_KEY } from "@/lib/google-sheets"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
-const ADMIN: Role[] = ["superadmin", "admin_kiz"]
+const ADMIN: Role[] = RESIDENCE_MANAGE_ROLES
 
 async function requireAdmin() {
   const session = await auth()

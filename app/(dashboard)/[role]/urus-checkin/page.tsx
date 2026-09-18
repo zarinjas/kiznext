@@ -2,7 +2,7 @@ import QRCode from "qrcode"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { siteUrl } from "@/lib/site-url"
 import { getAppLogoUrl, getStudentCardLogos } from "@/lib/settings"
 import { getCheckinDirectionsImage } from "@/lib/checkin"
@@ -15,7 +15,7 @@ import { CheckinAdminClient } from "./checkin-admin-client"
 export default async function UrusCheckinPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["superadmin", "admin_kiz", "pengetua"])
+  requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
   const readOnly = session.user.role === "pengetua"
 

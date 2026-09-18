@@ -1,11 +1,27 @@
 export type Role = "superadmin" | "admin_kiz" | "pengetua" | "fellow" | "ahli" | "staf";
 
 /** Member roles (resident-style home + community features, no urus-*). */
-export const MEMBER_ROLES: Role[] = ["ahli", "staf", "fellow"];
+export const MEMBER_ROLES: Role[] = ["ahli", "staf", "fellow"]
 
 export function isMemberRole(role: Role | undefined): boolean {
-  return role !== undefined && MEMBER_ROLES.includes(role);
+  return role !== undefined && MEMBER_ROLES.includes(role)
 }
+
+/** Full admins — can manage every `urus-*` surface. */
+export const ADMIN_ROLES: Role[] = ["superadmin", "admin_kiz"]
+
+/**
+ * Office support desk — answers and closes helpdesk tickets. Staff and fellows
+ * are members who also sit on the support desk, so they reach the admin inbox.
+ */
+export const SUPPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", "fellow"]
+
+/** Guest-house admin — approve bookings and configure the houses. */
+export const GUEST_HOUSE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
+
+/** Accommodation / check-in management — staff manage, pengetua reads. */
+export const RESIDENCE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "staf"]
+export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", "pengetua"]
 
 /** Self-service registration lifecycle. See `prisma/schema.prisma` `AccountStatus`. */
 export type AccountStatus = "unverified" | "pending" | "active";

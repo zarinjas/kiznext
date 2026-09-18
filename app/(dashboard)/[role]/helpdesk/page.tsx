@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { SUPPORT_ROLES, type Role } from "@/lib/rbac"
 import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
@@ -20,8 +21,9 @@ export default async function HelpdeskPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
-  // Admins run support from the helpdesk inbox, not the resident ask flow.
-  if (session.user.role === "admin_kiz" || session.user.role === "superadmin") {
+  // The support desk (admins, staff, fellows) runs support from the helpdesk
+  // inbox, never the resident ask flow.
+  if (SUPPORT_ROLES.includes(session.user.role as Role)) {
     redirect(`/${session.user.role}/urus-helpdesk`)
   }
 
@@ -53,7 +55,7 @@ export default async function HelpdeskPage() {
     if (t.status === "closed") return false
     const lastMsg = t.messages[0]
     if (!lastMsg) return false
-    const isAdmin = lastMsg.sender.role === "admin_kiz" || lastMsg.sender.role === "superadmin"
+    const isAdmin = SUPPORT_ROLES.includes(lastMsg.sender.role as Role)
     return isAdmin && !lastMsg.isAutoReply
   }).length
 

@@ -51,7 +51,9 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
 | Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — | — |
-| Answer & close helpdesk tickets | ✓ | ✓ | — | — | — | — |
+| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | — | ✓ | — | ✓ |
+| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | read-only | — | — | ✓ |
+| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | read-only | — | — | — |
 | Post / edit announcements | ✓ | ✓ | — | — | — | — |
 | Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — |
 | Manage facilities, parcels | ✓ | ✓ | — | — | — | — |
@@ -59,19 +61,26 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
 | View-only reporting | ✓ | ✓ | ✓ | — | — | — |
 | Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — |
 
-`pengetua` (principal) is read-only by design — no approval rights.
+`pengetua` (principal) is read-only by design — no approval or edit rights. They
+reach the admin views of guest house, accommodation, and check-in/out in a
+read-only state (no action buttons, no house edits).
 
-`fellow` (residential college fellow) is a member role with the same experience as
-`staf` — resident-style home with a visible "Fellow" tag, community chat/helpdesk/
-bookings/eCard — **except** `bilik` (student-only) and with no access to any
-`urus-*` route. Fellows are created by an admin via user management
+`fellow` (residential college fellow) is a member role — resident-style home with
+a visible "Fellow" tag, community chat/bookings/eCard — **except** `bilik`
+(student-only). Fellows also sit on the **support desk**: they reach the helpdesk
+admin inbox (`urus-helpdesk`) and can reply to and close tickets. They have no
+other `urus-*` access. Fellows are created by an admin via user management
 (`urus-pengguna`); they never self-register.
 
 `staf` (staff) is a self-registered UKM staff account (`@ukm.edu.my`). Member
-experience is identical to `fellow` (resident home, bookings, helpdesk, chat,
-eCard) **except** `bilik` (accommodation application is student-only) and with no
-access to any `urus-*` route — until a superadmin promotes them to `admin_kiz`
-or `superadmin` via user management. The role carries a visible "Staff" tag.
+experience is identical to `fellow` (resident home, bookings, chat, eCard)
+**except** `bilik` (accommodation application is student-only). Staff also run the
+office day-to-day: they get the **helpdesk admin inbox** (`urus-helpdesk`,
+reply/close), full **accommodation** (`urus-bilik`) and **check-in/out**
+(`urus-checkin`) management. They have no access to the other `urus-*` modules
+(announcements, facilities, users, settings, AI). The role carries a visible
+"Staff" tag. A superadmin can still promote a staff account to `admin_kiz` or
+`superadmin` via user management for full access.
 
 `admin_ukmre` (external guest-house operator) is post-MVP: add the enum value and
 route guest-house approvals to it. No schema restructure needed.
@@ -192,12 +201,12 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `pengumuman` | Announcement feed — tag filter, pinned first, "Baru" badge for 24h. |
 | `chat` | Community chat — wide two-pane room (chat + community info rail), polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
-| `rumah-tamu` | Guest house booking + own bookings + cancel. |
-| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. |
+| `rumah-tamu` | Guest house booking + own bookings + cancel. Admins and `pengetua` are redirected to `urus-rumah-tamu` (admin view only). |
+| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
 | `hilang` | Lost & Found report form + list. |
 | `bilik` | Room selection — eligibility gate, window status, visual block/floor/room/bed picker. Desktop grid + detail panel; mobile bottom-sheet + sticky confirm bar. |
 | `parcel` | My parcels. Currently behind a hardcoded "coming soon" banner. |
-| `kad-maya` | Digital resident card, QR generated server-side from matric ID. |
+| `kad-maya` | Digital ID card for every role, QR generated server-side from matric ID. Same layout for all; students show room/session, non-students show their role label (Admin KIZ / Staff / Fellow / Principal). |
 | `direktori` | AR Directory — camera viewfinder with a destination selector, a compass-relative arrow, and live distance. Falls back to a directions list/map on devices without a camera or motion sensors. |
 | `profile` | View / edit own profile. |
 | `lagi` | "More" menu for the mobile shell. |
@@ -211,11 +220,12 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `urus-pejabat` | Administrative-office CRUD (name/function, featured + gallery photos) and the block panorama image + label positions. |
 | `urus-direktori` | AR Directory destination pins — add/edit/soft-delete a place (name, kind, lat/lng, indoor flag, building) with a live map preview of the pin. |
 | `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |
-| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). |
-| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. |
+| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). `pengetua` gets a read-only view (no action buttons, no house edits). |
+| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. `superadmin`/`admin_kiz`/`staf`/`fellow` (the support desk). |
+| `urus-checkin` | QR counter check-in/out — create sessions, print the QR sheet, view/export records, manual check-in. `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
 | `urus-fasiliti` | Facility CRUD. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
-| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `pengetua` sees the occupancy tab read-only. |
+| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
 | `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
 | `urus-jemputan` | **Superadmin only.** Invite people to self-register by email (one at a time or in bulk), choosing Student or Admin KIZ; manage issued invitations (status, resend, revoke, soft-delete). |
 | `urus-ai` | KIZ-AI admin — chat/embedding providers (Gemini / Ollama), robot mascot + emotion frames, retrieval mode, **Test connection**, knowledge index + re-index, unanswered questions. |

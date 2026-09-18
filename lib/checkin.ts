@@ -3,7 +3,7 @@
 import { randomBytes } from "crypto"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_MANAGE_ROLES, type Role } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { saveUpload } from "@/lib/image-upload"
 import { nowMalaysia, formatMalaysia } from "@/lib/timezone"
@@ -11,7 +11,7 @@ import { roomAssignmentLabel } from "@/lib/bilik-format"
 import { cleanMatric } from "@/lib/room-selection"
 import { getActiveIntake } from "@/lib/bilik"
 
-const ADMIN: Role[] = ["superadmin", "admin_kiz"]
+const ADMIN: Role[] = RESIDENCE_MANAGE_ROLES
 const SIGNATURE_MAX_BYTES = 2 * 1024 * 1024
 
 export type CheckInTypeValue = "check_in" | "check_out"
@@ -569,6 +569,33 @@ export async function adminManualCheckIn(input: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not record the check-in." }
   }
+}
+
+// ── Admin: undo a check-in / check-out record ───────────────────────────────
+
+/**
+ * Admin: soft-delete a single signed record (e.g. a student signed on a
+ * friend's behalf). The record is kept for the audit trail but drops out of the
+ * Records tab and the student's status flips back to "not checked in".
+ */
+export async function adminDeleteCheckInRecord(recordId: string): Promise<{ ok: boolean; error?: string }> {
+  const admin = await requireAdmin()
+  const id = (recordId ?? "").trim()
+  if (!id) return { ok: false, error: "Missing record." }
+
+  const record = await prisma.checkInRecord.findFirst({
+    where: { id, deletedAt: null },
+    select: { id: true, name: true, type: true },
+  })
+  if (!record) return { ok: false, error: "That record no longer exists." }
+
+  await prisma.checkInRecord.update({
+    where: { id: record.id },
+    data: { deletedAt: new Date() },
+  })
+
+  revalidatePath(`/${admin.user.role}/urus-checkin`)
+  return { ok: true }
 }
 
 // ── Counter directions image (shown after a successful scan) ────────────────

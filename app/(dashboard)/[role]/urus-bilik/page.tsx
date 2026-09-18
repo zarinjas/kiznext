@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { areAllocationsPublished, getOccupancySummary, getRoomFees } from "@/lib/bilik"
 import { nowMalaysia } from "@/lib/room-selection"
 import { roomAssignmentLabel } from "@/lib/bilik-format"
@@ -12,7 +12,7 @@ import { getOccupancy } from "./actions"
 export default async function UrusBilikPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["superadmin", "admin_kiz", "pengetua"])
+  requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
   const readOnly = session.user.role === "pengetua"
 

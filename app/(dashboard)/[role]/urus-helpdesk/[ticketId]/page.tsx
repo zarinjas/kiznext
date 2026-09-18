@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, SUPPORT_ROLES } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
 import Link from "next/link"
 import Box from "@mui/material/Box"
@@ -23,7 +23,7 @@ export default async function AdminTicketPage({
 }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   const { role, ticketId } = await params
 

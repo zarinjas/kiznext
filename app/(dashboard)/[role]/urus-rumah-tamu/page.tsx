@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, GUEST_HOUSE_ROLES } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
@@ -21,7 +21,10 @@ export default async function UrusRumahTamuPage({
 }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, GUEST_HOUSE_ROLES)
+
+  // The principal gets a read-only view — no approvals, no house edits.
+  const readOnly = session.user.role === "pengetua"
 
   const { tab } = await searchParams
   const showGuestHouses = tab === "guest-houses"
@@ -42,6 +45,7 @@ export default async function UrusRumahTamuPage({
         />
         <RumahTamuTabs role={session.user.role} tab={tab} />
         <GuestHouseList
+          readOnly={readOnly}
           guestHouses={guestHouses.map((g) => ({
             id: g.id,
             name: g.name,
@@ -159,7 +163,7 @@ export default async function UrusRumahTamuPage({
                   </Box>
 
                   <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                    <GHManageButtons bookingId={b.id} status={b.status} />
+                    <GHManageButtons bookingId={b.id} status={b.status} readOnly={readOnly} />
                   </Box>
                 </Box>
               ))}
@@ -182,7 +186,7 @@ export default async function UrusRumahTamuPage({
                     <Box sx={{ display: { xs: "none", md: "flex" } }}>
                       <StatusChip status={b.paymentStatus} />
                     </Box>
-                    <GHManageButtons bookingId={b.id} status={b.status} />
+                    <GHManageButtons bookingId={b.id} status={b.status} readOnly={readOnly} />
                   </Box>
                 }
               />

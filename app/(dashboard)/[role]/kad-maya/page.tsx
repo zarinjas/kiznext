@@ -12,6 +12,8 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { color, radius } from "@/lib/theme"
 import { getStudentCardDesign } from "@/lib/settings"
 import { getResidentRoomDetail } from "@/lib/bilik"
+import { ROLE_LABELS } from "@/components/kiz/shell/nav-config"
+import type { Role } from "@/lib/rbac"
 import { addMonths, formatMalaysiaDate } from "@/lib/timezone"
 
 export default async function KadMayaPage() {
@@ -37,13 +39,17 @@ export default async function KadMayaPage() {
   const isStudent = user.role === "ahli"
   // A student's room is only shown once the KIZ office assigns AND publishes it.
   const room = isStudent ? await getResidentRoomDetail(user.id) : null
-  const cardDesign = isStudent ? await getStudentCardDesign() : null
-  const qrDataUrl = isStudent ? await QRCode.toDataURL(user.matricId, { width: 220, margin: 1 }) : null
+  // Every role shares the same card design; students get the room/session
+  // lines, non-students get their role label instead.
+  const cardDesign = await getStudentCardDesign()
+  const qrDataUrl = await QRCode.toDataURL(user.matricId, { width: 220, margin: 1 })
 
   // Card validity = room check-in date + 6 months (one semester). Students
   // without a check-in yet get no "Valid until" line.
   const validUntil =
     isStudent && room?.checkInAt ? formatMalaysiaDate(addMonths(room.checkInAt, 6)) : null
+
+  const roleLabel = isStudent ? null : ROLE_LABELS[user.role as Role] ?? null
 
   // First view of the eCard "registers" it (clears the dashboard checklist
   // task). The DB write runs on the client via a server action after mount —
@@ -65,6 +71,7 @@ export default async function KadMayaPage() {
           validUntil={validUntil}
           avatarUrl={user.avatarUrl}
           role={user.role}
+          roleLabel={roleLabel}
           cardBackgroundUrl={cardDesign?.backgroundUrl}
           ukmLogoUrl={cardDesign?.ukmLogoUrl}
           kizLogoUrl={cardDesign?.kizLogoUrl}

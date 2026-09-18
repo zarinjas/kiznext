@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { isOfficeHours, getOfficeHoursMessage } from "@/lib/office-hours"
 import { translateLiveMessage } from "@/lib/helpdesk-translate"
-import type { Role } from "@/lib/rbac"
+import { SUPPORT_ROLES, type Role } from "@/lib/rbac"
 import type { HelpdeskCategory, HelpdeskChannel } from "@/app/generated/prisma/client"
 
 export interface CreateTicketInput {
@@ -164,7 +164,7 @@ export async function getTicketMessages(ticketId: string) {
   if (!ticket) throw new Error("Ticket not found")
 
   const role = session.user.role as Role
-  const isStaff = role === "admin_kiz" || role === "superadmin"
+  const isStaff = SUPPORT_ROLES.includes(role)
   if (!isStaff && ticket.userId !== session.user.id) throw new Error("Unauthorized")
 
   return prisma.helpdeskMessage.findMany({

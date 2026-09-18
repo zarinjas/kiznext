@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, SUPPORT_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { translateLiveMessage } from "@/lib/helpdesk-translate"
 import type { Role } from "@/lib/rbac"
@@ -16,7 +16,7 @@ async function ticketStatusAfterReply(status: string): Promise<"in_progress" | n
 export async function adminReply(ticketId: string, message: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   const ticket = await prisma.helpdeskTicket.findUnique({
     where: { id: ticketId },
@@ -51,7 +51,7 @@ export async function adminReply(ticketId: string, message: string) {
 export async function assignTicket(ticketId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   await prisma.helpdeskTicket.update({
     where: { id: ticketId },
@@ -65,7 +65,7 @@ export async function assignTicket(ticketId: string) {
 export async function resolveTicketAdmin(ticketId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   const ticket = await prisma.helpdeskTicket.findUnique({
     where: { id: ticketId },
@@ -95,7 +95,7 @@ export async function resolveTicketAdmin(ticketId: string) {
 export async function requestMoreInfo(ticketId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   const ticket = await prisma.helpdeskTicket.findUnique({
     where: { id: ticketId },
@@ -113,7 +113,7 @@ export async function requestMoreInfo(ticketId: string) {
 export async function closeTicketAdmin(ticketId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   await prisma.helpdeskTicket.update({
     where: { id: ticketId },
@@ -127,7 +127,7 @@ export async function closeTicketAdmin(ticketId: string) {
 export async function reopenTicketAdmin(ticketId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   await prisma.helpdeskTicket.update({
     where: { id: ticketId },

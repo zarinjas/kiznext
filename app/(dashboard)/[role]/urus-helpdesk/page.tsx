@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, SUPPORT_ROLES } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
@@ -27,7 +27,7 @@ export default async function UrusHelpdeskPage({
 }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   const { tab } = await searchParams
   const channel = tab === "live" ? "live" : "ticket"

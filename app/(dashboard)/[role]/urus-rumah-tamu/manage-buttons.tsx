@@ -8,15 +8,19 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 interface Props {
   bookingId: string
   status: string
+  /** Read-only viewers (e.g. the principal) see no action buttons. */
+  readOnly?: boolean
 }
 
-export function GHManageButtons({ bookingId, status }: Props) {
+export function GHManageButtons({ bookingId, status, readOnly = false }: Props) {
   const router = useRouter()
 
   async function action(fn: (id: string) => Promise<void>) {
     await fn(bookingId)
     router.refresh()
   }
+
+  if (readOnly) return null
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

@@ -20,6 +20,7 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { color, radius } from "@/lib/theme"
 import { isHelpdeskActive, messageVersions } from "@/lib/helpdesk-meta"
 import { chatRoleBadge } from "@/lib/chat-meta"
+import { SUPPORT_ROLES, type Role } from "@/lib/rbac"
 
 const ADMIN_IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
 
@@ -184,7 +185,7 @@ export function AdminTicketChat({ ticketId, ticketStatus, messages: initialMessa
 
       <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5, "&::-webkit-scrollbar": { width: 6 } }}>
         {messages.map((msg) => {
-          const isStaff = msg.sender.role === "admin_kiz" || msg.sender.role === "superadmin"
+          const isStaff = SUPPORT_ROLES.includes(msg.sender.role as Role)
           const time = new Date(msg.createdAt).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })
           const badge = chatRoleBadge(msg.sender.role)
           const isImage = ADMIN_IMAGE_URL_RE.test(msg.message.trim())

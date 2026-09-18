@@ -8,47 +8,13 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { SignOutButton } from "@/components/shared/sign-out-button"
 import { getBilikWindowState, getResidentRoomLabel } from "@/lib/bilik"
+import { navForRole } from "@/components/kiz/shell/nav-config"
+import type { Role } from "@/lib/rbac"
 import { color, font, radius } from "@/lib/theme"
 
-function buildGroups(role: string): { label: string; items: { label: string; href: string; icon: string }[] }[] {
-  return [
-    {
-      label: "Bookings",
-      items: [
-        ...(role === "ahli"
-          ? [
-              { label: "Choose room", href: "bilik", icon: "bedroom_parent" },
-              { label: "Check-in / Out", href: "checkin", icon: "how_to_reg" },
-            ]
-          : []),
-        { label: "My bookings", href: "tempahan", icon: "calendar_month" },
-        { label: "Book a facility", href: "tempahan-fasiliti", icon: "meeting_room" },
-        { label: "Guest house", href: "rumah-tamu", icon: "hotel" },
-      ],
-    },
-    {
-      label: "Support",
-      items: [
-        { label: "Helpdesk", href: "helpdesk", icon: "support_agent" },
-        { label: "Lost & found", href: "hilang", icon: "search" },
-        { label: "Offices", href: "pejabat", icon: "domain" },
-        { label: "AR Directory", href: "direktori", icon: "view_in_ar" },
-      ],
-    },
-    {
-      label: "Account",
-      items: [
-        { label: "My profile", href: "profile", icon: "person" },
-        { label: "eCard", href: "kad-maya", icon: "qr_code_2" },
-      ],
-    },
-  ]
-}
-
-export default async function LagiPage({ params }: { params: Promise<{ role: string }> }) {
+export default async function LagiPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  const { role } = await params
 
   const [user, bilikState, roomLabel] = await Promise.all([
     prisma.user.findUnique({
@@ -59,7 +25,7 @@ export default async function LagiPage({ params }: { params: Promise<{ role: str
     session.user.role === "ahli" ? getResidentRoomLabel(session.user.id) : Promise.resolve(null),
   ])
   const bilikOpen = bilikState === "open" || bilikState === "closing_soon"
-  const groups = buildGroups(session.user.role)
+  const groups = navForRole(session.user.role as Role)
 
   const initial = (user?.name?.trim().charAt(0) || "K").toUpperCase()
 
@@ -125,11 +91,11 @@ export default async function LagiPage({ params }: { params: Promise<{ role: str
             {g.items.map((item) => (
               <ListRow
                 key={item.href}
-                href={`/${role}/${item.href}`}
+                href={item.href}
                 icon={item.icon}
                 title={item.label}
                 trailing={
-                  item.href === "bilik" && bilikOpen ? (
+                  item.href.endsWith("/bilik") && bilikOpen ? (
                     <Box
                       sx={{
                         fontSize: 10.5,

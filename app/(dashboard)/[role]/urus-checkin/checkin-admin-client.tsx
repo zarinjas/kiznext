@@ -35,6 +35,7 @@ import {
   deleteCheckInSession,
   adminLookupStudent,
   adminManualCheckIn,
+  adminDeleteCheckInRecord,
   uploadCheckinDirectionsImage,
   removeCheckinDirectionsImage,
 } from "@/lib/checkin"
@@ -98,6 +99,9 @@ interface ConsolidatedRow {
   checkOutSignatureUrl: string | null
   checkInManual: boolean
   checkOutManual: boolean
+  /** Id of the latest record of each type (for the admin "remove" action). */
+  checkInRecordId: string | null
+  checkOutRecordId: string | null
   /** False when the student is on the roster but has not signed any session. */
   hasRecord: boolean
   /** Session ids the student appears in (for the session filter). */
@@ -156,6 +160,8 @@ function emptyRow(key: string, matricId: string, name: string): ConsolidatedRow 
     checkOutSignatureUrl: null,
     checkInManual: false,
     checkOutManual: false,
+    checkInRecordId: null,
+    checkOutRecordId: null,
     hasRecord: false,
     sessionIds: [],
   }
@@ -198,6 +204,7 @@ function consolidate(roster: RosterEntry[], records: RecordRow[]): ConsolidatedR
         row.checkInSession = r.sessionName
         row.checkInSignatureUrl = r.signatureUrl
         row.checkInManual = r.manual
+        row.checkInRecordId = r.id
       }
     } else {
       if (!row.checkOutAt || new Date(r.signedAt) > new Date(row.checkOutAt)) {
@@ -205,6 +212,7 @@ function consolidate(roster: RosterEntry[], records: RecordRow[]): ConsolidatedR
         row.checkOutSession = r.sessionName
         row.checkOutSignatureUrl = r.signatureUrl
         row.checkOutManual = r.manual
+        row.checkOutRecordId = r.id
       }
     }
   }
@@ -520,6 +528,16 @@ export function CheckinAdminClient({
   const [exportOpen, setExportOpen] = useState(false)
   const [exportBlock, setExportBlock] = useState<string>("all")
 
+  // Admin undo: remove a check-in / check-out record.
+  const [recordToRemove, setRecordToRemove] = useState<{
+    id: string
+    name: string
+    type: TypeVal
+    session: string | null
+    at: string | null
+  } | null>(null)
+  const [removingRecord, setRemovingRecord] = useState(false)
+
   async function onCreate() {
     setCreating(true)
     const res = await createCheckInSession({
@@ -656,6 +674,21 @@ export function CheckinAdminClient({
     }
   }
 
+  async function onRemoveRecord() {
+    if (!recordToRemove) return
+    setRemovingRecord(true)
+    const res = await adminDeleteCheckInRecord(recordToRemove.id)
+    setRemovingRecord(false)
+    if (res.ok) {
+      notify(`${recordToRemove.name} is now marked "not checked in".`)
+      setRecordToRemove(null)
+      setDetail(null)
+      router.refresh()
+    } else {
+      notify(res.error ?? "Couldn't remove the record", "error")
+    }
+  }
+
   const students = useMemo(() => consolidate(roster, records), [roster, records])
 
   const recordCheckInCount = records.filter((r) => r.type === "check_in").length
@@ -682,6 +715,10 @@ export function CheckinAdminClient({
 
   const checkedInCount = filtered.filter((s) => s.checkInAt).length
   const checkedOutCount = filtered.filter((s) => s.checkOutAt).length
+
+  // The table shows only students who actually signed; the export (Excel/CSV/
+  // Print) still uses `filtered` so every student on the roster is listed.
+  const checkedInRows = useMemo(() => filtered.filter((s) => s.hasRecord), [filtered])
 
   const statusOf = (s: ConsolidatedRow) =>
     s.checkOutAt ? "Checked out" : s.checkInAt ? "Checked in" : "Not checked in"
@@ -1124,12 +1161,16 @@ export function CheckinAdminClient({
           </Box>
 
           <SmartTable
-            rows={filtered}
+            rows={checkedInRows}
             columns={columns}
             getRowId={(r) => r.id}
             emptyIcon="receipt_long"
-            emptyTitle="No students here yet"
-            emptyBody={students.length === 0 ? "No students on the active list yet — import the student list first." : "No students match these filters."}
+            emptyTitle="No check-ins yet"
+            emptyBody={
+              records.length === 0
+                ? "Students appear here once they sign at the counter or in the app. Use Export to download the full roster."
+                : "No checked-in students match these filters."
+            }
             onRowClick={(r) => setDetail(r)}
           />
         </Box>
@@ -1169,11 +1210,11 @@ export function CheckinAdminClient({
               </Box>
 
               {([
-                { label: "Check-in", at: detail.checkInAt, session: detail.checkInSession, sig: detail.checkInSignatureUrl, manual: detail.checkInManual },
-                { label: "Check-out", at: detail.checkOutAt, session: detail.checkOutSession, sig: detail.checkOutSignatureUrl, manual: detail.checkOutManual },
+                { label: "Check-in", type: "check_in", at: detail.checkInAt, session: detail.checkInSession, sig: detail.checkInSignatureUrl, manual: detail.checkInManual, recordId: detail.checkInRecordId },
+                { label: "Check-out", type: "check_out", at: detail.checkOutAt, session: detail.checkOutSession, sig: detail.checkOutSignatureUrl, manual: detail.checkOutManual, recordId: detail.checkOutRecordId },
               ] as const).map((block) => (
                 <Box key={block.label}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5, flexWrap: "wrap" }}>
                     <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{block.label}</Typography>
                     {block.at ? (
                       <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -1184,6 +1225,26 @@ export function CheckinAdminClient({
                       <Pill tone="neutral">Not yet</Pill>
                     )}
                     {block.manual && <Pill tone="info">Manual</Pill>}
+                    {!readOnly && block.recordId && (
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="text"
+                        sx={{ ml: "auto" }}
+                        startIcon={<KIcon icon="undo" size={16} />}
+                        onClick={() =>
+                          setRecordToRemove({
+                            id: block.recordId!,
+                            name: detail.name,
+                            type: block.type,
+                            session: block.session,
+                            at: block.at,
+                          })
+                        }
+                      >
+                        {block.type === "check_in" ? "Mark not checked in" : "Mark not checked out"}
+                      </Button>
+                    )}
                   </Box>
                   {block.sig ? (
                     <Box
@@ -1211,6 +1272,31 @@ export function CheckinAdminClient({
                 </Box>
               ))}
             </DialogContent>
+          </>
+        )}
+      </Dialog>
+
+      {/* Remove a check-in / check-out record (admin undo) */}
+      <Dialog open={Boolean(recordToRemove)} onClose={() => setRecordToRemove(null)} maxWidth="xs" fullWidth>
+        {recordToRemove && (
+          <>
+            <DialogTitle>Remove this record?</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                <b>{recordToRemove.name}</b> will be marked as{" "}
+                <b>{recordToRemove.type === "check_in" ? "not checked in" : "not checked out"}</b>. The{" "}
+                {recordToRemove.type === "check_in" ? "check-in" : "check-out"} record
+                {recordToRemove.session ? ` for ${recordToRemove.session}` : ""}
+                {recordToRemove.at ? ` (${formatMalaysia(new Date(recordToRemove.at))})` : ""} will be
+                removed from the list. The record is kept for the audit trail.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+              <Button variant="outlined" onClick={() => setRecordToRemove(null)}>Cancel</Button>
+              <KButton icon="undo" loading={removingRecord} onClick={onRemoveRecord}>
+                {recordToRemove.type === "check_in" ? "Mark not checked in" : "Mark not checked out"}
+              </KButton>
+            </DialogActions>
           </>
         )}
       </Dialog>

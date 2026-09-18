@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { GUEST_HOUSE_ROLES, type Role } from "@/lib/rbac"
 import { prisma } from "@/lib/db"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
@@ -11,6 +12,12 @@ import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 export default async function RumahTamuPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
+
+  // Admins and the principal manage guest houses from the admin view, never
+  // the resident booking flow.
+  if (GUEST_HOUSE_ROLES.includes(session.user.role as Role)) {
+    redirect(`/${session.user.role}/urus-rumah-tamu`)
+  }
 
   const [bookings, activeBookings, guestHouses] = await Promise.all([
     prisma.guestHouseBooking.findMany({

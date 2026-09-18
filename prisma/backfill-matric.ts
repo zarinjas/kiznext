@@ -21,6 +21,16 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
+/**
+ * A matric ID is letters + digits only (e.g. "A222765"). If the stored value
+ * contains "@" or "." it's almost certainly an email that was typed into the
+ * matric field by mistake — cleaning it would turn "a218899@siswa.ukm.edu.my"
+ * into unreadable junk, so leave it for a human to fix.
+ */
+function looksLikeEmail(raw: string): boolean {
+  return /[@.]/.test(raw)
+}
+
 async function main() {
   let fixed = 0
   let skipped = 0
@@ -31,6 +41,11 @@ async function main() {
   })
   const studentKeys = new Set(students.map((s) => `${s.intakeId}:${s.matricId}`))
   for (const s of students) {
+    if (looksLikeEmail(s.matricId)) {
+      console.warn(`  skip  eligible_student "${s.matricId}" — looks like an email, not a matric`)
+      skipped++
+      continue
+    }
     const clean = cleanMatric(s.matricId)
     if (clean === s.matricId) continue
     const key = `${s.intakeId}:${clean}`
@@ -50,6 +65,11 @@ async function main() {
   const users = await prisma.user.findMany({ select: { id: true, matricId: true } })
   const userMatrics = new Set(users.map((u) => u.matricId))
   for (const u of users) {
+    if (looksLikeEmail(u.matricId)) {
+      console.warn(`  skip  user "${u.matricId}" — looks like an email, not a matric`)
+      skipped++
+      continue
+    }
     const clean = cleanMatric(u.matricId)
     if (clean === u.matricId) continue
     if (userMatrics.has(clean)) {
@@ -67,6 +87,11 @@ async function main() {
   // ── check_in_records (snapshots, no unique key) ───────────────────────────
   const records = await prisma.checkInRecord.findMany({ select: { id: true, matricId: true } })
   for (const r of records) {
+    if (looksLikeEmail(r.matricId)) {
+      console.warn(`  skip  check_in_record "${r.matricId}" — looks like an email, not a matric`)
+      skipped++
+      continue
+    }
     const clean = cleanMatric(r.matricId)
     if (clean === r.matricId) continue
     await prisma.checkInRecord.update({ where: { id: r.id }, data: { matricId: clean } })
@@ -80,10 +105,16 @@ async function main() {
     select: { id: true, matricId: true },
   })
   for (const inv of invitations) {
-    const clean = cleanMatric(inv.matricId)
-    if (!clean || clean === inv.matricId) continue
+    const raw = inv.matricId ?? ""
+    if (looksLikeEmail(raw)) {
+      console.warn(`  skip  invitation "${raw}" — looks like an email, not a matric`)
+      skipped++
+      continue
+    }
+    const clean = cleanMatric(raw)
+    if (!clean || clean === raw) continue
     await prisma.invitation.update({ where: { id: inv.id }, data: { matricId: clean } })
-    console.log(`  fix   invitation ${inv.matricId} → ${clean}`)
+    console.log(`  fix   invitation ${raw} → ${clean}`)
     fixed++
   }
 

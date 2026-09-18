@@ -1,4 +1,10 @@
 import type { Role } from "@/lib/rbac"
+import {
+  ADMIN_ROLES,
+  GUEST_HOUSE_ROLES,
+  RESIDENCE_VIEW_ROLES,
+  SUPPORT_ROLES,
+} from "@/lib/rbac"
 
 export interface NavItem {
   label: string
@@ -15,7 +21,7 @@ export interface NavGroup {
 
 /** True for the room-selection item, which earns a live badge when the window is open. */
 export function isRoomSelectionItem(item: NavItem): boolean {
-  return item.href.endsWith("/bilik")
+  return item.href.endsWith("/bilik") && !item.href.endsWith("/urus-bilik")
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -37,9 +43,6 @@ export const ROLE_OVERLINES: Record<Role, string> = {
 }
 
 export function navForRole(role: Role): NavGroup[] {
-  const admins: Role[] = ["superadmin", "admin_kiz"]
-  const canAdmin = admins.includes(role)
-
   const groups: NavGroup[] = [
     {
       label: "Overview",
@@ -54,14 +57,14 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Room Selection", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
         { label: "Check-in / Out", href: `/${role}/checkin`, icon: "how_to_reg", roles: ["ahli"] },
         { label: "Facilities", href: `/${role}/tempahan-fasiliti`, icon: "meeting_room" },
-        { label: "Guest House", href: `/${role}/rumah-tamu`, icon: "hotel" },
+        { label: "Guest House", href: `/${role}/rumah-tamu`, icon: "hotel", roles: ["ahli", "staf", "fellow"] },
         { label: "My Bookings", href: `/${role}/tempahan`, icon: "calendar_month" },
       ],
     },
     {
       label: "Support",
       items: [
-        { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent", roles: ["ahli", "staf", "fellow", "pengetua"] },
+        { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent", roles: ["ahli", "pengetua"] },
         { label: "Lost & Found", href: `/${role}/hilang`, icon: "search" },
         { label: "Offices", href: `/${role}/pejabat`, icon: "domain" },
         { label: "AR Directory", href: `/${role}/direktori`, icon: "view_in_ar" },
@@ -75,53 +78,51 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Profile", href: `/${role}/profile`, icon: "person" },
       ],
     },
+    {
+      label: "Approvals",
+      items: [
+        { label: "Facility Requests", href: `/${role}/urus-tempahan-fasiliti`, icon: "task_alt", admin: true, roles: ADMIN_ROLES },
+        { label: "Guest House", href: `/${role}/urus-rumah-tamu`, icon: "hotel_class", admin: true, roles: GUEST_HOUSE_ROLES },
+        { label: "Accommodation", href: `/${role}/urus-bilik`, icon: "bedroom_parent", admin: true, roles: RESIDENCE_VIEW_ROLES },
+        { label: "Check-in / Out", href: `/${role}/urus-checkin`, icon: "qr_code_2", admin: true, roles: RESIDENCE_VIEW_ROLES },
+        { label: "Helpdesk Inbox", href: `/${role}/urus-helpdesk`, icon: "inbox", admin: true, roles: SUPPORT_ROLES },
+      ],
+    },
+    {
+      label: "Content",
+      items: [
+        { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true, roles: ADMIN_ROLES },
+        { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true, roles: ADMIN_ROLES },
+        { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true, roles: ADMIN_ROLES },
+        { label: "Facilities", href: `/${role}/urus-fasiliti`, icon: "apartment", admin: true, roles: ADMIN_ROLES },
+        { label: "Offices", href: `/${role}/urus-pejabat`, icon: "domain", admin: true, roles: ADMIN_ROLES },
+        { label: "AR Directory", href: `/${role}/urus-direktori`, icon: "view_in_ar", admin: true, roles: ADMIN_ROLES },
+      ],
+    },
+    {
+      label: "AI",
+      items: [
+        { label: "KIZ-AI", href: `/${role}/urus-ai`, icon: "smart_toy", admin: true, roles: ADMIN_ROLES },
+        { label: "FAQ Knowledge", href: `/${role}/urus-faq`, icon: "quiz", admin: true, roles: ADMIN_ROLES },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { label: "Users", href: `/${role}/urus-pengguna`, icon: "manage_accounts", admin: true, roles: ADMIN_ROLES },
+        { label: "Invitations", href: `/${role}/urus-jemputan`, icon: "mail", admin: true, roles: ["superadmin"] },
+        { label: "Settings", href: `/${role}/urus-tetapan`, icon: "settings", admin: true, roles: ADMIN_ROLES },
+      ],
+    },
   ]
 
-  if (canAdmin) {
-    groups.push(
-      {
-        label: "Approvals",
-        items: [
-          { label: "Facility Requests", href: `/${role}/urus-tempahan-fasiliti`, icon: "task_alt", admin: true },
-          { label: "Guest House", href: `/${role}/urus-rumah-tamu`, icon: "hotel_class", admin: true },
-          { label: "Accommodation", href: `/${role}/urus-bilik`, icon: "bedroom_parent", admin: true },
-          { label: "Check-in / Out", href: `/${role}/urus-checkin`, icon: "qr_code_2", admin: true },
-          { label: "Helpdesk Inbox", href: `/${role}/urus-helpdesk`, icon: "inbox", admin: true },
-        ],
-      },
-      {
-        label: "Content",
-        items: [
-          { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true },
-          { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true },
-          { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true },
-          { label: "Facilities", href: `/${role}/urus-fasiliti`, icon: "apartment", admin: true },
-          { label: "Offices", href: `/${role}/urus-pejabat`, icon: "domain", admin: true },
-          { label: "AR Directory", href: `/${role}/urus-direktori`, icon: "view_in_ar", admin: true },
-        ],
-      },
-      {
-        label: "AI",
-        items: [
-          { label: "KIZ-AI", href: `/${role}/urus-ai`, icon: "smart_toy", admin: true },
-          { label: "FAQ Knowledge", href: `/${role}/urus-faq`, icon: "quiz", admin: true },
-        ],
-      },
-      {
-        label: "System",
-        items: [
-          { label: "Users", href: `/${role}/urus-pengguna`, icon: "manage_accounts", admin: true },
-          { label: "Invitations", href: `/${role}/urus-jemputan`, icon: "mail", admin: true, roles: ["superadmin"] },
-          { label: "Settings", href: `/${role}/urus-tetapan`, icon: "settings", admin: true },
-        ],
-      },
-    )
-  }
-
   // Role-gated items: drop anything that lists explicit roles the current
-  // session role isn't in (e.g. room selection is student-only).
-  return groups.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !item.roles || item.roles.includes(role)),
-  }))
+  // session role isn't in (e.g. room selection is student-only), then drop any
+  // group left empty (e.g. Content for pengetua/staf/fellow).
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.roles || item.roles.includes(role)),
+    }))
+    .filter((group) => group.items.length > 0)
 }

@@ -10,9 +10,10 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { color, radius } from "@/lib/theme"
 import { messageVersions } from "@/lib/helpdesk-meta"
 import { chatRoleBadge } from "@/lib/chat-meta"
+import { SUPPORT_ROLES } from "@/lib/rbac"
 
 const IMAGE_URL_RE = /https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i
-const STAFF_ROLES = ["admin_kiz", "superadmin"]
+const STAFF_ROLES = SUPPORT_ROLES as string[]
 
 function isStaffRole(role: string): boolean {
   return STAFF_ROLES.includes(role)

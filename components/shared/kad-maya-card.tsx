@@ -1,7 +1,3 @@
-import QRCode from "qrcode"
-import Box from "@mui/material/Box"
-import Typography from "@mui/material/Typography"
-import { color, elevation, font, radius } from "@/lib/theme"
 import { StudentCardFace } from "@/components/shared/student-card-face"
 
 interface Props {
@@ -18,15 +14,22 @@ interface Props {
   /** Card "Valid until" line, e.g. "30 September 2027". */
   validUntil?: string | null
   avatarUrl: string | null
-  /** Only the "ahli" (student) role gets the official student card design. */
+  /** The user's role. Only "ahli" (student) gets the student wording. */
   role?: string
+  /** Non-student role label (e.g. "Admin KIZ", "Staff") shown on the card. */
+  roleLabel?: string | null
   cardBackgroundUrl?: string | null
   ukmLogoUrl?: string | null
   kizLogoUrl?: string | null
-  /** QR data URL rendered inside the student card (bottom). */
+  /** QR data URL rendered inside the card (bottom). */
   qrDataUrl?: string | null
 }
 
+/**
+ * KadMayaCard — every role now uses the same institutional card layout. Students
+ * keep the official "Digital Student Card" wording; other roles show their role
+ * label in the status badge and a "Staff ID" label.
+ */
 export async function KadMayaCard({
   name,
   matricId,
@@ -37,143 +40,30 @@ export async function KadMayaCard({
   validUntil,
   avatarUrl,
   role,
+  roleLabel,
   cardBackgroundUrl,
   ukmLogoUrl,
   kizLogoUrl,
   qrDataUrl,
 }: Props) {
-  if (role === "ahli") {
-    return (
-      <StudentCardFace
-        name={name}
-        matricId={matricId}
-        blockName={block}
-        roomNumber={roomNumber}
-        bed={bed}
-        session={session}
-        avatarUrl={avatarUrl}
-        backgroundUrl={cardBackgroundUrl ?? null}
-        ukmLogoUrl={ukmLogoUrl ?? null}
-        kizLogoUrl={kizLogoUrl ?? null}
-        qrDataUrl={qrDataUrl ?? null}
-        validUntil={validUntil ?? null}
-      />
-    )
-  }
-
-  const legacyQrDataUrl = await QRCode.toDataURL(matricId, { width: 220, margin: 1 })
-
-  const initial = name.trim().charAt(0).toUpperCase() || "K"
+  const isStudent = role === "ahli"
 
   return (
-    <Box
-      sx={{
-        width: "100%",
-        maxWidth: 380,
-        borderRadius: `${radius.cardLg}px`,
-        overflow: "hidden",
-        backgroundColor: color.brand[900],
-        color: "#fff",
-        boxShadow: elevation.e3,
-        position: "relative",
-      }}
-    >
-      {/* Soft ambient wash */}
-      <Box
-        sx={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: `
-            radial-gradient(520px 320px at 100% 0%, rgba(139,124,238,0.30), transparent 60%),
-            radial-gradient(460px 300px at 0% 100%, rgba(56,132,255,0.22), transparent 62%)
-          `,
-          pointerEvents: "none",
-        }}
-      />
-
-      <Box sx={{ position: "relative", p: 3 }}>
-        {/* Head */}
-        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 3 }}>
-          <Box>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.015em", lineHeight: 1.2 }}>
-              KIZ eCard
-            </Typography>
-            <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.55)", mt: 0.25 }}>
-              Kolej Ibu Zain, UKM
-            </Typography>
-          </Box>
-          <Box
-            component="span"
-            sx={{
-              fontSize: 10.5,
-              fontWeight: 550,
-              color: "rgba(255,255,255,0.75)",
-              backgroundColor: "rgba(255,255,255,0.12)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              px: 1.25,
-              py: 0.375,
-              borderRadius: 999,
-            }}
-          >
-            Digital ID
-          </Box>
-        </Box>
-
-        {/* Identity */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
-          {avatarUrl ? (
-            <Box
-              component="img"
-              src={avatarUrl}
-              alt={name}
-              sx={{ width: 56, height: 56, objectFit: "cover", borderRadius: 2.5, border: "1px solid rgba(255,255,255,0.2)" }}
-            />
-          ) : (
-            <Box
-              sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 2.5,
-                backgroundColor: "rgba(255,255,255,0.12)",
-                border: "1px solid rgba(255,255,255,0.16)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 22,
-                fontWeight: 600,
-              }}
-            >
-              {initial}
-            </Box>
-          )}
-          <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
-              {name}
-            </Typography>
-            <Typography sx={{ fontSize: 12.5, fontFamily: font.mono, color: "rgba(255,255,255,0.6)", mt: 0.375 }}>
-              {matricId}
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* QR */}
-        <Box
-          sx={{
-            backgroundColor: "#fff",
-            borderRadius: 3,
-            p: 2,
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={legacyQrDataUrl} alt="QR Code" style={{ width: 150, height: 150, display: "block", mixBlendMode: "multiply" }} />
-        </Box>
-
-        <Typography sx={{ textAlign: "center", fontSize: 11.5, color: "rgba(255,255,255,0.45)", mt: 2 }}>
-          Show this code at the college office
-        </Typography>
-      </Box>
-    </Box>
+    <StudentCardFace
+      name={name}
+      matricId={matricId}
+      blockName={isStudent ? block : null}
+      roomNumber={isStudent ? roomNumber : null}
+      bed={isStudent ? bed : null}
+      session={isStudent ? session : null}
+      avatarUrl={avatarUrl}
+      backgroundUrl={cardBackgroundUrl ?? null}
+      ukmLogoUrl={ukmLogoUrl ?? null}
+      kizLogoUrl={kizLogoUrl ?? null}
+      qrDataUrl={qrDataUrl ?? null}
+      validUntil={isStudent ? validUntil ?? null : null}
+      roleLabel={isStudent ? null : roleLabel ?? null}
+      idLabel={isStudent ? "Student ID" : "Staff ID"}
+    />
   )
 }

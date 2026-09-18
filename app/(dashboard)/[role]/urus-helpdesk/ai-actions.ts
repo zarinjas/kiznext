@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, SUPPORT_ROLES } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
 import { getAiConfig } from "@/lib/ai/config"
 import { generateJson } from "@/lib/ai/provider"
@@ -17,7 +17,7 @@ const VALID_CATEGORIES = new Set(HELPDESK_CATEGORIES.map((c) => c.value as strin
 export async function analyzeTicket(ticketId: string): Promise<TriageResult> {
   const session = await auth()
   if (!session?.user?.id) return { enabled: false, error: "Unauthorized" }
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
 
   const cfg = await getAiConfig()
   if (!cfg.enabled) return { enabled: false }
@@ -75,7 +75,7 @@ export async function analyzeTicket(ticketId: string): Promise<TriageResult> {
 export async function applyTicketCategory(ticketId: string, category: string): Promise<{ success: boolean }> {
   const session = await auth()
   if (!session?.user?.id) return { success: false }
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, SUPPORT_ROLES)
   if (!VALID_CATEGORIES.has(category)) return { success: false }
 
   await prisma.helpdeskTicket.update({

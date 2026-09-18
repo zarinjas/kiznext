@@ -28,6 +28,8 @@ interface GuestHouseItem {
 
 interface Props {
   guestHouses: GuestHouseItem[]
+  /** Read-only viewers (e.g. the principal) can't add, edit or delete houses. */
+  readOnly?: boolean
 }
 
 function formatPrice(price: number | null): string {
@@ -35,7 +37,7 @@ function formatPrice(price: number | null): string {
   return `RM ${price.toFixed(2)}`
 }
 
-export function GuestHouseList({ guestHouses }: Props) {
+export function GuestHouseList({ guestHouses, readOnly = false }: Props) {
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -55,9 +57,11 @@ export function GuestHouseList({ guestHouses }: Props) {
         <Box sx={{ flex: 1, minWidth: 200 }}>
           <FilterBar search={search} onSearch={setSearch} searchPlaceholder="Search guest houses…" />
         </Box>
-        <Button variant="contained" onClick={() => setShowForm(true)} startIcon={<KIcon icon="add" size={17} />}>
-          Add Guest House
-        </Button>
+        {!readOnly && (
+          <Button variant="contained" onClick={() => setShowForm(true)} startIcon={<KIcon icon="add" size={17} />}>
+            Add Guest House
+          </Button>
+        )}
       </Box>
 
       {filtered.length === 0 ? (
@@ -123,12 +127,14 @@ export function GuestHouseList({ guestHouses }: Props) {
                     <StatusChip status={g.requiresApproval ? "pending" : "approved"} />
                   </Box>
 
-                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1.5 }}>
-                    <Button size="small" variant="outlined" onClick={() => setEditingId(g.id)} startIcon={<KIcon icon="edit" size={15} />}>
-                      Edit
-                    </Button>
-                    <DeleteGuestHouseButton guestHouseId={g.id} guestHouseName={g.name} />
-                  </Box>
+                  {!readOnly && (
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1.5 }}>
+                      <Button size="small" variant="outlined" onClick={() => setEditingId(g.id)} startIcon={<KIcon icon="edit" size={15} />}>
+                        Edit
+                      </Button>
+                      <DeleteGuestHouseButton guestHouseId={g.id} guestHouseName={g.name} />
+                    </Box>
+                  )}
                 </Box>
               </Box>
             </Grid>
