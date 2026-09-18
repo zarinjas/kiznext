@@ -248,14 +248,18 @@ Not started, roughly in priority order.
   (bookings per week, ticket status mix). MUI X Charts are installed and ready.
 - **Dynamic / signed QR** — addresses #9.
 - **Tests** — no test framework is set up at all.
-- **AR Directory: 10 destinations still Unverified** — `Blok K18B`, `Blok K19D`,
-  `Bilik Seminar`, `Meeting Room`, `Pejabat Pentadbiran KIZ`, `Pejabat UKM Real
-  Estate`, `Cafeteria`, `Dapur Siswa`, `Futsal Court`, `Sick Bay`, `Parcel
-  Locker` — coordinates are interpolated/estimated, not confirmed against a
-  real Google Maps pin (unlike the other 13 destinations, which were fixed on
-  2026-09-16 using real long-pressed coordinates). Grab each one's real pin
-  (long-press in Google Maps → coordinates) and update via `/urus-direktori`
-  → edit → set lat/lng + toggle "GPS verified" on.
+- **AR Directory: 3 destinations still Unverified** — `Blok K18B`, `Dapur
+  Siswa`, `Parcel Locker` — coordinates are interpolated/estimated, not
+  confirmed against a real device or Google Maps pin. (`Blok K19D`, `Pejabat
+  Pentadbiran KIZ`, `Cafeteria`, `Futsal Court`, `Sick Bay`, `Pejabat UKM Real
+  Estate`, and `Meeting Room` were fixed with real on-device coordinates
+  2026-09-18, on top of the 13 fixed 2026-09-16. `Bilik Seminar` turned out to
+  be two distinct bookable rooms — split into `Seminar Room 1`/`Seminar Room
+  2`, both real-pinned, matching the Facility Booking system's existing
+  "Seminar Room 1"/"Seminar Room 2".) Confirm each remaining one on a real
+  device (the "Capture GPS here" button in `/urus-direktori` while standing at
+  the real spot is the fastest way) or via Google Maps, then toggle "GPS
+  verified" on.
 - **AR mini-map hotlinks OpenStreetMap's free public tile servers** —
   `components/shared/ar/ar-minimap.tsx` pulls tiles straight from
   `tile.openstreetmap.org`, which explicitly discourages production-scale

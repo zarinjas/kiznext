@@ -217,21 +217,8 @@ async function main() {
       verified: true,
     },
     {
-      name: "Blok K18B",
-      type: "block" as const,
-      // Not yet confirmed with a real pin — interpolated between the
-      // confirmed K18A and K18C positions (was previously guessed on the
-      // wrong side of the compound entirely; this is a better placeholder,
-      // still not ground truth).
-      latitude: 2.9296562,
-      longitude: 101.782139,
-      indoor: false,
-      building: null,
-      description: "Residence block",
-      sortOrder: 2,
-      verified: false,
-    },
-    {
+      // "Blok K18B" was a duplicate of this same real building — removed
+      // (2026-09-18) rather than chasing separate coordinates for it.
       name: "Blok K18C",
       type: "block" as const,
       latitude: 2.9302943795611496,
@@ -289,16 +276,14 @@ async function main() {
     {
       name: "Blok K19D",
       type: "block" as const,
-      // Not yet confirmed — the real K19A/B/C pins don't fall on a simple
-      // line, so this is only a rough placement inside the known K19
-      // cluster, not an interpolation like K18B above.
-      latitude: 2.9294,
-      longitude: 101.783,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.930107134828381,
+      longitude: 101.78351908389322,
       indoor: false,
       building: null,
       description: "Residence block",
       sortOrder: 8,
-      verified: false,
+      verified: true,
     },
     {
       name: "Blok K20A",
@@ -338,59 +323,78 @@ async function main() {
       verified: true,
     },
     {
-      name: "Bilik Seminar",
+      // Split from a single merged "Bilik Seminar" pin — the Facility
+      // Booking system already has two distinct bookable rooms here
+      // ("Seminar Room 1" / "Seminar Room 2"), so one pin couldn't
+      // represent both. Real pins, confirmed on a real device 2026-09-18.
+      name: "Seminar Room 1",
       type: "seminar" as const,
-      latitude: 2.92956,
-      longitude: 101.78362,
+      latitude: 2.9306842356083567,
+      longitude: 101.78352577124345,
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "Seminar room",
       sortOrder: 12,
-      verified: false,
+      verified: true,
+    },
+    {
+      name: "Seminar Room 2",
+      type: "seminar" as const,
+      latitude: 2.9306480731448965,
+      longitude: 101.78343055283324,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "Seminar room",
+      sortOrder: 13,
+      verified: true,
     },
     {
       name: "Meeting Room",
       type: "meeting" as const,
-      latitude: 2.9295,
-      longitude: 101.78352,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.9306279828866035,
+      longitude: 101.78398711117794,
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "KIZ main meeting room",
       sortOrder: 13,
-      verified: false,
+      verified: true,
     },
     {
       name: "Pejabat Pentadbiran KIZ",
       type: "admin" as const,
-      latitude: 2.92944,
-      longitude: 101.78344,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.9306233131499115,
+      longitude: 101.78362813872378,
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "College administration — registration, resident matters, forms",
       sortOrder: 14,
-      verified: false,
+      verified: true,
     },
     {
       name: "Pejabat UKM Real Estate",
       type: "office" as const,
-      latitude: 2.9294,
-      longitude: 101.78336,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.930515477435248,
+      longitude: 101.78393883142064,
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "Property, facility and building management matters",
       sortOrder: 15,
-      verified: false,
+      verified: true,
     },
     {
       name: "Cafeteria",
       type: "facility" as const,
-      latitude: 2.9299,
-      longitude: 101.784,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.9307771453468856,
+      longitude: 101.78386930253198,
       indoor: false,
       building: null,
       description: "College cafeteria",
       sortOrder: 16,
-      verified: false,
+      verified: true,
     },
     {
       name: "Surau",
@@ -407,9 +411,10 @@ async function main() {
     {
       name: "Laundry Room",
       type: "facility" as const,
-      // Real pin is "Simple Laundry" — same location.
-      latitude: 2.9305887018993033,
-      longitude: 101.78408648816318,
+      // Real pin is "Simple Laundry" — same location. Re-confirmed on a
+      // real device 2026-09-18 (near-identical to the prior reading).
+      latitude: 2.93058912821439,
+      longitude: 101.78410579863174,
       indoor: false,
       building: null,
       description: "Self-service washing and drying (Simple Laundry)",
@@ -417,48 +422,28 @@ async function main() {
       verified: true,
     },
     {
-      name: "Dapur Siswa",
-      type: "facility" as const,
-      latitude: 2.92985,
-      longitude: 101.7837,
-      indoor: true,
-      building: "Blok A",
-      description: "Shared cooking space",
-      sortOrder: 19,
-      verified: false,
-    },
-    {
       name: "Futsal Court",
       type: "facility" as const,
-      latitude: 2.9302,
-      longitude: 101.7825,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.928857434190247,
+      longitude: 101.78440010436634,
       indoor: false,
       building: null,
       description: "Outdoor futsal and recreation court",
       sortOrder: 20,
-      verified: false,
+      verified: true,
     },
     {
       name: "Sick Bay",
       type: "facility" as const,
-      latitude: 2.92935,
-      longitude: 101.7833,
+      // Real pin, confirmed on a real device 2026-09-18.
+      latitude: 2.9306668212466565,
+      longitude: 101.78337763953546,
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "Rest and basic assistance for residents",
       sortOrder: 21,
-      verified: false,
-    },
-    {
-      name: "Parcel Locker",
-      type: "facility" as const,
-      latitude: 2.9293,
-      longitude: 101.7834,
-      indoor: true,
-      building: "Bangunan Pentadbiran",
-      description: "Self-service parcel collection",
-      sortOrder: 22,
-      verified: false,
+      verified: true,
     },
     {
       name: "Plaza Majlis Eksekutif Pelajar",
@@ -484,6 +469,7 @@ async function main() {
     },
   ]
 
+  const destIds = destinationData.map((d) => `${d.type}-${d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
   for (const d of destinationData) {
     const destId = `${d.type}-${d.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
     await prisma.destination.upsert({
@@ -519,6 +505,18 @@ async function main() {
       },
     })
   }
+
+  // A destination renamed in this list gets a new id (derived from
+  // type+name), so the upsert above creates a fresh row and leaves the old
+  // one behind rather than replacing it — e.g. renaming "Bilik Seminar" to
+  // "Seminar Room 1"/"Seminar Room 2" orphaned the original row instead of
+  // updating it. Soft-delete anything in the table that's no longer in this
+  // list, matching the app's normal delete pattern (`deletedAt`, not a hard
+  // delete), so this script stays a true source of truth run after run.
+  await prisma.destination.updateMany({
+    where: { id: { notIn: destIds }, deletedAt: null },
+    data: { deletedAt: new Date() },
+  })
 
   console.log("AR Directory destinations seeded")
 
