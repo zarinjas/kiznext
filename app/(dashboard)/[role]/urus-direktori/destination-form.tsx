@@ -32,6 +32,7 @@ interface DestinationView {
   building: string | null
   description: string | null
   sortOrder: number
+  verified: boolean
 }
 
 interface Props {
@@ -67,6 +68,7 @@ export function DestinationForm({ initial, onClose }: Props) {
   const [building, setBuilding] = useState(initial?.building ?? "")
   const [description, setDescription] = useState(initial?.description ?? "")
   const [sortOrder, setSortOrder] = useState(String(initial?.sortOrder ?? 0))
+  const [verified, setVerified] = useState(initial?.verified ?? false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -94,6 +96,7 @@ export function DestinationForm({ initial, onClose }: Props) {
       building,
       description,
       sortOrder: parseInt(sortOrder, 10) || 0,
+      verified,
     }
     try {
       if (isEditing && initial) {
@@ -229,6 +232,29 @@ export function DestinationForm({ initial, onClose }: Props) {
           />
         )}
       </Box>
+
+      <FormControlLabel
+        control={
+          <Switch
+            checked={verified}
+            onChange={(e) => setVerified(e.target.checked)}
+            sx={{
+              "& .MuiSwitch-switchBase.Mui-checked": { color: color.success.main },
+              "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: color.success.main },
+            }}
+          />
+        }
+        label={
+          <Box>
+            <Box sx={{ fontSize: 14, fontWeight: 600 }}>GPS verified</Box>
+            <Box sx={{ fontSize: 12, color: "text.secondary" }}>
+              Confirmed on a real device or against Google Maps (“What’s here?”). Leave it off for
+              a pin you’re not sure about yet, it will show an Unverified tag in the list.
+            </Box>
+          </Box>
+        }
+        sx={{ alignItems: "flex-start", gap: 1, mx: 0 }}
+      />
 
       <TextField
         label="Description"

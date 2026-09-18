@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
+import Chip from "@mui/material/Chip"
 import Drawer from "@mui/material/Drawer"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
+import { ArMiniMap } from "@/components/shared/ar/ar-minimap"
 import { TYPE_TONES } from "@/lib/direktori-meta"
 import { bearingDeg, haversineMeters, headingDelta, formatDistanceMeters } from "@/lib/geo"
 import { color, font, radius } from "@/lib/theme"
@@ -71,6 +73,151 @@ function isCompassEvent(e: DeviceOrientationEvent): number | null {
   return null
 }
 
+const INTRO_SEEN_KEY = "kiz-ar-intro-seen"
+const ARROW_COACH_SEEN_KEY = "kiz-ar-arrow-coach-seen"
+const LOW_ACCURACY_M = 20 // GPS accuracy worse than this gets an "approximate" caveat
+const LOCATING_SLOW_MS = 15000 // how long "Locating you…" waits before offering an escape hatch
+
+type DestGroup = "block" | "facility" | "other"
+
+function destinationGroup(type: DestinationType): DestGroup {
+  if (type === "block") return "block"
+  if (type === "facility") return "facility"
+  return "other"
+}
+
+function readLocalFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeLocalFlag(key: string) {
+  try {
+    localStorage.setItem(key, "1")
+  } catch {
+    /* private browsing / storage disabled — the hint just reappears next time */
+  }
+}
+
+/** One-time explainer shown before the very first camera/location/motion
+ * permission prompt, so a bare native dialog isn't the user's first signal
+ * about what this feature needs and why. */
+function ArIntroCard({ onStart }: { onStart: () => void }) {
+  const needs = [
+    { icon: "photo_camera", text: "Camera, so we can overlay the arrow on what you see" },
+    { icon: "my_location", text: "Location, so we can work out distance and direction" },
+    { icon: "explore", text: "Motion and orientation, so we know which way you're facing" },
+  ]
+  return (
+    <Box
+      sx={{
+        maxWidth: 720,
+        mx: "auto",
+        borderRadius: `${radius.cardLg}px`,
+        border: "1px solid",
+        borderColor: "divider",
+        backgroundColor: "background.paper",
+        overflow: "hidden",
+      }}
+    >
+      <Box sx={{ p: { xs: 3, sm: 4 }, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 2 }}>
+        <Box
+          sx={{
+            width: 60,
+            height: 60,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: color.brand[100],
+            color: color.brand[800],
+          }}
+        >
+          <KIcon icon="view_in_ar" size={30} />
+        </Box>
+        <Typography variant="h3">Find your way around KIZ</Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary", maxWidth: 420 }}>
+          Pick a destination and a live camera arrow will point straight at it. Here is what this
+          needs first.
+        </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, width: "100%", maxWidth: 360, textAlign: "left" }}>
+          {needs.map((item) => (
+            <Box key={item.icon} sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+              <KIcon icon={item.icon} size={18} sx={{ color: color.brand[600], flexShrink: 0 }} />
+              <Typography variant="body2">{item.text}</Typography>
+            </Box>
+          ))}
+        </Box>
+        <Button
+          variant="contained"
+          size="large"
+          onClick={onStart}
+          startIcon={<KIcon icon="arrow_forward" size={18} />}
+          sx={{ mt: 1 }}
+        >
+          Get Started
+        </Button>
+      </Box>
+    </Box>
+  )
+}
+
+/** Filter-by-kind chips + a nearest-first sort toggle, shared by the fallback
+ * list and the bottom-sheet picker now that the directory has grown from 7
+ * to 20 pins and a flat list stopped being scannable. */
+function ArFilterChips({
+  typeFilter,
+  onTypeFilter,
+  sortNearest,
+  onToggleSort,
+  positionAvailable,
+}: {
+  typeFilter: "all" | DestGroup
+  onTypeFilter: (v: "all" | DestGroup) => void
+  sortNearest: boolean
+  onToggleSort: () => void
+  positionAvailable: boolean
+}) {
+  const options: { value: "all" | DestGroup; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "block", label: "Dorms" },
+    { value: "facility", label: "Facilities" },
+    { value: "other", label: "Places" },
+  ]
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1.5, overflowX: "auto", pb: 0.5 }}>
+      {options.map((opt) => (
+        <Chip
+          key={opt.value}
+          label={opt.label}
+          size="small"
+          onClick={() => onTypeFilter(opt.value)}
+          color={typeFilter === opt.value ? "primary" : "default"}
+          variant={typeFilter === opt.value ? "filled" : "outlined"}
+          sx={{ flexShrink: 0 }}
+        />
+      ))}
+      <Chip
+        label={
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <KIcon icon="near_me" size={14} />
+            Nearest first
+          </Box>
+        }
+        size="small"
+        onClick={onToggleSort}
+        color={sortNearest ? "primary" : "default"}
+        variant={sortNearest ? "filled" : "outlined"}
+        disabled={!positionAvailable}
+        sx={{ flexShrink: 0, ml: "auto" }}
+      />
+    </Box>
+  )
+}
+
 export function ArNavigator({ destinations }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(destinations[0]?.id ?? null)
   const [position, setPosition] = useState<Position | null>(null)
@@ -78,8 +225,23 @@ export function ArNavigator({ destinations }: Props) {
   const [camError, setCamError] = useState<string | null>(null)
   const [compass, setCompass] = useState<SensorStatus>("idle")
   const [hint, setHint] = useState("Straight ahead")
-  const [arView, setArView] = useState(true)
+  const [headingDisplay, setHeadingDisplay] = useState(0)
+  // Starts on the destination list, not the camera — a student should choose
+  // a place and a method (AR or Google Maps) before the camera opens, not
+  // get dropped straight into AR the instant permissions are granted.
+  const [arView, setArView] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // "checking" avoids a hydration mismatch (identical on server + first
+  // client render) and, crucially, keeps the camera/geolocation effects
+  // below from firing at all until this resolves — so a first-time visitor
+  // never sees a bare permission prompt before the explainer card.
+  const [introState, setIntroState] = useState<"checking" | "show" | "hidden">("checking")
+  const [locatingSlow, setLocatingSlow] = useState(false)
+  const [showCalibrateHint, setShowCalibrateHint] = useState(false)
+  const [showArrowCoach, setShowArrowCoach] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<"all" | DestGroup>("all")
+  const [sortNearest, setSortNearest] = useState(false)
+  const [cameraRetryKey, setCameraRetryKey] = useState(0)
   const compassReady = compass === "on"
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -93,14 +255,69 @@ export function ArNavigator({ destinations }: Props) {
   const positionRef = useRef<Position | null>(null)
   const hintRef = useRef("Straight ahead")
   const rafRef = useRef<number>(0)
+  const watchIdRef = useRef<number | null>(null)
+  const lastHeadingSampleRef = useRef<number | null>(null)
+  const jitterEmaRef = useRef(0)
+  const jitterStreakRef = useRef(0)
+  const arrowCoachTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selected = destinations.find((d) => d.id === selectedId) ?? null
 
   const cameraOn = camStatus === "on"
   const showAr = cameraOn && compassReady && Boolean(selected)
 
-  // ── Camera ────────────────────────────────────────────────────────────────
+  // Client-only: resolve whether the permission explainer has already been
+  // dismissed. Runs once on mount, before the camera/geolocation effects
+  // below (which are gated on `introState === "hidden"`) get a chance to.
   useEffect(() => {
+    const id = window.setTimeout(() => {
+      setIntroState(readLocalFlag(INTRO_SEEN_KEY) ? "hidden" : "show")
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  // Mini-map needs the heading a few times a second (a radar wedge, not a
+  // smooth animation), so it reads the same ref the 60fps arrow loop writes
+  // to without forcing this component to re-render every frame. The same
+  // tick also watches for a jittery, unsettled heading — the classic sign a
+  // phone's compass needs the figure-8 recalibration wave — and surfaces a
+  // one-time hint rather than leaving the arrow visibly shaky with no
+  // explanation.
+  useEffect(() => {
+    if (!showAr) return
+    const id = setInterval(() => {
+      const cur = smoothRef.current
+      setHeadingDisplay(cur)
+
+      const last = lastHeadingSampleRef.current
+      if (last != null) {
+        let d = cur - last
+        while (d > 180) d -= 360
+        while (d < -180) d += 360
+        jitterEmaRef.current = jitterEmaRef.current * 0.7 + Math.abs(d) * 0.3
+        jitterStreakRef.current = jitterEmaRef.current > 10 ? jitterStreakRef.current + 1 : 0
+        setShowCalibrateHint((prev) => {
+          if (jitterStreakRef.current > 6) return true
+          if (jitterStreakRef.current === 0) return false
+          return prev
+        })
+      }
+      lastHeadingSampleRef.current = cur
+    }, 250)
+    return () => {
+      clearInterval(id)
+      lastHeadingSampleRef.current = null
+      jitterEmaRef.current = 0
+      jitterStreakRef.current = 0
+      setShowCalibrateHint(false)
+    }
+  }, [showAr])
+
+  // ── Camera ────────────────────────────────────────────────────────────────
+  // `cameraRetryKey` gives the "Try Again" button a way to force this effect
+  // to run again after a decline, without duplicating the request logic.
+  useEffect(() => {
+    if (introState !== "hidden") return
     let cancelled = false
     async function start() {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -124,9 +341,10 @@ export function ArNavigator({ destinations }: Props) {
           await videoRef.current.play().catch(() => {})
         }
         setCamStatus("on")
+        setCamError(null)
       } catch {
         if (!cancelled) {
-          setCamError("Camera permission was declined — use the list below instead.")
+          setCamError("Camera permission was declined. Use the list below instead.")
           setCamStatus("off")
         }
       }
@@ -137,16 +355,20 @@ export function ArNavigator({ destinations }: Props) {
       streamRef.current?.getTracks().forEach((t) => t.stop())
       streamRef.current = null
     }
-  }, [])
+  }, [introState, cameraRetryKey])
 
   // Once the stream is ready AND the AR view has mounted its <video>, attach
-  // the stream (the video element only exists in AR mode).
+  // the stream (the video element only exists in AR mode). `arView` is in
+  // the dependency list because the <video> element unmounts entirely when
+  // the user exits back to the list and closing/reopening it needs the
+  // stream reattached to the freshly mounted element, not just the first
+  // time the camera turns on.
   useEffect(() => {
     if (camStatus === "on" && streamRef.current && videoRef.current) {
       videoRef.current.srcObject = streamRef.current
       videoRef.current.play().catch(() => {})
     }
-  }, [camStatus, showAr])
+  }, [camStatus, showAr, arView])
 
   // ── Compass / orientation ─────────────────────────────────────────────────
   useEffect(() => {
@@ -204,8 +426,11 @@ export function ArNavigator({ destinations }: Props) {
   }, [])
 
   // ── Geolocation ────────────────────────────────────────────────────────────
+  // Paused while the tab/app is backgrounded — `enableHighAccuracy` GPS is
+  // one of the biggest battery draws on a phone, and there's no point
+  // tracking a position nobody's looking at.
   useEffect(() => {
-    if (!navigator.geolocation) return
+    if (introState !== "hidden" || !navigator.geolocation) return
     const onPos = (p: GeolocationPosition) => {
       const next: Position = {
         lat: p.coords.latitude,
@@ -218,12 +443,31 @@ export function ArNavigator({ destinations }: Props) {
     const onErr = () => {
       /* leave position null → "locating" handled in UI */
     }
-    navigator.geolocation.watchPosition(onPos, onErr, {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 20000,
-    })
-  }, [])
+    function startWatch() {
+      if (watchIdRef.current != null) return
+      watchIdRef.current = navigator.geolocation.watchPosition(onPos, onErr, {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 20000,
+      })
+    }
+    function stopWatch() {
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
+      }
+    }
+    function onVisibility() {
+      if (document.hidden) stopWatch()
+      else startWatch()
+    }
+    startWatch()
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility)
+      stopWatch()
+    }
+  }, [introState])
 
   // Keep destination target ref current so the rAF loop can read it cheaply.
   useEffect(() => {
@@ -300,7 +544,12 @@ export function ArNavigator({ destinations }: Props) {
       { latitude: position.lat, longitude: position.lng },
       { latitude: selected.latitude, longitude: selected.longitude },
     )
-    return { meters, label: formatDistanceMeters(meters), arrived: meters < ARRIVE_M }
+    return {
+      meters,
+      label: formatDistanceMeters(meters),
+      arrived: meters < ARRIVE_M,
+      lowAccuracy: position.accuracy != null && position.accuracy > LOW_ACCURACY_M,
+    }
   }, [selected, position])
 
   const arrived = live?.arrived ?? false
@@ -314,18 +563,71 @@ export function ArNavigator({ destinations }: Props) {
     prevArrivedRef.current = arrived
   }, [arrived])
 
+  // "Locating you…" gets an escape hatch if GPS never resolves — a phone
+  // with Location Services off at the OS level (not just denied in-browser)
+  // would otherwise hang on that message forever with no way out but a
+  // manual reload.
+  useEffect(() => {
+    if (!(showAr && arView) || position) {
+      const id = window.setTimeout(() => setLocatingSlow(false), 0)
+      return () => window.clearTimeout(id)
+    }
+    const t = setTimeout(() => setLocatingSlow(true), LOCATING_SLOW_MS)
+    return () => clearTimeout(t)
+  }, [showAr, arView, position])
+
+  // One-time coach mark explaining what the arrow means, the first time the
+  // camera view actually opens — addresses the "confusing arrow" feedback
+  // by giving a first-time user a mental model before they have to guess.
+  useEffect(() => {
+    if (!(showAr && arView)) return
+    if (readLocalFlag(ARROW_COACH_SEEN_KEY)) return
+    const showId = window.setTimeout(() => setShowArrowCoach(true), 0)
+    arrowCoachTimeoutRef.current = setTimeout(() => {
+      setShowArrowCoach(false)
+      writeLocalFlag(ARROW_COACH_SEEN_KEY)
+    }, 4500)
+    return () => {
+      window.clearTimeout(showId)
+      if (arrowCoachTimeoutRef.current) clearTimeout(arrowCoachTimeoutRef.current)
+    }
+  }, [showAr, arView])
+
+  const dismissArrowCoach = useCallback(() => {
+    if (arrowCoachTimeoutRef.current) clearTimeout(arrowCoachTimeoutRef.current)
+    setShowArrowCoach(false)
+    writeLocalFlag(ARROW_COACH_SEEN_KEY)
+  }, [])
+
+  // Shared by the fallback list and the bottom-sheet picker — filter by
+  // destination kind and/or sort by live distance, since the directory grew
+  // from 7 to 20 pins and a flat alphabetical list stopped being scannable.
+  const visibleDestinations = useMemo(() => {
+    let list = destinations
+    if (typeFilter !== "all") {
+      list = list.filter((d) => destinationGroup(d.type) === typeFilter)
+    }
+    if (sortNearest && position) {
+      list = [...list].sort(
+        (a, b) =>
+          haversineMeters({ latitude: position.lat, longitude: position.lng }, { latitude: a.latitude, longitude: a.longitude }) -
+          haversineMeters({ latitude: position.lat, longitude: position.lng }, { latitude: b.latitude, longitude: b.longitude }),
+      )
+    }
+    return list
+  }, [destinations, typeFilter, sortNearest, position])
+
   let statusMessage: string
   if (camStatus === "on" && !compassReady) {
     statusMessage =
       compass === "waiting"
         ? "Waiting for permission…"
         : compass === "off"
-          ? "Motion & orientation are off — the arrow needs them."
+          ? "Motion and orientation are turned off. The arrow needs them to work."
           : "Enable your motion sensors to unlock the camera arrow."
   } else if (camStatus !== "on") {
     statusMessage =
-      camError ??
-      "Point-to-navigate needs a phone camera. On desktop, use the directions link instead."
+      camError ?? "This feature needs a phone camera. On desktop, use the directions link instead."
   } else {
     statusMessage = "Open this on your phone for the live camera arrow."
   }
@@ -335,9 +637,21 @@ export function ArNavigator({ destinations }: Props) {
       <KEmpty
         icon="view_in_ar"
         title="Nothing to navigate to yet"
-        body="The AR Directory has no destinations right now — check back soon."
+        body="The AR Directory has no destinations right now. Check back again soon."
       />
     )
+  }
+
+  // Render nothing for the one frame it takes to resolve whether the intro
+  // has been seen before — matches server-rendered output exactly (no
+  // hydration mismatch) and, more importantly, guarantees the permission
+  // effects below can't fire before this check has run.
+  if (introState === "checking") {
+    return <Box sx={{ maxWidth: 720, mx: "auto", minHeight: 320 }} />
+  }
+
+  if (introState === "show") {
+    return <ArIntroCard onStart={() => { writeLocalFlag(INTRO_SEEN_KEY); setIntroState("hidden") }} />
   }
 
   const choose = (id: string) => {
@@ -458,6 +772,33 @@ export function ArNavigator({ destinations }: Props) {
               </Box>
               <KIcon icon="expand_more" size={18} sx={{ opacity: 0.7, flexShrink: 0 }} />
             </Box>
+
+            <Box
+              component="a"
+              href={mapsDirectionsUrl(selected!.latitude, selected!.longitude)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open directions in Google Maps"
+              sx={{
+                width: 42,
+                height: 42,
+                flexShrink: 0,
+                borderRadius: 999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.16)",
+                color: "#fff",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+                textDecoration: "none",
+              }}
+            >
+              <KIcon icon="map" size={19} />
+            </Box>
           </Box>
 
           {/* Ground-anchored Live View arrow + distance */}
@@ -475,16 +816,76 @@ export function ArNavigator({ destinations }: Props) {
                   top: "16%",
                   left: "50%",
                   transform: "translateX(-50%)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 0.75,
+                  maxWidth: "82%",
+                }}
+              >
+                <Box
+                  sx={{
+                    px: 1.5,
+                    py: 0.625,
+                    borderRadius: 999,
+                    backgroundColor: "rgba(0,0,0,0.55)",
+                    color: "#fff",
+                    fontSize: 12.5,
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Locating you…
+                </Box>
+                {locatingSlow && (
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => setArView(false)}
+                    sx={{
+                      pointerEvents: "auto",
+                      px: 1.5,
+                      py: 0.625,
+                      borderRadius: 999,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 550,
+                      textAlign: "center",
+                      cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    Taking a while? Check that Location is turned on, or switch to the list view.
+                  </Box>
+                )}
+              </Box>
+            )}
+
+            {showCalibrateHint && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: position ? "16%" : "26%",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.75,
                   px: 1.5,
                   py: 0.625,
                   borderRadius: 999,
-                  backgroundColor: "rgba(0,0,0,0.55)",
+                  backgroundColor: "rgba(0,0,0,0.6)",
                   color: "#fff",
-                  fontSize: 12.5,
-                  fontWeight: 500,
+                  fontSize: 12,
+                  fontWeight: 550,
+                  maxWidth: "82%",
+                  textAlign: "center",
                 }}
               >
-                Locating you…
+                <KIcon icon="explore" size={15} />
+                Your compass looks unsteady. Wave your phone in a figure eight to calibrate it.
               </Box>
             )}
 
@@ -497,6 +898,8 @@ export function ArNavigator({ destinations }: Props) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                perspective: "480px",
+                perspectiveOrigin: "50% 20%",
               }}
             >
               <Box
@@ -510,86 +913,140 @@ export function ArNavigator({ destinations }: Props) {
                   alignItems: "center",
                 }}
               >
+                {/* Static ground tilt — the arrow lies flat and rotates on
+                    that plane (like a compass needle), rather than facing
+                    the viewer flat-on. This is what actually reads as "3D"
+                    instead of a flat icon spinning in place. */}
                 <Box
-                  ref={arrowRef}
                   sx={{
+                    transform: "rotateX(58deg)",
+                    transformStyle: "preserve-3d",
                     transformOrigin: "50% 100%",
-                    willChange: "transform",
-                    display: "flex",
                   }}
                 >
-                  <svg
-                    width="150"
-                    height="180"
-                    viewBox="0 0 120 150"
-                    fill="none"
-                    style={{ overflow: "visible", display: "block" }}
+                  <Box
+                    ref={arrowRef}
+                    sx={{
+                      transformOrigin: "50% 100%",
+                      willChange: "transform",
+                      display: "flex",
+                    }}
                   >
-                    <defs>
-                      <filter id="kiz-nav-glow" x="-60%" y="-60%" width="220%" height="220%">
-                        <feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#000" floodOpacity="0.45" />
-                      </filter>
-                    </defs>
-                    <g filter="url(#kiz-nav-glow)" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 140 L60 102 L98 140" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
-                      <path d="M22 104 L60 66 L98 104" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
-                      <path d="M22 68 L60 30 L98 68" stroke={arrived ? color.success.main : NAV_BLUE} strokeWidth="16" />
-                      <path d="M22 140 L60 102 L98 140" stroke="#FFFFFF" strokeWidth="8" />
-                      <path d="M22 104 L60 66 L98 104" stroke="#FFFFFF" strokeWidth="8" />
-                      <path d="M22 68 L60 30 L98 68" stroke="#FFFFFF" strokeWidth="8" />
-                    </g>
-                  </svg>
+                    <svg
+                      width="132"
+                      height="150"
+                      viewBox="0 0 100 116"
+                      fill="none"
+                      style={{ overflow: "visible", display: "block" }}
+                    >
+                      <defs>
+                        <filter id="kiz-nav-glow" x="-80%" y="-80%" width="260%" height="260%">
+                          <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="#000" floodOpacity="0.4" />
+                        </filter>
+                        {/* Top-lit face: light at the tip, deeper at the base — the
+                            single biggest cue that sells volume over a flat icon. */}
+                        <linearGradient id="kiz-arrow-face" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={arrived ? "#6FDB9A" : "#5B9CFB"} />
+                          <stop offset="55%" stopColor={arrived ? color.success.main : NAV_BLUE} />
+                          <stop offset="100%" stopColor={arrived ? "#1E8E5A" : "#0B4EA8"} />
+                        </linearGradient>
+                        {/* Left half in shadow, right half lit — the second cue,
+                            simulating a shaded flank without full 3D geometry. */}
+                        <linearGradient id="kiz-arrow-shadow-side" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#000000" stopOpacity="0.32" />
+                          <stop offset="45%" stopColor="#000000" stopOpacity="0" />
+                        </linearGradient>
+                        <clipPath id="kiz-arrow-clip">
+                          <path d="M50 4 L92 108 L50 84 L8 108 Z" />
+                        </clipPath>
+                      </defs>
+                      <g filter="url(#kiz-nav-glow)">
+                        <path d="M50 4 L92 108 L50 84 L8 108 Z" fill="url(#kiz-arrow-face)" />
+                        <rect x="0" y="0" width="50" height="116" fill="url(#kiz-arrow-shadow-side)" clipPath="url(#kiz-arrow-clip)" />
+                        {/* Glossy highlight streak near the nose, like a lit edge. */}
+                        <path d="M50 4 L68 62 L50 52 Z" fill="#FFFFFF" opacity="0.35" />
+                        <path
+                          d="M50 4 L92 108 L50 84 L8 108 Z"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.55)"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                        />
+                      </g>
+                    </svg>
+                  </Box>
                 </Box>
 
                 {/* Ground shadow — anchors the arrow to the floor ahead. */}
                 <Box
                   sx={{
-                    width: 92,
-                    height: 16,
+                    width: 80,
+                    height: 14,
                     borderRadius: "50%",
                     backgroundColor: "rgba(0,0,0,0.38)",
                     filter: "blur(4px)",
-                    mt: -1,
+                    mt: -0.5,
                   }}
                 />
-              </Box>
-
-              <Box
-                sx={{
-                  mt: 1.25,
-                  px: 1.75,
-                  py: 0.625,
-                  borderRadius: 999,
-                  backgroundColor: "rgba(0,0,0,0.62)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  color: "#fff",
-                  fontSize: 15,
-                  fontWeight: 650,
-                  fontFamily: font.mono,
-                  letterSpacing: "-0.01em",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {live?.label ?? "—"}
-                {live && (
-                  <Box
-                    component="span"
-                    sx={{
-                      color: "rgba(255,255,255,0.72)",
-                      fontFamily: font.body,
-                      fontWeight: 500,
-                      marginLeft: 0.625,
-                    }}
-                  >
-                    · {arrived ? "arrived" : walkMins(live.meters)}
-                  </Box>
-                )}
               </Box>
             </Box>
           </Box>
 
-          {/* Bottom hint */}
+          {/* Radar mini-map — where you are vs. where you're headed. */}
+          {selected && (
+            <ArMiniMap
+              key={selected.id}
+              position={position}
+              destination={{ lat: selected.latitude, lng: selected.longitude }}
+              heading={headingDisplay}
+            />
+          )}
+
+          {/* First-run coach mark — explains what the arrow means before the
+              user has to guess (the original "confusing" feedback). */}
+          {showArrowCoach && (
+            <Box
+              component="button"
+              type="button"
+              onClick={dismissArrowCoach}
+              sx={{
+                position: "absolute",
+                top: "34%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                pointerEvents: "auto",
+                maxWidth: "78%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 0.75,
+                px: 2,
+                py: 1.5,
+                borderRadius: `${radius.card}px`,
+                backgroundColor: "rgba(0,0,0,0.72)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                color: "#fff",
+                textAlign: "center",
+                border: "1px solid rgba(255,255,255,0.18)",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <KIcon icon="explore" size={22} sx={{ color: NAV_BLUE }} />
+              <Box sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
+                This arrow points toward your destination. Rotate your phone to follow it.
+              </Box>
+              <Box sx={{ fontSize: 11, opacity: 0.7 }}>Tap to dismiss</Box>
+            </Box>
+          )}
+
+          {/* Bottom bar — one consolidated instruction (turn hint, distance,
+              walk time, low-accuracy note) instead of three separate floating
+              pieces stacked under the arrow. Google's own AR Live View does
+              the same: a single bottom bar, nothing else cluttering the
+              screen. Removing that clutter is also what makes the mini-map's
+              corner spot below actually free. */}
           <Box
             sx={{
               position: "absolute",
@@ -606,18 +1063,35 @@ export function ArNavigator({ destinations }: Props) {
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 0.75,
-                px: 1.5,
-                py: 0.625,
-                borderRadius: 999,
-                backgroundColor: "rgba(0,0,0,0.55)",
-                color: "rgba(255,255,255,0.9)",
-                fontSize: 12.5,
-                fontWeight: 550,
+                gap: 1.25,
+                px: 2,
+                py: 1.25,
+                borderRadius: `${radius.cardLg}px`,
+                backgroundColor: "rgba(0,0,0,0.65)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                color: "#fff",
+                maxWidth: "92%",
               }}
             >
-              <KIcon icon={arrived ? "celebration" : "near_me"} size={15} />
-              {arrived ? "You've arrived" : hint}
+              <KIcon icon={arrived ? "celebration" : "near_me"} size={22} />
+              <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.625, fontFamily: font.mono }}>
+                  <Box component="span" sx={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>
+                    {live?.lowAccuracy ? "~" : ""}
+                    {live?.label ?? "—"}
+                  </Box>
+                  {live && (
+                    <Box component="span" sx={{ fontSize: 13, fontWeight: 500, fontFamily: font.body, color: "rgba(255,255,255,0.72)" }}>
+                      {arrived ? "arrived" : walkMins(live.meters)}
+                    </Box>
+                  )}
+                </Box>
+                <Box sx={{ fontSize: 12.5, fontWeight: 550, color: "rgba(255,255,255,0.9)", mt: 0.25 }}>
+                  {arrived ? "You've arrived" : hint}
+                  {live?.lowAccuracy && !arrived ? " · GPS signal is weak" : ""}
+                </Box>
+              </Box>
             </Box>
           </Box>
         </Box>
@@ -666,8 +1140,35 @@ export function ArNavigator({ destinations }: Props) {
             </Box>
           </Box>
 
-          {camStatus === "on" && !compassReady && (
-            <Box sx={{ p: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+          {/* Action row — both ways to actually get moving (camera view and
+              Google Maps) live together here, pinned above the destination
+              list, so neither one needs scrolling past 20+ pins to reach. */}
+          <Box
+            sx={{
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 1,
+              p: { xs: 1.5, sm: 2 },
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              backgroundColor: "background.paper",
+            }}
+          >
+            {camError && camStatus !== "on" && (
+              <Button
+                variant="outlined"
+                onClick={() => setCameraRetryKey((k) => k + 1)}
+                disabled={camStatus === "waiting"}
+                startIcon={<KIcon icon="refresh" size={17} />}
+              >
+                {camStatus === "waiting" ? "Asking…" : "Try camera again"}
+              </Button>
+            )}
+
+            {camStatus === "on" && !compassReady && (
               <Button
                 variant="contained"
                 onClick={() => void requestCompass()}
@@ -676,11 +1177,9 @@ export function ArNavigator({ destinations }: Props) {
               >
                 {compass === "waiting" ? "Asking…" : "Enable compass"}
               </Button>
-            </Box>
-          )}
+            )}
 
-          {cameraOn && compassReady && !arView && (
-            <Box sx={{ p: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+            {cameraOn && compassReady && !arView && (
               <Button
                 variant="contained"
                 onClick={() => setArView(true)}
@@ -688,11 +1187,43 @@ export function ArNavigator({ destinations }: Props) {
               >
                 Open camera view
               </Button>
+            )}
+
+            {selected && (
+              <Button
+                component="a"
+                href={mapsDirectionsUrl(selected.latitude, selected.longitude)}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+                startIcon={<KIcon icon="map" size={17} />}
+              >
+                Get directions in Google Maps
+              </Button>
+            )}
+          </Box>
+
+          {camStatus === "off" && camError && (
+            <Box sx={{ px: { xs: 2, sm: 2.5 }, pt: 1.5 }}>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                If trying again does not help, camera access may be blocked for this site in your
+                browser settings, not just this page. Check there and reload.
+              </Typography>
             </Box>
           )}
 
+          <Box sx={{ px: { xs: 2, sm: 2.5 }, pt: 2 }}>
+            <ArFilterChips
+              typeFilter={typeFilter}
+              onTypeFilter={setTypeFilter}
+              sortNearest={sortNearest}
+              onToggleSort={() => setSortNearest((v) => !v)}
+              positionAvailable={Boolean(position)}
+            />
+          </Box>
+
           <ListGroup>
-            {destinations.map((d) => {
+            {visibleDestinations.map((d) => {
               const dist = position
                 ? haversineMeters(
                     { latitude: position.lat, longitude: position.lng },
@@ -739,21 +1270,6 @@ export function ArNavigator({ destinations }: Props) {
               )
             })}
           </ListGroup>
-
-          {selected && (
-            <Box sx={{ p: 2, borderTop: "1px solid", borderColor: "divider", display: "flex", justifyContent: "flex-end" }}>
-              <Button
-                component="a"
-                href={mapsDirectionsUrl(selected.latitude, selected.longitude)}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="contained"
-                startIcon={<KIcon icon="directions" size={17} />}
-              >
-                Directions to {selected.name}
-              </Button>
-            </Box>
-          )}
         </Box>
       )}
 
@@ -780,8 +1296,15 @@ export function ArNavigator({ destinations }: Props) {
           <Typography variant="h3" sx={{ mb: 1.25, px: 0.5 }}>
             Choose a destination
           </Typography>
+          <ArFilterChips
+            typeFilter={typeFilter}
+            onTypeFilter={setTypeFilter}
+            sortNearest={sortNearest}
+            onToggleSort={() => setSortNearest((v) => !v)}
+            positionAvailable={Boolean(position)}
+          />
           <ListGroup>
-            {destinations.map((d) => {
+            {visibleDestinations.map((d) => {
               const dist = position
                 ? haversineMeters(
                     { latitude: position.lat, longitude: position.lng },

@@ -183,11 +183,16 @@ async function main() {
   console.log("Offices seeded")
 
   // ── AR Directory destinations ─────────────────────────────────────────────
-  // GPS pins the AR arrow navigates to. Coordinates are spread across the real
-  // KIZ footprint (centre ≈ 2.92972, 101.78397) as first-pass estimates —
-  // fine-tune each pin in `urus-direktori` (right-click → "What's here?" in
-  // Google Maps) for production. The admin building is one elongated floor, so
-  // its rooms each carry their own pin and are flagged `indoor`.
+  // GPS pins the AR arrow navigates to. Coordinates marked `verified: true`
+  // below were read directly off real, named Google Maps pins on 2026-09-16
+  // (long-press → coordinates) — they are ground truth, not estimates. The
+  // real K18/K19 layout turned out to run **west (K18) / east (K19)** along
+  // the compound's loop road — the opposite of an earlier hand-placed guess
+  // that had briefly been trusted without actual confirmation (it put K18A/B
+  // on the east side, which real data now shows was off by ~300m). Anything
+  // still `verified: false` is an interpolated or
+  // spacing-based placeholder pending the same real-pin treatment — fine-tune
+  // in `urus-direktori` (right-click → "What's here?" in Google Maps).
   const iconForType: Record<string, string> = {
     block: "apartment",
     facility: "meeting_room",
@@ -203,32 +208,134 @@ async function main() {
     {
       name: "Blok K18A",
       type: "block" as const,
-      latitude: 2.93055,
-      longitude: 101.7843,
+      latitude: 2.9290179773597877,
+      longitude: 101.78202940579015,
       indoor: false,
       building: null,
       description: "Residence block",
       sortOrder: 1,
+      verified: true,
     },
     {
       name: "Blok K18B",
       type: "block" as const,
-      latitude: 2.9307,
-      longitude: 101.78355,
+      // Not yet confirmed with a real pin — interpolated between the
+      // confirmed K18A and K18C positions (was previously guessed on the
+      // wrong side of the compound entirely; this is a better placeholder,
+      // still not ground truth).
+      latitude: 2.9296562,
+      longitude: 101.782139,
       indoor: false,
       building: null,
       description: "Residence block",
       sortOrder: 2,
+      verified: false,
+    },
+    {
+      name: "Blok K18C",
+      type: "block" as const,
+      latitude: 2.9302943795611496,
+      longitude: 101.78224883968008,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 3,
+      verified: true,
+    },
+    {
+      name: "Blok K18D",
+      type: "block" as const,
+      latitude: 2.9304996350776475,
+      longitude: 101.7827244644805,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 4,
+      verified: true,
+    },
+    {
+      name: "Blok K19A",
+      type: "block" as const,
+      latitude: 2.9290695424304887,
+      longitude: 101.78440198300864,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 5,
+      verified: true,
+    },
+    {
+      name: "Blok K19B",
+      type: "block" as const,
+      latitude: 2.9298122131091007,
+      longitude: 101.78416058419532,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 6,
+      verified: true,
+    },
+    {
+      name: "Blok K19C",
+      type: "block" as const,
+      latitude: 2.9295681162630314,
+      longitude: 101.78362317005381,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 7,
+      verified: true,
+    },
+    {
+      name: "Blok K19D",
+      type: "block" as const,
+      // Not yet confirmed — the real K19A/B/C pins don't fall on a simple
+      // line, so this is only a rough placement inside the known K19
+      // cluster, not an interpolation like K18B above.
+      latitude: 2.9294,
+      longitude: 101.783,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 8,
+      verified: false,
+    },
+    {
+      name: "Blok K20A",
+      type: "block" as const,
+      // New block not previously tracked by the app at all — added from a
+      // real Google Maps pin. Confirm whether it should also exist as a
+      // `ResidenceBlock` for room allocation (separate from AR Directory).
+      latitude: 2.9290112805963364,
+      longitude: 101.78385078908265,
+      indoor: false,
+      building: null,
+      description: "Residence block",
+      sortOrder: 9,
+      verified: true,
+    },
+    {
+      name: "KIZ Student Premier Housing",
+      type: "block" as const,
+      latitude: 2.9294398733165177,
+      longitude: 101.78200006479473,
+      indoor: true,
+      building: null,
+      description: "Premium student housing",
+      sortOrder: 10,
+      verified: true,
     },
     {
       name: "Dewan Sutera",
       type: "hall" as const,
-      latitude: 2.92962,
-      longitude: 101.78378,
+      // Real pin is "Sutera Banquet Hall, Kolej Ibu Zain" — same place.
+      latitude: 2.930287347972209,
+      longitude: 101.78421121088282,
       indoor: true,
-      building: "Bangunan Pentadbiran",
+      building: null,
       description: "Main college hall — assembly, events, exams",
-      sortOrder: 3,
+      sortOrder: 11,
+      verified: true,
     },
     {
       name: "Bilik Seminar",
@@ -238,7 +345,8 @@ async function main() {
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "Seminar room",
-      sortOrder: 4,
+      sortOrder: 12,
+      verified: false,
     },
     {
       name: "Meeting Room",
@@ -248,7 +356,8 @@ async function main() {
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "KIZ main meeting room",
-      sortOrder: 5,
+      sortOrder: 13,
+      verified: false,
     },
     {
       name: "Pejabat Pentadbiran KIZ",
@@ -258,7 +367,8 @@ async function main() {
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "College administration — registration, resident matters, forms",
-      sortOrder: 6,
+      sortOrder: 14,
+      verified: false,
     },
     {
       name: "Pejabat UKM Real Estate",
@@ -268,7 +378,109 @@ async function main() {
       indoor: true,
       building: "Bangunan Pentadbiran",
       description: "Property, facility and building management matters",
-      sortOrder: 7,
+      sortOrder: 15,
+      verified: false,
+    },
+    {
+      name: "Cafeteria",
+      type: "facility" as const,
+      latitude: 2.9299,
+      longitude: 101.784,
+      indoor: false,
+      building: null,
+      description: "College cafeteria",
+      sortOrder: 16,
+      verified: false,
+    },
+    {
+      name: "Surau",
+      type: "facility" as const,
+      // Real pin is "Surau Kolej Ibu Zain".
+      latitude: 2.930657678453316,
+      longitude: 101.78370552510506,
+      indoor: true,
+      building: null,
+      description: "Shared prayer space",
+      sortOrder: 17,
+      verified: true,
+    },
+    {
+      name: "Laundry Room",
+      type: "facility" as const,
+      // Real pin is "Simple Laundry" — same location.
+      latitude: 2.9305887018993033,
+      longitude: 101.78408648816318,
+      indoor: false,
+      building: null,
+      description: "Self-service washing and drying (Simple Laundry)",
+      sortOrder: 18,
+      verified: true,
+    },
+    {
+      name: "Dapur Siswa",
+      type: "facility" as const,
+      latitude: 2.92985,
+      longitude: 101.7837,
+      indoor: true,
+      building: "Blok A",
+      description: "Shared cooking space",
+      sortOrder: 19,
+      verified: false,
+    },
+    {
+      name: "Futsal Court",
+      type: "facility" as const,
+      latitude: 2.9302,
+      longitude: 101.7825,
+      indoor: false,
+      building: null,
+      description: "Outdoor futsal and recreation court",
+      sortOrder: 20,
+      verified: false,
+    },
+    {
+      name: "Sick Bay",
+      type: "facility" as const,
+      latitude: 2.92935,
+      longitude: 101.7833,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "Rest and basic assistance for residents",
+      sortOrder: 21,
+      verified: false,
+    },
+    {
+      name: "Parcel Locker",
+      type: "facility" as const,
+      latitude: 2.9293,
+      longitude: 101.7834,
+      indoor: true,
+      building: "Bangunan Pentadbiran",
+      description: "Self-service parcel collection",
+      sortOrder: 22,
+      verified: false,
+    },
+    {
+      name: "Plaza Majlis Eksekutif Pelajar",
+      type: "facility" as const,
+      latitude: 2.9307132614989753,
+      longitude: 101.78323854959933,
+      indoor: true,
+      building: null,
+      description: "Student executive council plaza",
+      sortOrder: 23,
+      verified: true,
+    },
+    {
+      name: "Panas Express Kolej Ibu Zain",
+      type: "facility" as const,
+      latitude: 2.9306878138399277,
+      longitude: 101.78392823782659,
+      indoor: true,
+      building: null,
+      description: "Food and drinks kiosk",
+      sortOrder: 24,
+      verified: true,
     },
   ]
 
@@ -287,6 +499,10 @@ async function main() {
         sortOrder: d.sortOrder,
         icon: iconForType[d.type] ?? "place",
         deletedAt: null,
+        // Like every other field here, `verified` is fully synced from this
+        // list on every seed run — this script is the code-defined source of
+        // truth for demo/dev data, not a one-way bootstrap.
+        verified: d.verified,
       },
       create: {
         id: destId,
@@ -299,6 +515,7 @@ async function main() {
         description: d.description,
         sortOrder: d.sortOrder,
         icon: iconForType[d.type] ?? "place",
+        verified: d.verified,
       },
     })
   }

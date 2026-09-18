@@ -313,6 +313,10 @@ model Destination {
   indoor      Boolean         @default(false) @map("indoor")
   building    String?
   description String?
+  /// Has this pin's lat/lng been confirmed on a real device or against
+  /// Google Maps? Defaults to false so estimated/seeded pins are visibly
+  /// flagged for the admin to double-check before students rely on them.
+  verified    Boolean         @default(false) @map("verified")
   sortOrder   Int             @default(0) @map("sort_order")
   createdAt   DateTime        @default(now()) @map("created_at")
   updatedAt   DateTime        @updatedAt @map("updated_at")
