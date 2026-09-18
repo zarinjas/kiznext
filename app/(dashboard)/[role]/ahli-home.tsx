@@ -10,7 +10,8 @@ import { Bento, BentoItem } from "@/components/kiz/patterns/bento"
 import { AvatarPicker } from "@/components/shared/avatar-picker"
 import { HomeWidgets } from "@/components/shared/home/home-widgets"
 import { color, font, radius, gradient } from "@/lib/theme"
-import type { HomeTodo, ResidentHomeData } from "@/lib/dashboard"
+import { announcementTagMeta } from "@/lib/announcement-meta"
+import type { HomeTodo, PinnedAnnouncementView, ResidentHomeData } from "@/lib/dashboard"
 
 /**
  * Member home (students + staff) — the resident-style dashboard.
@@ -223,6 +224,25 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
           </Box>
         </BentoItem>
 
+        {/* ── Pinned announcements ────────────────────────────────────────── */}
+        {data.pinnedAnnouncements.length > 0 && (
+          <BentoItem span={12} spanXs={2} delay={0.03}>
+            <Box>
+              <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, mb: 1.25 }}>
+                <KIcon icon="push_pin" size={18} filled sx={{ color: color.brand[600] }} />
+                <Typography sx={{ fontWeight: 640, letterSpacing: "-0.018em", fontSize: { xs: 15.5, sm: 17 } }}>
+                  Pinned announcements
+                </Typography>
+              </Box>
+              <Box sx={{ display: "grid", gap: 1.5 }}>
+                {data.pinnedAnnouncements.map((a) => (
+                  <PinnedAnnouncementCard key={a.id} announcement={a} role={role} />
+                ))}
+              </Box>
+            </Box>
+          </BentoItem>
+        )}
+
         {/* ── Things to Do ────────────────────────────────────────────────── */}
         <BentoItem span={posterUrl ? 8 : 12} spanXs={2} delay={0.05}>
           <Box
@@ -372,6 +392,129 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
           </BentoItem>
         )}
       </Bento>
+    </Box>
+  )
+}
+
+function PinnedAnnouncementCard({
+  announcement: a,
+  role,
+}: {
+  announcement: PinnedAnnouncementView
+  role: "ahli" | "staf" | "fellow"
+}) {
+  const meta = announcementTagMeta(a.tag)
+  const hasImage = a.attachmentType === "image" && Boolean(a.attachmentUrl)
+
+  return (
+    <Box
+      component={Link}
+      href={`/${role}/pengumuman`}
+      sx={{
+        display: "flex",
+        flexDirection: { xs: hasImage ? "column" : "row", sm: "row" },
+        alignItems: "stretch",
+        overflow: "hidden",
+        borderRadius: `${radius.cardLg}px`,
+        border: "1px solid",
+        borderColor: "divider",
+        backgroundColor: "background.paper",
+        textDecoration: "none",
+        color: "inherit",
+        WebkitTapHighlightColor: "transparent",
+        transition: "border-color 160ms ease, transform 160ms ease",
+        "@media (hover: hover)": {
+          "&:hover": { borderColor: color.brand[300], transform: "translateY(-1px)" },
+        },
+        "&:active": { opacity: 0.94 },
+      }}
+    >
+      {hasImage && (
+        <Box
+          component="img"
+          src={a.attachmentUrl!}
+          alt=""
+          sx={{
+            display: "block",
+            width: { xs: "100%", sm: 220 },
+            height: { xs: 180, sm: "auto" },
+            minHeight: { sm: 150 },
+            objectFit: "cover",
+            flexShrink: 0,
+            borderRight: { xs: 0, sm: "1px solid" },
+            borderBottom: { xs: "1px solid", sm: 0 },
+            borderColor: "divider",
+          }}
+        />
+      )}
+
+      <Box
+        sx={{
+          minWidth: 0,
+          flex: 1,
+          p: { xs: 2, sm: 2.25 },
+          display: "flex",
+          flexDirection: "column",
+          gap: 0.75,
+          justifyContent: "center",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+          <Box
+            component="span"
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.375,
+              textTransform: "capitalize",
+              fontSize: 11,
+              fontWeight: 650,
+              px: 1,
+              py: 0.375,
+              borderRadius: 999,
+              backgroundColor: meta.tone.soft,
+              color: meta.tone.ink,
+            }}
+          >
+            <KIcon icon={meta.icon} size={12} />
+            {meta.label}
+          </Box>
+          <Typography variant="caption" sx={{ color: "text.disabled" }}>
+            {a.when}
+          </Typography>
+        </Box>
+
+        <Typography
+          sx={{
+            fontWeight: 640,
+            fontSize: { xs: 15.5, sm: 17 },
+            lineHeight: 1.3,
+            letterSpacing: "-0.02em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+          }}
+        >
+          {a.title}
+        </Typography>
+
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            lineHeight: 1.55,
+            fontSize: 13.5,
+            display: "-webkit-box",
+            WebkitLineClamp: hasImage ? 2 : 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {a.content}
+        </Typography>
+      </Box>
     </Box>
   )
 }

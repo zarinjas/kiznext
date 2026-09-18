@@ -13,6 +13,8 @@ export function KIcon({
   filled = false,
   weight = 500,
   sx,
+  className,
+  style,
   ...rest
 }: {
   icon: string
@@ -26,12 +28,13 @@ export function KIcon({
     <span
       role="presentation"
       aria-hidden="true"
-      className={`material-symbols-rounded${filled ? " filled" : ""}`}
+      className={`material-symbols-rounded${filled ? " filled" : ""}${className ? ` ${className}` : ""}`}
       style={{
         fontSize: size,
         color: c === "inherit" ? "inherit" : c,
         fontVariationSettings: `"FILL" ${filled ? 1 : 0}, "wght" ${weight}, "GRAD" 0, "opsz" 24`,
         ...sx,
+        ...style,
       }}
       {...rest}
     >

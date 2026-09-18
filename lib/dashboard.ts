@@ -37,6 +37,16 @@ export interface ImportantNoticeView {
   when: string
 }
 
+export interface PinnedAnnouncementView {
+  id: string
+  title: string
+  content: string
+  tag: string
+  attachmentUrl: string | null
+  attachmentType: string | null
+  when: string
+}
+
 export interface EventView {
   id: string
   title: string
@@ -85,6 +95,8 @@ export interface ResidentHomeData {
   doneCount: number
   /** Check-in / check-out status for the current session (students only). */
   checkInStatus: CheckInStatusValue | null
+  /** Active pinned announcements surfaced at the top of the member home. */
+  pinnedAnnouncements: PinnedAnnouncementView[]
   importantNotice: ImportantNoticeView | null
   nextEvents: EventView[]
   helpdesk: HelpdeskSummaryView | null
@@ -161,9 +173,18 @@ export async function getResidentHomeData(input: {
   }
 
   // ── Acknowledgement target (also feeds the Important Notice widget) ──────
-  const [targetAnnouncement, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail] =
+  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail] =
     await Promise.all([
       getAcknowledgmentTarget(),
+      prisma.announcement.findMany({
+        where: {
+          deletedAt: null,
+          isPinned: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      }),
       prisma.announcementAcknowledgment.findMany({
         where: { userId, deletedAt: null },
         select: { announcementId: true },
@@ -252,6 +273,16 @@ export async function getResidentHomeData(input: {
   })
 
   // ── Widgets ──────────────────────────────────────────────────────────────
+  const pinnedAnnouncementViews: PinnedAnnouncementView[] = pinnedAnnouncements.map((a) => ({
+    id: a.id,
+    title: a.title,
+    content: a.content,
+    tag: a.tag,
+    attachmentUrl: a.attachmentUrl,
+    attachmentType: a.attachmentType,
+    when: dateLabel(a.createdAt),
+  }))
+
   const importantNotice: ImportantNoticeView | null = targetAnnouncement
     ? {
         id: targetAnnouncement.id,
@@ -314,6 +345,7 @@ export async function getResidentHomeData(input: {
     todos,
     doneCount: todos.filter((t) => t.done).length,
     checkInStatus,
+    pinnedAnnouncements: pinnedAnnouncementViews,
     importantNotice,
     nextEvents: nextEventViews,
     helpdesk,

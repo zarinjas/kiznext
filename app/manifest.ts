@@ -9,8 +9,8 @@ import { color } from "@/lib/theme"
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "KIZ Super App",
-    short_name: "KIZ",
+    name: "MyKIZ",
+    short_name: "MyKIZ",
     description:
       "Platform digital bersepadu Kolej Ibu Zain (KIZ), UKM — pengumuman, tempahan kemudahan & guest house, helpdesk, chat komuniti, bungkusan dan barang tercicir.",
     id: "/",

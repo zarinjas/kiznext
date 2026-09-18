@@ -119,7 +119,7 @@ export function PwaInstallPrompt() {
           >
             <Box
               role="dialog"
-              aria-label="Install the KIZ app"
+              aria-label="Install the MyKIZ app"
               sx={{
                 pointerEvents: "auto",
                 width: "100%",
@@ -145,7 +145,7 @@ export function PwaInstallPrompt() {
 
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography sx={{ fontWeight: 600, fontSize: 14, letterSpacing: "-0.01em" }}>
-                  Install KIZ app
+                  Install MyKIZ apps
                 </Typography>
                 <Typography sx={{ color: "text.secondary", fontSize: 12.5, mt: 0.25 }}>
                   Add to your home screen for one-tap access.
@@ -170,7 +170,7 @@ export function PwaInstallPrompt() {
           setIosDialogOpen(false)
           dismiss()
         }}
-        title="Add KIZ to Home Screen"
+        title="Add MyKIZ to Home Screen"
         icon="add_to_home_screen"
         maxWidth="xs"
         actions={

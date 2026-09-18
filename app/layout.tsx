@@ -65,7 +65,7 @@ export const metadata: Metadata = {
   // normal status bar so the app doesn't overlap the notch.
   appleWebApp: {
     capable: true,
-    title: "KIZ",
+    title: "MyKIZ",
     statusBarStyle: "default",
   },
 }
