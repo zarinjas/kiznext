@@ -25,6 +25,7 @@ import { Bento, BentoItem, MetricTile } from "@/components/kiz/patterns/bento"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { color, radius } from "@/lib/theme"
 import { formatMalaysia } from "@/lib/timezone"
+import { bedLabel, parseRoomNumber, roomCodeShort } from "@/lib/bilik-format"
 import { toCsv } from "@/lib/csv"
 import { buildXlsx } from "@/lib/xlsx"
 import {
@@ -70,11 +71,24 @@ interface RecordRow {
   signedAt: string
 }
 
+/** One student on the active intake roster (may or may not have signed yet). */
+interface RosterEntry {
+  matricId: string
+  name: string
+  blockName: string | null
+  roomNumber: string | null
+  bedPosition: string | null
+  roomLabel: string | null
+}
+
 /** One student, with their check-in and (later) check-out merged onto one row. */
 interface ConsolidatedRow {
   id: string
   matricId: string
   name: string
+  blockName: string
+  roomNumber: string
+  bedPosition: string | null
   roomLabel: string | null
   checkInAt: string | null
   checkOutAt: string | null
@@ -84,43 +98,101 @@ interface ConsolidatedRow {
   checkOutSignatureUrl: string | null
   checkInManual: boolean
   checkOutManual: boolean
+  /** False when the student is on the roster but has not signed any session. */
+  hasRecord: boolean
   /** Session ids the student appears in (for the session filter). */
   sessionIds: string[]
 }
 
+const UNASSIGNED = "Unassigned"
+
+/** Sort block names A→Z, but always push "Unassigned" to the end. */
+function blockCompare(a: string, b: string): number {
+  if (a === b) return 0
+  if (a === UNASSIGNED) return 1
+  if (b === UNASSIGNED) return -1
+  return a.localeCompare(b)
+}
+
+/** Numeric key for a room within its block (101 → 101, 1001 → 1001). */
+function roomSortValue(row: ConsolidatedRow): number {
+  const parsed = parseRoomNumber(row.blockName === UNASSIGNED ? null : row.blockName, row.roomNumber || row.roomLabel)
+  if (!parsed) return Number.MAX_SAFE_INTEGER
+  return parsed.floor * 100 + Number(parsed.room)
+}
+
+function bedOrder(position: string | null): number {
+  if (position === "right") return 1
+  return 0
+}
+
+/** Block A→Z, then room number small→big, then bed A/B, then name. */
+function compareRows(a: ConsolidatedRow, b: ConsolidatedRow): number {
+  const byBlock = blockCompare(a.blockName, b.blockName)
+  if (byBlock !== 0) return byBlock
+  const ra = roomSortValue(a)
+  const rb = roomSortValue(b)
+  if (ra !== rb) return ra - rb
+  const ba = bedOrder(a.bedPosition)
+  const bb = bedOrder(b.bedPosition)
+  if (ba !== bb) return ba - bb
+  return a.name.localeCompare(b.name)
+}
+
+function emptyRow(key: string, matricId: string, name: string): ConsolidatedRow {
+  return {
+    id: key,
+    matricId,
+    name,
+    blockName: UNASSIGNED,
+    roomNumber: "",
+    bedPosition: null,
+    roomLabel: null,
+    checkInAt: null,
+    checkOutAt: null,
+    checkInSession: null,
+    checkOutSession: null,
+    checkInSignatureUrl: null,
+    checkOutSignatureUrl: null,
+    checkInManual: false,
+    checkOutManual: false,
+    hasRecord: false,
+    sessionIds: [],
+  }
+}
+
 /**
- * Merge per-record check-in / check-out rows into one row per student. A
- * student who has only checked in gets an empty check-out — that's expected
- * until the move-out session runs.
+ * Merge the active-intake roster with the signed records into one row per
+ * student. Every roster student appears even with no record (blanks); a record
+ * holder who is no longer on the roster is kept too so the file stays complete.
  */
-function consolidate(records: RecordRow[]): ConsolidatedRow[] {
+function consolidate(roster: RosterEntry[], records: RecordRow[]): ConsolidatedRow[] {
   const map = new Map<string, ConsolidatedRow>()
+
+  for (const s of roster) {
+    const key = s.matricId.toUpperCase()
+    if (map.has(key)) continue
+    map.set(key, {
+      ...emptyRow(key, s.matricId, s.name),
+      blockName: s.blockName ?? UNASSIGNED,
+      roomNumber: s.roomNumber ?? "",
+      bedPosition: s.bedPosition,
+      roomLabel: s.roomLabel,
+    })
+  }
+
   for (const r of records) {
     const key = r.matricId.toUpperCase()
     let row = map.get(key)
     if (!row) {
-      row = {
-        id: key,
-        matricId: r.matricId,
-        name: r.name,
-        roomLabel: r.roomLabel,
-        checkInAt: null,
-        checkOutAt: null,
-        checkInSession: null,
-        checkOutSession: null,
-        checkInSignatureUrl: null,
-        checkOutSignatureUrl: null,
-        checkInManual: false,
-        checkOutManual: false,
-        sessionIds: [],
-      }
+      row = { ...emptyRow(key, r.matricId, r.name), blockName: blockOf(r.roomLabel), roomNumber: r.roomLabel ?? "", roomLabel: r.roomLabel }
       map.set(key, row)
     }
+    row.hasRecord = true
     if (!row.sessionIds.includes(r.sessionId)) row.sessionIds.push(r.sessionId)
     if (r.name) row.name = r.name
+    if (r.roomLabel && !row.roomLabel) row.roomLabel = r.roomLabel
     if (r.type === "check_in") {
-      // Prefer the check-in record's room snapshot, and the latest time.
-      if (r.roomLabel) row.roomLabel = r.roomLabel
       if (!row.checkInAt || new Date(r.signedAt) > new Date(row.checkInAt)) {
         row.checkInAt = r.signedAt
         row.checkInSession = r.sessionName
@@ -136,7 +208,8 @@ function consolidate(records: RecordRow[]): ConsolidatedRow[] {
       }
     }
   }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+
+  return [...map.values()].sort(compareRows)
 }
 
 const TYPE_META: Record<TypeVal, { label: string; tone: PillTone }> = {
@@ -391,12 +464,14 @@ export function CheckinAdminClient({
   readOnly,
   sessions,
   records,
+  roster,
   logos,
   directionsImageUrl,
 }: {
   readOnly: boolean
   sessions: SessionRow[]
   records: RecordRow[]
+  roster: RosterEntry[]
   logos: PrintLogos
   directionsImageUrl: string | null
 }) {
@@ -440,6 +515,10 @@ export function CheckinAdminClient({
   const [blockFilter, setBlockFilter] = useState<string>("all")
   const [q, setQ] = useState("")
   const [detail, setDetail] = useState<ConsolidatedRow | null>(null)
+
+  // Export dialog — scope by block (all or one) then pick a format.
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportBlock, setExportBlock] = useState<string>("all")
 
   async function onCreate() {
     setCreating(true)
@@ -577,22 +656,22 @@ export function CheckinAdminClient({
     }
   }
 
-  const students = useMemo(() => consolidate(records), [records])
+  const students = useMemo(() => consolidate(roster, records), [roster, records])
 
   const recordCheckInCount = records.filter((r) => r.type === "check_in").length
   const recordCheckOutCount = records.filter((r) => r.type === "check_out").length
 
   const blocks = useMemo(() => {
     const set = new Set<string>()
-    students.forEach((s) => set.add(blockOf(s.roomLabel)))
-    return [...set].sort((a, b) => a.localeCompare(b))
+    students.forEach((s) => set.add(s.blockName))
+    return [...set].sort(blockCompare)
   }, [students])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return students.filter((s) => {
       if (sessionFilter !== "all" && !s.sessionIds.includes(sessionFilter)) return false
-      if (blockFilter !== "all" && blockOf(s.roomLabel) !== blockFilter) return false
+      if (blockFilter !== "all" && s.blockName !== blockFilter) return false
       if (needle) {
         const hay = `${s.matricId} ${s.name} ${s.roomLabel ?? ""}`.toLowerCase()
         if (!hay.includes(needle)) return false
@@ -604,94 +683,138 @@ export function CheckinAdminClient({
   const checkedInCount = filtered.filter((s) => s.checkInAt).length
   const checkedOutCount = filtered.filter((s) => s.checkOutAt).length
 
-  const statusOf = (s: ConsolidatedRow) => (s.checkOutAt ? "Checked out" : "Checked in")
-  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block / Room", "Check-in (KL)", "Check-out (KL)", "Status"]
+  const statusOf = (s: ConsolidatedRow) =>
+    s.checkOutAt ? "Checked out" : s.checkInAt ? "Checked in" : "Not checked in"
+
+  /** Short room label for exports ("101" / "101 (Bed A)"), no block prefix. */
+  function roomDisplay(s: ConsolidatedRow): string {
+    const source = s.roomNumber || s.roomLabel || ""
+    if (!source) return ""
+    const code = roomCodeShort(s.blockName === UNASSIGNED ? null : s.blockName, source)
+    const bed = bedLabel(s.bedPosition)
+    return bed ? `${code} (Bed ${bed})` : code
+  }
+
+  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status"]
   const toRows = (list: ConsolidatedRow[]) =>
     list.map((s, i) => [
       i + 1,
       s.matricId,
       s.name,
-      s.roomLabel ?? "",
+      s.blockName === UNASSIGNED ? "" : s.blockName,
+      roomDisplay(s),
       s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
       s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
       statusOf(s),
     ])
 
+  function openExport() {
+    setExportBlock(blockFilter)
+    setExportOpen(true)
+  }
+
+  /** Rows in scope for the export dialog: all blocks, or one selected block. */
+  function exportScope(): ConsolidatedRow[] {
+    return exportBlock === "all" ? filtered : filtered.filter((s) => s.blockName === exportBlock)
+  }
+
   function onExportExcel() {
     // One sheet per block (plus a summary + "All students") so the office can
     // file each block separately without touching a spreadsheet library.
+    const list = exportScope()
     const byBlock = new Map<string, ConsolidatedRow[]>()
-    for (const s of filtered) {
-      const b = blockOf(s.roomLabel)
-      const list = byBlock.get(b) ?? []
-      list.push(s)
-      byBlock.set(b, list)
+    for (const s of list) {
+      const arr = byBlock.get(s.blockName) ?? []
+      arr.push(s)
+      byBlock.set(s.blockName, arr)
     }
-    const sortedBlocks = [...byBlock.keys()].sort((a, b) => a.localeCompare(b))
+    const sortedBlocks = [...byBlock.keys()].sort(blockCompare)
 
     const summaryRows = sortedBlocks.map((b) => {
-      const list = byBlock.get(b)!
-      return [b, list.length, list.filter((s) => s.checkInAt).length, list.filter((s) => s.checkOutAt).length]
+      const arr = byBlock.get(b)!
+      return [b, arr.length, arr.filter((s) => s.checkInAt).length, arr.filter((s) => s.checkOutAt).length]
     })
-    summaryRows.push(["Total", filtered.length, checkedInCount, checkedOutCount])
+    summaryRows.push(["Total", list.length, list.filter((s) => s.checkInAt).length, list.filter((s) => s.checkOutAt).length])
 
     const sheets = [
       { name: "Summary", headers: ["Block", "Students", "Checked in", "Checked out"], rows: summaryRows },
-      { name: "All students", headers: EXPORT_HEADERS, rows: toRows(filtered) },
+      ...(exportBlock === "all"
+        ? [{ name: "All students", headers: EXPORT_HEADERS, rows: toRows(list) }]
+        : []),
       ...sortedBlocks.map((b) => ({ name: b, headers: EXPORT_HEADERS, rows: toRows(byBlock.get(b)!) })),
     ]
 
-    downloadBlob(buildXlsx(sheets), `check-in-records-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    const label = exportBlock === "all" ? "" : `-${exportBlock}`
+    downloadBlob(buildXlsx(sheets), `check-in-records${label}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    setExportOpen(false)
   }
 
   function onExportCsv() {
-    const rows = filtered.map((s) => ({
+    const list = exportScope()
+    const rows = list.map((s) => ({
       "Matric No.": s.matricId,
       Name: s.name,
-      "Block / Room": s.roomLabel ?? "",
+      Block: s.blockName === UNASSIGNED ? "" : s.blockName,
+      Room: roomDisplay(s),
       "Check-in (KL)": s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
       "Check-out (KL)": s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
       Status: statusOf(s),
     }))
-    const csv = toCsv(["Matric No.", "Name", "Block / Room", "Check-in (KL)", "Check-out (KL)", "Status"], rows)
+    const csv = toCsv(["Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status"], rows)
+    const label = exportBlock === "all" ? "" : `-${exportBlock}`
     downloadBlob(
       new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" }),
-      `check-in-records-${new Date().toISOString().slice(0, 10)}.csv`,
+      `check-in-records${label}-${new Date().toISOString().slice(0, 10)}.csv`,
     )
+    setExportOpen(false)
   }
 
   function onPrintRecords() {
+    const list = exportScope()
     const sigCell = (urls: (string | null)[]) => {
       const imgs = urls.filter(Boolean) as string[]
       if (imgs.length === 0) return "—"
       return imgs.map((u) => `<img src="${escHtml(u)}" alt="signature" />`).join("")
     }
-    const rowsHtml = filtered
+    const rowsHtml = list
       .map(
         (s, i) => `<tr>
           <td>${i + 1}</td>
           <td>${escHtml(s.matricId)}</td>
           <td>${escHtml(s.name)}</td>
-          <td>${escHtml(s.roomLabel ?? "—")}</td>
+          <td>${escHtml(s.blockName === UNASSIGNED ? "—" : s.blockName)}</td>
+          <td>${escHtml(roomDisplay(s) || "—")}</td>
           <td>${s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "—"}</td>
           <td>${s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "—"}</td>
           <td class="sig">${sigCell([s.checkInSignatureUrl, s.checkOutSignatureUrl])}</td>
         </tr>`,
       )
       .join("")
-    const sub = `Fail Pentadbiran${sessionFilter !== "all" ? ` · ${sessions.find((s) => s.id === sessionFilter)?.name ?? ""}` : ""}${blockFilter !== "all" ? ` · ${blockFilter}` : ""}`
+    const sub = `Fail Pentadbiran${sessionFilter !== "all" ? ` · ${sessions.find((s) => s.id === sessionFilter)?.name ?? ""}` : ""}${exportBlock !== "all" ? ` · ${exportBlock}` : ""}`
     printHtml(
       "Check-in / Check-out Records",
       `${docHeader(logos, "Check-in / Check-out Records", sub)}
-       <div class="muted">Generated ${formatMalaysia(new Date())} · Malaysia time (UTC+8) · ${filtered.length} student(s)</div>
-       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block / Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="7">No records.</td></tr>`}</tbody></table>`,
+       <div class="muted">Generated ${formatMalaysia(new Date())} · Malaysia time (UTC+8) · ${list.length} student(s)</div>
+       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block</th><th>Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="8">No students.</td></tr>`}</tbody></table>`,
     )
+    setExportOpen(false)
   }
 
   const columns: GridColDef[] = [
     { field: "matricId", headerName: "Matric", width: 120 },
     { field: "name", headerName: "Name", width: 210 },
-    { field: "roomLabel", headerName: "Block / Room", width: 160, valueFormatter: (v) => v ?? "—" },
+    {
+      field: "blockName",
+      headerName: "Block",
+      width: 100,
+      valueFormatter: (v) => (v === UNASSIGNED ? "—" : v),
+    },
+    {
+      field: "room",
+      headerName: "Room",
+      width: 150,
+      valueGetter: (_v, row) => roomDisplay(row as ConsolidatedRow) || "—",
+    },
     {
       field: "checkInAt",
       headerName: "Check-in (KL)",
@@ -707,13 +830,15 @@ export function CheckinAdminClient({
     {
       field: "status",
       headerName: "Status",
-      width: 120,
-      valueGetter: (_value, row) => (row.checkOutAt ? "Checked out" : "Checked in"),
+      width: 140,
+      valueGetter: (_value, row) => statusOf(row as ConsolidatedRow),
       renderCell: (p) =>
         p.row.checkOutAt ? (
           <Pill tone="neutral">Checked out</Pill>
-        ) : (
+        ) : p.row.checkInAt ? (
           <Pill tone="success">Checked in</Pill>
+        ) : (
+          <Pill tone="warning">Not checked in</Pill>
         ),
     },
     {
@@ -992,14 +1117,8 @@ export function CheckinAdminClient({
               <Button variant="contained" color="success" onClick={openManual} startIcon={<KIcon icon="how_to_reg" size={16} />}>
                 Manual check-in
               </Button>
-              <Button variant="contained" onClick={onExportExcel} startIcon={<KIcon icon="table_view" size={16} />}>
-                Excel (.xlsx)
-              </Button>
-              <Button variant="outlined" onClick={onExportCsv} startIcon={<KIcon icon="download" size={16} />}>
-                CSV
-              </Button>
-              <Button variant="outlined" onClick={onPrintRecords} startIcon={<KIcon icon="print" size={16} />}>
-                Print
+              <Button variant="contained" onClick={openExport} startIcon={<KIcon icon="download" size={16} />}>
+                Export records
               </Button>
             </Box>
           </Box>
@@ -1010,7 +1129,7 @@ export function CheckinAdminClient({
             getRowId={(r) => r.id}
             emptyIcon="receipt_long"
             emptyTitle="No students here yet"
-            emptyBody={records.length === 0 ? "Records appear when students scan the session QR at the counter." : "No students match these filters."}
+            emptyBody={students.length === 0 ? "No students on the active list yet — import the student list first." : "No students match these filters."}
             onRowClick={(r) => setDetail(r)}
           />
         </Box>
@@ -1266,6 +1385,62 @@ export function CheckinAdminClient({
           >
             Record {sessions.find((s) => s.id === manualSessionId)?.type === "check_out" ? "check-out" : "check-in"}
           </KButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Export records — all blocks or one block */}
+      <Dialog open={exportOpen} onClose={() => setExportOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+          <span
+            style={{
+              display: "inline-flex",
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: color.brand[50],
+              color: color.brand[700],
+            }}
+          >
+            <KIcon icon="download" size={20} />
+          </span>
+          Export records
+        </DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <TextField
+            select
+            label="Block"
+            value={exportBlock}
+            onChange={(e) => setExportBlock(e.target.value)}
+            fullWidth
+            helperText="Pick one block to export it on its own."
+          >
+            <MenuItem value="all">All blocks</MenuItem>
+            {blocks.map((b) => (
+              <MenuItem key={b} value={b}>{b}</MenuItem>
+            ))}
+          </TextField>
+          <Alert severity="info" variant="standard" sx={{ borderRadius: 2 }}>
+            Every student is listed — those without a check-in or check-out are left
+            blank. Rooms are sorted small to large and grouped by block.
+          </Alert>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {exportScope().length} student(s) in this export
+            {sessionFilter !== "all" ? " · filtered by session" : ""}.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+          <Button variant="outlined" onClick={() => setExportOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={onExportExcel} startIcon={<KIcon icon="table_view" size={16} />}>
+            Excel
+          </Button>
+          <Button variant="outlined" onClick={onExportCsv} startIcon={<KIcon icon="download" size={16} />}>
+            CSV
+          </Button>
+          <Button variant="outlined" onClick={onPrintRecords} startIcon={<KIcon icon="print" size={16} />}>
+            Print
+          </Button>
         </DialogActions>
       </Dialog>
 

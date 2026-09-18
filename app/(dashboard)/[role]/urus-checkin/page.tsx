@@ -6,6 +6,8 @@ import { requireRole, type Role } from "@/lib/rbac"
 import { siteUrl } from "@/lib/site-url"
 import { getAppLogoUrl, getStudentCardLogos } from "@/lib/settings"
 import { getCheckinDirectionsImage } from "@/lib/checkin"
+import { getActiveIntake } from "@/lib/bilik"
+import { roomAssignmentLabel } from "@/lib/bilik-format"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { CheckinAdminClient } from "./checkin-admin-client"
@@ -17,7 +19,7 @@ export default async function UrusCheckinPage() {
 
   const readOnly = session.user.role === "pengetua"
 
-  const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl] = await Promise.all([
+  const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl, intake] = await Promise.all([
     prisma.checkInSession.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -32,7 +34,42 @@ export default async function UrusCheckinPage() {
     getAppLogoUrl(),
     getStudentCardLogos(),
     getCheckinDirectionsImage(),
+    getActiveIntake(),
   ])
+
+  // The full roster of the active intake, so the admin file lists every student
+  // — not just the ones who have signed. Students without a record export blank.
+  const rosterStudents = intake
+    ? await prisma.eligibleStudent.findMany({
+        where: { intakeId: intake.id, deletedAt: null },
+        orderBy: { name: "asc" },
+        select: {
+          matricId: true,
+          name: true,
+          bed: {
+            select: {
+              position: true,
+              room: { select: { number: true, block: { select: { name: true } } } },
+            },
+          },
+        },
+      })
+    : []
+
+  const rosterData = rosterStudents.map((s) => ({
+    matricId: s.matricId,
+    name: s.name,
+    blockName: s.bed?.room.block.name ?? null,
+    roomNumber: s.bed?.room.number ?? null,
+    bedPosition: s.bed?.position ?? null,
+    roomLabel: s.bed
+      ? roomAssignmentLabel({
+          blockName: s.bed.room.block.name,
+          number: s.bed.room.number,
+          position: s.bed.position,
+        })
+      : null,
+  }))
 
   const sessionsData = await Promise.all(
     sessions.map(async (s) => ({
@@ -74,6 +111,7 @@ export default async function UrusCheckinPage() {
         readOnly={readOnly}
         sessions={sessionsData}
         records={recordsData}
+        roster={rosterData}
         logos={{ ukmLogoUrl: cardLogos.ukmLogoUrl, appLogoUrl }}
         directionsImageUrl={directionsImageUrl}
       />
