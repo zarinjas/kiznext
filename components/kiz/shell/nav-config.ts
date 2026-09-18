@@ -94,6 +94,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true, roles: ADMIN_ROLES },
         { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true, roles: ADMIN_ROLES },
         { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true, roles: ADMIN_ROLES },
+        { label: "Stay Connected", href: `/${role}/urus-sosial`, icon: "link", admin: true, roles: ADMIN_ROLES },
         { label: "Facilities", href: `/${role}/urus-fasiliti`, icon: "apartment", admin: true, roles: ADMIN_ROLES },
         { label: "Offices", href: `/${role}/urus-pejabat`, icon: "domain", admin: true, roles: ADMIN_ROLES },
         { label: "AR Directory", href: `/${role}/urus-direktori`, icon: "view_in_ar", admin: true, roles: ADMIN_ROLES },

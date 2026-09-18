@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db"
 import { getBilikReminder, getResidentRoomDetail } from "@/lib/bilik"
 import { getCheckInStatusForMatrics, type CheckInStatusValue } from "@/lib/checkin"
+import { getStayConnectedSection, type StayConnectedSection } from "@/lib/stay-connected"
 import { nowMalaysia, formatMalaysia } from "@/lib/timezone"
 import { isOfficeHours } from "@/lib/office-hours"
 
@@ -104,6 +105,8 @@ export interface ResidentHomeData {
   officeOpen: boolean
   emergencyContacts: EmergencyContactView[]
   livingGuides: LivingGuideView[]
+  /** "Stay Connected" social-links section (self-hides when empty/disabled). */
+  stayConnected: StayConnectedSection
 }
 
 function dateLabel(d: Date): string {
@@ -173,7 +176,7 @@ export async function getResidentHomeData(input: {
   }
 
   // ── Acknowledgement target (also feeds the Important Notice widget) ──────
-  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail] =
+  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail, stayConnected] =
     await Promise.all([
       getAcknowledgmentTarget(),
       prisma.announcement.findMany({
@@ -204,8 +207,8 @@ export async function getResidentHomeData(input: {
         orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
       }),
       getResidentRoomDetail(userId),
+      getStayConnectedSection(),
     ])
-
   const ackedSet = new Set(ackedRows.map((a) => a.announcementId))
   const announcementDone = targetAnnouncement ? ackedSet.has(targetAnnouncement.id) : false
 
@@ -352,5 +355,6 @@ export async function getResidentHomeData(input: {
     officeOpen: isOfficeHours(now),
     emergencyContacts,
     livingGuides,
+    stayConnected,
   }
 }

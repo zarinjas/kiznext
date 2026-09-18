@@ -815,6 +815,21 @@ async function main() {
   }
   console.log("Dashboard content seeded")
 
+  // "Stay Connected" social links — the member-dashboard outbound-links card.
+  // Idempotent by label; admins manage these from /urus-sosial afterwards.
+  const socialSeed = [
+    { label: "Official Website", description: "Visit the MyKIZ website", url: "https://mykiz.my", icon: "website", sortOrder: 1 },
+    { label: "Instagram", description: "Follow us for campus updates", url: "https://instagram.com/mykiz", icon: "instagram", sortOrder: 2 },
+    { label: "TikTok", description: "Watch campus videos and activities", url: "https://tiktok.com/@mykiz", icon: "tiktok", sortOrder: 3 },
+  ]
+  for (const s of socialSeed) {
+    const existing = await prisma.socialLink.findFirst({ where: { label: s.label, deletedAt: null } })
+    if (!existing) {
+      await prisma.socialLink.create({ data: s })
+    }
+  }
+  console.log("Stay Connected links seeded")
+
   const eventSeed = [
     { title: "KIZ Community Clean-Up", venue: "KIZ Square", daysAhead: 3, description: "Join the flagship community clean-up — gloves and trash bags provided." },
     { title: "Tea Time with the Principal", venue: "Dewan Sutera", daysAhead: 10, description: "An informal session to share ideas with the college principal." },

@@ -81,6 +81,7 @@ export function ListGroup({
 
 export function ListRow({
   icon,
+  iconNode,
   title,
   subtitle,
   meta,
@@ -92,6 +93,8 @@ export function ListRow({
   children,
 }: {
   icon?: string
+  /** Custom leading node (e.g. a brand SVG) — takes precedence over `icon`. */
+  iconNode?: React.ReactNode
   title?: React.ReactNode
   subtitle?: React.ReactNode
   meta?: React.ReactNode
@@ -126,12 +129,16 @@ export function ListRow({
         }),
       }}
     >
-      {icon && (
-        <KIcon
-          icon={icon}
-          size={20}
-          sx={{ color: "var(--mui-palette-text-disabled)", flexShrink: 0 }}
-        />
+      {iconNode ? (
+        <Box sx={{ display: "flex", flexShrink: 0 }}>{iconNode}</Box>
+      ) : (
+        icon && (
+          <KIcon
+            icon={icon}
+            size={20}
+            sx={{ color: "var(--mui-palette-text-disabled)", flexShrink: 0 }}
+          />
+        )
       )}
 
       {children ?? (

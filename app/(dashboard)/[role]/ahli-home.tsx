@@ -9,6 +9,7 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { Bento, BentoItem } from "@/components/kiz/patterns/bento"
 import { AvatarPicker } from "@/components/shared/avatar-picker"
 import { HomeWidgets } from "@/components/shared/home/home-widgets"
+import { StayConnected } from "@/components/shared/home/stay-connected"
 import { color, font, radius, gradient } from "@/lib/theme"
 import { announcementTagMeta } from "@/lib/announcement-meta"
 import type { HomeTodo, PinnedAnnouncementView, ResidentHomeData } from "@/lib/dashboard"
@@ -369,6 +370,13 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
                 <KIcon icon="open_in_new" size={16} />
               </Box>
             </Box>
+          </BentoItem>
+        )}
+
+        {/* ── Stay Connected ──────────────────────────────────────────────── */}
+        {data.stayConnected.enabled && data.stayConnected.links.length > 0 && (
+          <BentoItem span={12} spanXs={2} delay={0.1}>
+            <StayConnected section={data.stayConnected} />
           </BentoItem>
         )}
 
