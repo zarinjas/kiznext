@@ -11,6 +11,16 @@ import { nowMalaysia } from "./timezone"
 export { nowMalaysia } from "./timezone"
 import { roomCode } from "./bilik-format"
 
+/**
+ * Canonical matric normalisation: uppercase, and drop anything that isn't A–Z
+ * or 0–9. eKolej sheet exports sometimes append footnote markers (e.g. an
+ * international-student flag "A222765*") which would otherwise break matching
+ * against user accounts, check-in records and later sheet syncs.
+ */
+export function cleanMatric(raw: string | null | undefined): string {
+  return (raw ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase()
+}
+
 // ── Selection window ────────────────────────────────────────────────────────
 
 export type WindowState = "not_open" | "open" | "closing_soon" | "closed"
@@ -332,7 +342,7 @@ export function mapEkolejRows(rows: Record<string, string>[]): MappedRow[] {
   const base: MappedRow[] = rows.map((raw) => {
     const blockRaw = pick(raw, "block").trim().toUpperCase()
     const roomRaw = pick(raw, "room").trim()
-    const matricId = pick(raw, "matricId").trim().toUpperCase()
+    const matricId = cleanMatric(pick(raw, "matricId"))
     const name = pick(raw, "name").trim()
 
     // Resolve the room code from either a "BLOCK" + "ROOM" pair or one full

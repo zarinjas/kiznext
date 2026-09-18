@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/db"
 import { appOrigin, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email"
 import { markInvitationAccepted, resolvePendingInvitation } from "@/lib/invitations"
+import { cleanMatric } from "@/lib/room-selection"
 import type { AccountStatus, Role } from "@/lib/rbac"
 
 /**
@@ -29,7 +30,7 @@ export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000
 export const MIN_PASSWORD_LENGTH = 8
 
 export function normalizeMatric(raw: string): string {
-  return raw.trim().toUpperCase()
+  return cleanMatric(raw)
 }
 
 /**

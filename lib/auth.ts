@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { autoUpgradePendingUser } from "@/lib/registration"
+import { cleanMatric } from "@/lib/room-selection"
 import type { AccountStatus, Role } from "@/lib/rbac"
 
 declare module "next-auth" {
@@ -53,10 +54,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Kata Laluan", type: "password" },
       },
       async authorize(credentials) {
-        const matricId = credentials?.matricId as string | undefined
+        const rawMatric = credentials?.matricId as string | undefined
         const password = credentials?.password as string | undefined
 
-        if (!matricId || !password) return null
+        if (!rawMatric || !password) return null
+
+        const matricId = cleanMatric(rawMatric)
 
         const user = await prisma.user.findUnique({
           where: { matricId },

@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache"
 import { saveUpload } from "@/lib/image-upload"
 import { nowMalaysia, formatMalaysia } from "@/lib/timezone"
 import { roomAssignmentLabel } from "@/lib/bilik-format"
+import { cleanMatric } from "@/lib/room-selection"
 import { getActiveIntake } from "@/lib/bilik"
 
 const ADMIN: Role[] = ["superadmin", "admin_kiz"]
@@ -168,7 +169,7 @@ export async function lookupCheckInStudent(
   const res = await resolveSession((token ?? "").trim())
   if (res.error) return { ok: false, canSign: false, hasAccount: false, error: res.error }
 
-  const matricId = (matricRaw ?? "").trim().toUpperCase()
+  const matricId = cleanMatric(matricRaw)
   if (!matricId) return { ok: false, canSign: false, hasAccount: false, error: "Enter your Matric No. first." }
 
   const intake = await getActiveIntake()
@@ -225,7 +226,7 @@ export async function submitCheckInRecord(
   const res = await resolveSession((token ?? "").trim())
   if (res.error) return { ok: false, error: res.error }
 
-  const matricId = (matricRaw ?? "").trim().toUpperCase()
+  const matricId = cleanMatric(matricRaw)
   if (!matricId) return { ok: false, error: "Enter your Matric No. first." }
 
   const buffer = parseSignature(signatureDataUrl)
@@ -485,7 +486,7 @@ export interface AdminStudentLookup {
 /** Admin: resolve a student by matric for the manual check-in dialog. */
 export async function adminLookupStudent(matricRaw: string): Promise<AdminStudentLookup> {
   await requireAdmin()
-  const matricId = (matricRaw ?? "").trim().toUpperCase()
+  const matricId = cleanMatric(matricRaw)
   if (!matricId) return { ok: false, error: "Enter a Matric No." }
 
   const intake = await getActiveIntake()
@@ -515,7 +516,7 @@ export async function adminManualCheckIn(input: {
   sessionId: string
 }): Promise<{ ok: boolean; error?: string; type?: CheckInTypeValue; roomLabel?: string | null }> {
   const admin = await requireAdmin()
-  const matricId = (input.matricId ?? "").trim().toUpperCase()
+  const matricId = cleanMatric(input.matricId)
   if (!matricId) return { ok: false, error: "Enter a Matric No." }
 
   const checkSession = await prisma.checkInSession.findFirst({
@@ -632,7 +633,7 @@ export type CheckInStatusValue = "checked_out" | "checked_in" | "not_checked_in"
 export async function getCheckInStatusForMatrics(
   matricIds: string[],
 ): Promise<Record<string, CheckInStatusValue>> {
-  const matrics = [...new Set((matricIds ?? []).map((m) => (m ?? "").trim().toUpperCase()).filter(Boolean))]
+  const matrics = [...new Set((matricIds ?? []).map((m) => cleanMatric(m)).filter(Boolean))]
   const result: Record<string, CheckInStatusValue> = {}
   for (const m of matrics) result[m] = "not_checked_in"
   if (matrics.length === 0) return result

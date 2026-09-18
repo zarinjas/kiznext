@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "crypto"
 import { prisma } from "@/lib/db"
 import { appOrigin, sendInvitationEmail } from "@/lib/email"
+import { cleanMatric } from "@/lib/room-selection"
 import type { Role } from "@/lib/rbac"
 
 /**
@@ -78,7 +79,7 @@ export async function createAndSendInvitations(opts: {
 
   for (const raw of recipients) {
     const email = raw.email.trim().toLowerCase()
-    const matricId = raw.matricId?.trim().toUpperCase() ?? ""
+    const matricId = cleanMatric(raw.matricId)
     const name = raw.name?.trim() ?? ""
 
     if (!email || !EMAIL_RE.test(email)) {
