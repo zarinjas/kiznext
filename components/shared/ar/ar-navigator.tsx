@@ -11,7 +11,8 @@ import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { ArMiniMap } from "@/components/shared/ar/ar-minimap"
 import { TYPE_TONES } from "@/lib/direktori-meta"
-import { bearingDeg, haversineMeters, headingDelta, formatDistanceMeters } from "@/lib/geo"
+import { bearingDeg, haversineMeters, headingDelta, formatDistanceMeters, type LatLng } from "@/lib/geo"
+import { fetchWalkingRoute, nextRouteTarget, routeRemainingMeters } from "@/lib/routing"
 import { color, font, radius } from "@/lib/theme"
 import type { DestinationType } from "@/app/generated/prisma/client"
 
@@ -67,9 +68,18 @@ function walkMins(meters: number): string {
 function isCompassEvent(e: DeviceOrientationEvent): number | null {
   const ev = e as DeviceOrientationEvent & { webkitCompassHeading?: number }
   if (typeof ev.webkitCompassHeading === "number") return (ev.webkitCompassHeading + 360) % 360
-  // Android `deviceorientationabsolute`: alpha 0 = device top points north,
-  // increases clockwise. Only trust it when the event is north-referenced.
-  if (e.absolute === true && typeof e.alpha === "number") return (e.alpha + 360) % 360
+  // Android `deviceorientationabsolute`: per the W3C spec, `alpha` is 0 when
+  // the device top points north but INCREASES COUNTER-CLOCKWISE as the
+  // device rotates — the opposite rotational direction from a compass
+  // heading/bearing, which increases clockwise. Using alpha directly here
+  // was the bug behind the arrow pointing roughly opposite the real
+  // destination on Android: it needs inverting (`360 - alpha`) to become an
+  // actual clockwise-from-north heading. Only trust it when the event is
+  // north-referenced (`absolute === true`).
+  if (e.absolute === true && typeof e.alpha === "number") {
+    const a = ((e.alpha % 360) + 360) % 360
+    return (360 - a) % 360
+  }
   return null
 }
 
@@ -257,6 +267,17 @@ export function ArNavigator({ destinations }: Props) {
   const rafRef = useRef<number>(0)
   const watchIdRef = useRef<number | null>(null)
   const lastHeadingSampleRef = useRef<number | null>(null)
+  // Real walking-path route (see lib/routing.ts) so the arrow follows an
+  // actual path instead of a straight line through buildings/walls. `route`
+  // is real React state (low-frequency updates — only when a fetch lands)
+  // so the mini-map and distance readout can use it too; the fetch itself
+  // is driven from inside the per-frame tick loop below via these refs,
+  // fire-and-forget, so a slow/failed request never blocks the arrow.
+  const [route, setRoute] = useState<LatLng[] | null>(null)
+  const routeRef = useRef<LatLng[] | null>(null)
+  const routeOriginRef = useRef<{ lat: number; lng: number; destId: string } | null>(null)
+  const routeFetchingRef = useRef(false)
+  const routeFetchIdRef = useRef(0)
   const jitterEmaRef = useRef(0)
   const jitterStreakRef = useRef(0)
   const arrowCoachTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -370,6 +391,28 @@ export function ArNavigator({ destinations }: Props) {
     }
   }, [camStatus, showAr, arView])
 
+  // Recover the camera feed after the tab/app is backgrounded and comes back
+  // (e.g. switching to Google Maps to cross-check a pin, then returning).
+  // Unlike geolocation, nothing above resumes the camera on its own — most
+  // mobile browsers, iOS Safari especially, reclaim the camera hardware while
+  // hidden, so the <video> element just freezes on its last frame with no
+  // event telling it anything changed. If the track is still alive, a fresh
+  // `.play()` is enough; if the browser fully killed it, fall through to the
+  // same retry path the "Try camera again" button uses.
+  useEffect(() => {
+    function onVisibility() {
+      if (document.hidden || camStatus !== "on") return
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (track && track.readyState === "live") {
+        videoRef.current?.play().catch(() => {})
+      } else {
+        setCameraRetryKey((k) => k + 1)
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => document.removeEventListener("visibilitychange", onVisibility)
+  }, [camStatus])
+
   // ── Compass / orientation ─────────────────────────────────────────────────
   useEffect(() => {
     function onOrientation(e: DeviceOrientationEvent) {
@@ -472,6 +515,14 @@ export function ArNavigator({ destinations }: Props) {
   // Keep destination target ref current so the rAF loop can read it cheaply.
   useEffect(() => {
     targetRef.current = destinations.find((d) => d.id === selectedId) ?? null
+    // Drop the old route immediately on a destination switch rather than
+    // waiting for the tick loop's next fetch to land — otherwise the
+    // mini-map and distance readout could briefly show the previous
+    // destination's path for the new one. A deliberate reset-on-prop-change,
+    // not a sync loop: `route` never feeds back into `selectedId`.
+    routeRef.current = null
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRoute(null)
   }, [selectedId, destinations])
 
   // ── Arrow loop (no React re-render per frame) ─────────────────────────────
@@ -508,14 +559,54 @@ export function ArNavigator({ destinations }: Props) {
         return
       }
 
-      const meters = haversineMeters(
-        { latitude: pos.lat, longitude: pos.lng },
-        { latitude: target.latitude, longitude: target.longitude },
-      )
-      const bearing = bearingDeg(
-        { latitude: pos.lat, longitude: pos.lng },
-        { latitude: target.latitude, longitude: target.longitude },
-      )
+      const here = { latitude: pos.lat, longitude: pos.lng }
+      const there = { latitude: target.latitude, longitude: target.longitude }
+      const meters = haversineMeters(here, there)
+
+      // Road-network routing only makes sense outdoors, on the way to a
+      // destination — OSRM has no idea what's inside a building, so for an
+      // `indoor` destination it snaps to whatever outdoor path happens to be
+      // nearest, which can point at a completely different entrance than the
+      // one right in front of you. Same idea once you're already close to
+      // any destination: a routed path's snapping/loop artifacts near its
+      // own endpoint are more misleading than "it's right there" would be.
+      // Straight-line bearing is simply more useful in both cases.
+      const ROUTING_MIN_M = 60
+      const useRouting = !target.indoor && meters > ROUTING_MIN_M
+
+      if (useRouting) {
+        // Fetch/refresh the real walking route when the destination changes
+        // or the walker has moved meaningfully since it was last fetched
+        // from. Fire-and-forget: the arrow always has a bearing to show (the
+        // route once it lands, the raw destination until then), so a slow or
+        // failed OSRM request never blocks anything.
+        const origin = routeOriginRef.current
+        const needsRoute =
+          !routeFetchingRef.current &&
+          (!origin || origin.destId !== target.id || haversineMeters({ latitude: origin.lat, longitude: origin.lng }, here) > 25)
+        if (needsRoute) {
+          if (!origin || origin.destId !== target.id) routeRef.current = null
+          routeFetchingRef.current = true
+          const fetchId = ++routeFetchIdRef.current
+          routeOriginRef.current = { lat: here.latitude, lng: here.longitude, destId: target.id }
+          fetchWalkingRoute(here, there).then((r) => {
+            routeFetchingRef.current = false
+            if (fetchId !== routeFetchIdRef.current) return // superseded by a newer request
+            routeRef.current = r
+            setRoute(r)
+          })
+        }
+      } else if (routeRef.current) {
+        // Was routing, no longer applicable (arrived close, or destination
+        // switched to an indoor one) — drop it so the mini-map and distance
+        // readout fall back to the straight line too, not just the arrow.
+        routeRef.current = null
+        routeOriginRef.current = null
+        setRoute(null)
+      }
+
+      const aimPoint = useRouting && routeRef.current && routeRef.current.length > 1 ? nextRouteTarget(routeRef.current, here) : there
+      const bearing = bearingDeg(here, aimPoint)
       const turn = headingDelta(bearing, smoothRef.current) // + = to the right
 
       // Depth cue: closer → the marker grows upward from its ground point.
@@ -540,17 +631,19 @@ export function ArNavigator({ destinations }: Props) {
 
   const live = useMemo(() => {
     if (!selected || !position) return null
-    const meters = haversineMeters(
-      { latitude: position.lat, longitude: position.lng },
-      { latitude: selected.latitude, longitude: selected.longitude },
-    )
+    const here = { latitude: position.lat, longitude: position.lng }
+    const there = { latitude: selected.latitude, longitude: selected.longitude }
+    // Prefer the real route's remaining walking distance over a straight
+    // line once one has been fetched for this destination — more accurate,
+    // and matches what the arrow is actually pointing along.
+    const meters = route && route.length > 1 ? routeRemainingMeters(route, here) : haversineMeters(here, there)
     return {
       meters,
       label: formatDistanceMeters(meters),
       arrived: meters < ARRIVE_M,
       lowAccuracy: position.accuracy != null && position.accuracy > LOW_ACCURACY_M,
     }
-  }, [selected, position])
+  }, [selected, position, route])
 
   const arrived = live?.arrived ?? false
 
@@ -999,6 +1092,7 @@ export function ArNavigator({ destinations }: Props) {
               position={position}
               destination={{ lat: selected.latitude, lng: selected.longitude }}
               heading={headingDisplay}
+              route={route?.map((p) => ({ lat: p.latitude, lng: p.longitude })) ?? null}
             />
           )}
 

@@ -10,6 +10,7 @@ import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ListGroup, ListRow } from "@/components/kiz/primitives/list-group"
 import { DestinationForm } from "./destination-form"
 import { DeleteDestinationButton } from "./delete-destination-button"
+import { CaptureGpsButton } from "./capture-gps-button"
 import { TYPE_LABELS, TYPE_TONES } from "@/lib/direktori-meta"
 import type { DestinationType } from "@/app/generated/prisma/client"
 import { font, color } from "@/lib/theme"
@@ -141,7 +142,8 @@ export function DirektoriAdmin({ destinations }: Props) {
                       Indoor
                     </Box>
                   )}
-                  <Box sx={{ display: "flex", gap: 0.75 }}>
+                  <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {!d.verified && <CaptureGpsButton id={d.id} name={d.name} />}
                     <Button size="small" variant="outlined" onClick={() => setEditing(d)} startIcon={<KIcon icon="edit" size={15} />}>
                       Edit
                     </Button>

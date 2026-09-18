@@ -97,6 +97,27 @@ export async function updateDestination(id: string, data: DestinationInput) {
   revalidateFor(role)
 }
 
+/**
+ * Lightweight update for the admin "Capture GPS here" button — sets just the
+ * coordinates (from the browser's live Geolocation, taken while physically
+ * standing at the spot) and marks the pin verified, without requiring the
+ * full edit form's other fields.
+ */
+export async function captureDestinationGps(id: string, latitude: number, longitude: number) {
+  const role = await requireAdmin()
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new Error("Latitude must be a number between -90 and 90.")
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error("Longitude must be a number between -180 and 180.")
+  }
+  await prisma.destination.update({
+    where: { id },
+    data: { latitude, longitude, verified: true },
+  })
+  revalidateFor(role)
+}
+
 export async function deleteDestination(id: string) {
   const role = await requireAdmin()
   await prisma.destination.update({
