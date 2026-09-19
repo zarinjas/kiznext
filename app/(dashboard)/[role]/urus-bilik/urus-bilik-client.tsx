@@ -1253,6 +1253,8 @@ function StudentListTab({ students }: { students: StudentData[] }) {
   })
 
   const registered = students.filter((s) => s.isRegistered).length
+  const registeredMale = students.filter((s) => s.isRegistered && s.gender === "male").length
+  const registeredFemale = students.filter((s) => s.isRegistered && s.gender === "female").length
 
   return (
     <Box>
@@ -1262,10 +1264,11 @@ function StudentListTab({ students }: { students: StudentData[] }) {
         UKM RE dan tidak boleh diubah di sini.
       </Alert>
       <Bento sx={{ mb: 2 }}>
-        <BentoItem span={3} spanXs={1}><MetricTile label="Jumlah pelajar" value={students.length} icon="groups" /></BentoItem>
-        <BentoItem span={3} spanXs={1}><MetricTile label="Mendaftar" value={registered} icon="how_to_reg" /></BentoItem>
-        <BentoItem span={3} spanXs={1}><MetricTile label="Belum mendaftar" value={students.length - registered} icon="pending" /></BentoItem>
-        <BentoItem span={3} spanXs={1}><MetricTile label="Ada bilik" value={students.filter((s) => s.room).length} icon="meeting_room" /></BentoItem>
+        <BentoItem span={4} spanXs={1}><MetricTile label="Jumlah pelajar" value={students.length} icon="groups" /></BentoItem>
+        <BentoItem span={4} spanXs={1}><MetricTile label="Mendaftar" value={registered} icon="how_to_reg" /></BentoItem>
+        <BentoItem span={4} spanXs={1}><MetricTile label="Belum mendaftar" value={students.length - registered} icon="pending" /></BentoItem>
+        <BentoItem span={6} spanXs={1}><MetricTile label="Mendaftar Lelaki" value={registeredMale} icon="man" /></BentoItem>
+        <BentoItem span={6} spanXs={1}><MetricTile label="Mendaftar Perempuan" value={registeredFemale} icon="woman" /></BentoItem>
       </Bento>
       <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap", alignItems: "center" }}>
         <TextField
