@@ -91,6 +91,7 @@ interface StudentData {
   isOku: boolean
   isUniform: boolean
   room: string | null
+  block: string | null
   position: string | null
   selectedAt: string | null
   assignedByAdmin: boolean
@@ -1256,6 +1257,23 @@ function StudentListTab({ students }: { students: StudentData[] }) {
   const registeredMale = students.filter((s) => s.isRegistered && s.gender === "male").length
   const registeredFemale = students.filter((s) => s.isRegistered && s.gender === "female").length
 
+  const registeredByBlock = (() => {
+    const map = new Map<string, { male: number; female: number }>()
+    for (const s of students) {
+      if (!s.isRegistered) continue
+      const key = s.block ?? "Belum diassign"
+      const row = map.get(key) ?? { male: 0, female: 0 }
+      if (s.gender === "male") row.male += 1
+      else row.female += 1
+      map.set(key, row)
+    }
+    return [...map.entries()]
+      .map(([block, v]) => ({ block, ...v, total: v.male + v.female }))
+      .sort((a, b) =>
+        a.block === "Belum diassign" ? 1 : b.block === "Belum diassign" ? -1 : a.block.localeCompare(b.block),
+      )
+  })()
+
   return (
     <Box>
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
@@ -1270,6 +1288,41 @@ function StudentListTab({ students }: { students: StudentData[] }) {
         <BentoItem span={6} spanXs={1}><MetricTile label="Mendaftar Lelaki" value={registeredMale} icon="man" /></BentoItem>
         <BentoItem span={6} spanXs={1}><MetricTile label="Mendaftar Perempuan" value={registeredFemale} icon="woman" /></BentoItem>
       </Bento>
+      {registeredByBlock.length > 0 && (
+        <Box sx={{ mb: 2, border: "1px solid", borderColor: "divider", borderRadius: `${radius.card}px`, overflow: "hidden", backgroundColor: "background.paper" }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              Mendaftar ikut blok
+            </Typography>
+          </Box>
+          <Table size="small" sx={{ "& .MuiTableCell-root": { fontSize: "0.8125rem" } }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Blok</TableCell>
+                <TableCell align="right">Lelaki</TableCell>
+                <TableCell align="right">Perempuan</TableCell>
+                <TableCell align="right">Jumlah</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {registeredByBlock.map((r) => (
+                <TableRow key={r.block}>
+                  <TableCell>{r.block}</TableCell>
+                  <TableCell align="right">{r.male}</TableCell>
+                  <TableCell align="right">{r.female}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>{r.total}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Jumlah</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>{registeredMale}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>{registeredFemale}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>{registered}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </Box>
+      )}
       <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap", alignItems: "center" }}>
         <TextField
           placeholder="Cari matric, nama, fakulti atau bilik"

@@ -122,6 +122,7 @@ export default async function UrusBilikPage() {
           position: s.bed.position,
         })
       : null,
+    block: s.bed?.room.block.name ?? null,
     position: s.bed?.position ?? null,
     selectedAt: s.selectedAt ? s.selectedAt.toISOString() : null,
     assignedByAdmin: s.assignedByAdmin,
