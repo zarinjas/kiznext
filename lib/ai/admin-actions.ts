@@ -134,7 +134,7 @@ export async function testAiConnection(): Promise<AiTestResult> {
 
   const chat = await (async () => {
     try {
-      const text = await generateText(cfg, { prompt: "Reply with the single word: OK", maxOutputTokens: 16, temperature: 0 })
+      const text = await generateText(cfg, { prompt: "Reply with the single word: OK", maxOutputTokens: 256, temperature: 0 })
       return { ok: true, detail: `${cfg.chatProvider} · "${text.slice(0, 40)}"` }
     } catch (err) {
       return { ok: false, detail: err instanceof Error ? err.message : "failed" }

@@ -63,7 +63,7 @@ export async function answerQuestion(question: string): Promise<ConciergeAnswer>
     prompt: buildConciergePrompt(question, numbered),
     responseSchema: CONCIERGE_RESPONSE_SCHEMA,
     temperature: 0.5,
-    maxOutputTokens: 700,
+    maxOutputTokens: 1024,
   })
 
   const kind = normalizeKind(generated.kind, generated.used, chunks.length > 0)

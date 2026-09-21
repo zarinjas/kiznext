@@ -28,9 +28,36 @@ export interface GenerateOptions {
   responseSchema?: unknown
 }
 
+interface GeminiPart {
+  text?: string
+  /** Reasoning parts emitted by Gemini 2.5+/3 "thinking" models. */
+  thought?: boolean
+}
+
 interface GeminiResponse {
-  candidates?: { content?: { parts?: { text?: string }[] } }[]
+  candidates?: { content?: { parts?: GeminiPart[] }; finishReason?: string }[]
+  promptFeedback?: { blockReason?: string }
   error?: { message?: string }
+}
+
+/**
+ * Gemini 2.5+/3 flash models think by default, and those reasoning tokens count
+ * against `maxOutputTokens` — a small budget leaves no room for the answer and
+ * the reply comes back empty. Disable thinking for these models so chat and
+ * strict-JSON replies stay deterministic and cheap.
+ */
+function wantsNoThinking(model: string): boolean {
+  return /gemini-(2\.5|3)/.test(model)
+}
+
+function buildGenerationConfig(cfg: AiConfig, opts: GenerateOptions, noThinking: boolean): Record<string, unknown> {
+  return {
+    temperature: opts.temperature ?? 0.4,
+    maxOutputTokens: opts.maxOutputTokens ?? 1024,
+    ...(noThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+    ...(opts.json ? { responseMimeType: "application/json" } : {}),
+    ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
+  }
 }
 
 interface OllamaResponse {
@@ -42,21 +69,44 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
   if (!cfg.apiKey) throw new AiError("Gemini API key is not set")
 
   const url = `${GEMINI_BASE}/${encodeURIComponent(cfg.model)}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`
-  const body: Record<string, unknown> = {
-    contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
-    generationConfig: {
-      temperature: opts.temperature ?? 0.4,
-      maxOutputTokens: opts.maxOutputTokens ?? 1024,
-      ...(opts.json ? { responseMimeType: "application/json" } : {}),
-      ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
-    },
-  }
-  if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] }
+  const contents = [{ role: "user", parts: [{ text: opts.prompt }] }]
 
-  const data = await postJson<GeminiResponse>(url, body, "Gemini")
-  const parts = data.candidates?.[0]?.content?.parts
-  const text = Array.isArray(parts) ? parts.map((p) => p.text ?? "").join("") : ""
-  if (!text.trim()) throw new AiError("Gemini returned an empty response")
+  const attempt = (noThinking: boolean) =>
+    postJson<GeminiResponse>(
+      url,
+      {
+        contents,
+        generationConfig: buildGenerationConfig(cfg, opts, noThinking),
+        ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+      },
+      "Gemini"
+    )
+
+  let data: GeminiResponse
+  try {
+    data = await attempt(wantsNoThinking(cfg.model))
+  } catch (err) {
+    // A model that doesn't support thinkingConfig rejects the request — retry
+    // without it rather than failing the whole call.
+    if (err instanceof AiError && err.status === 400 && /thinking/i.test(err.message)) {
+      data = await attempt(false)
+    } else {
+      throw err
+    }
+  }
+
+  const candidate = data.candidates?.[0]
+  const parts = candidate?.content?.parts
+  const text = Array.isArray(parts)
+    ? parts.filter((p) => !p.thought).map((p) => p.text ?? "").join("")
+    : ""
+  if (!text.trim()) {
+    const bits = [
+      candidate?.finishReason ? `finishReason: ${candidate.finishReason}` : "",
+      data.promptFeedback?.blockReason ? `blocked: ${data.promptFeedback.blockReason}` : "",
+    ].filter(Boolean)
+    throw new AiError(`Gemini returned an empty response${bits.length ? ` (${bits.join(", ")})` : ""}`)
+  }
   return text.trim()
 }
 
