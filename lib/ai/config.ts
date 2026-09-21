@@ -11,8 +11,11 @@ export type ChatProvider = "gemini" | "ollama"
 export type EmbedProvider = "gemini" | "ollama" | "none"
 export type RetrievalMode = "auto" | "embeddings" | "keyword"
 
-export const DEFAULT_AI_MODEL = "gemini-2.0-flash"
+export const DEFAULT_AI_MODEL = "gemini-3.6-flash"
 export const DEFAULT_GEMINI_EMBED_MODEL = "gemini-embedding-001"
+
+/** Gemini chat models retired by Google — saved values auto-upgrade to the default. */
+const RETIRED_CHAT_MODELS = new Set(["gemini-2.0-flash", "gemini-2.0-flash-lite"])
 export const DEFAULT_OLLAMA_URL = "http://localhost:11434"
 export const DEFAULT_OLLAMA_MODEL = "llama3.2"
 export const DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text"
@@ -148,6 +151,10 @@ export async function getAiConfig(): Promise<AiConfig> {
   const resolvedEmbedModel =
     !storedEmbedModel || storedEmbedModel === "text-embedding-004" ? DEFAULT_GEMINI_EMBED_MODEL : storedEmbedModel
 
+  // `gemini-2.0-flash` was retired (404s on v1beta) — auto-upgrade any saved value.
+  const storedModel = model?.trim()
+  const resolvedModel = !storedModel || RETIRED_CHAT_MODELS.has(storedModel) ? DEFAULT_AI_MODEL : storedModel
+
   const enabled =
     chatProvider === "gemini" ? Boolean(apiKey) : Boolean(ollamaUrl)
   const embedEnabled =
@@ -155,7 +162,7 @@ export async function getAiConfig(): Promise<AiConfig> {
 
   return {
     apiKey,
-    model: model?.trim() || DEFAULT_AI_MODEL,
+    model: resolvedModel,
     embedModel: resolvedEmbedModel,
     chatProvider,
     embedProvider,

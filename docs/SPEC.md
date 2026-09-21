@@ -21,6 +21,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Auth & Profile | Login with matric ID + password. Role-based dashboard. Editable profile. |
 | Kad Maya | Digital resident card with a QR code, for identification at the gate/office. |
 | Facility Booking | Browse college facilities, view availability, book a time slot, admin approves. Approved bookings get a PDF slip. |
+| Laundry | Reminder-based machine status. No laundry-machine API exists, so each machine's live status is inferred from the reminders residents set: **No Active Reminder** → **Active Reminder** (timer running) → **Timer Ended** (finished, inside a grace window) or **Out of Service** (admin closed it). Students pick a machine, set a cycle duration (30/45/60/custom), and get a running timer; a newer reminder replaces the running one. Admins manage the machine list, mark a machine out of service, and clear stuck reminders. |
 | Guest House Booking | Admins configure the guest houses (name, description, photos, price, capacity, max stay). Students pick a guest house and book it daily/weekly/monthly; admin approves, then check-in/check-out. Payment marked manually. |
 | Helpdesk | Per-student support threads with two channels: **Live Chat** (quick questions, no form) and **Support Ticket** (structured, tracked requests/applications, e.g. room change). Admin inbox splits the two; chat thread, assign, close, and out-of-hours auto-reply are shared. |
 | KIZ-AI Concierge | A Gemini/Ollama-powered robot (`KIZ-AI`, admin-uploaded mascot with **3 emotions × 3 animated frames** — idle/thinking/happy — plus a name) that answers resident questions from the app's own content via retrieval-augmented generation (announcements, facilities, offices, guest houses, events, contacts, and an **admin-curated FAQ knowledge base**). Chat and embeddings can use different providers, and retrieval falls back to keyword search. Replies cite their sources and follow the asker's language. When it can't answer, it offers a one-tap handoff to the KIZ office, creating a pre-filled helpdesk request. Every unanswered question is logged so staff can turn it into a FAQ — the feedback loop that keeps improving answers. |
@@ -62,6 +63,8 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
 | App settings (logo) | ✓ | ✓ | — | — | — | — |
 | View-only reporting | ✓ | ✓ | ✓ | — | — | — |
 | Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — |
+| Set a laundry reminder (`laundry`) | — | — | — | — | ✓ | — |
+| Manage laundry machines (`urus-laundry`) | ✓ | ✓ | read-only | — | — | — |
 
 `pengetua` (principal) is read-only by design — no approval or edit rights. They
 reach the admin views of guest house, accommodation, and check-in/out in a
@@ -136,6 +139,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `HelpdeskChannel` | live, ticket |
 | `LostFoundStatus` | lost, found, claimed |
 | `GuideCategory` | orientation, rules, program, other |
+| `LaundryMachineStatus` | available, out_of_service |
+| `LaundryReminderEndReason` | cancelled, superseded, cleared |
 
 ### Models
 
@@ -160,6 +165,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `User` | users | + `lastSeenAt` — presence heartbeat for the community-chat online count |
 | `Parcel` | parcels | `userId`, `description`, `status` (plain String: `arrived`/`collected`), `notifiedAt`, `collectedAt` |
 | `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
+| `LaundryMachine` | laundry_machines | `name`, `location` (free text), `imageUrl`, `status` (enum `available`/`out_of_service`), `sortOrder`. Admin CRUD at `urus-laundry`. A shared fallback photo lives in `AppSetting` `laundry_default_image` (uploaded at `urus-laundry`; square 800×800 px recommended). |
+| `LaundryReminder` | laundry_reminders | `machineId`, `userId`, `durationMinutes`, `startedAt`/`endsAt` (KL), `endedAt`/`endedReason` (null while running). The latest non-ended reminder drives a machine's derived state (see `lib/laundry-meta.ts`). |
 | `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
 | `VerificationToken` | verification_tokens | single-use email-verify links. `userId`, `tokenHash` unique (SHA-256 of the raw token — never stored), `expiresAt`, `usedAt`. Soft-deleted when consumed. |
 | `Invitation` | invitations | superadmin-issued self-registration invite. `email`, `role` (ahli/admin_kiz), optional `matricId`/`name`, `tokenHash` unique (SHA-256, 14-day expiry), `resident` (matric matched the active intake), `acceptedAt`/`acceptedById`, `revokedAt`, `lastSentAt`, `sentCount`, `invitedById`. |
@@ -207,6 +214,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `panduan`, `panduan/[id]` | Digital Guide library (category tabs, New badge) and the PDF reader — a flipbook (two-page spread on desktop, single page on mobile) with prev/next, keyboard/swipe, and a Download button. All roles. |
 | `chat` | Community chat — wide two-pane room (chat + community info rail), polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
+| `laundry` | Laundry (`ahli` only) — Machine Status grid + Set Reminder, and My Laundry Reminder (active timer + history). Status is reminder-derived, not sensor-based. Admins are redirected to `urus-laundry`. |
 | `rumah-tamu` | Guest house booking + own bookings + cancel. Admins and `pengetua` are redirected to `urus-rumah-tamu` (admin view only). |
 | `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
 | `hilang` | Lost & Found report form + list. |
@@ -231,6 +239,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. `superadmin`/`admin_kiz`/`staf`/`fellow` (the support desk). |
 | `urus-checkin` | QR counter check-in/out — create sessions, print the QR sheet, view/export records, manual check-in. `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
 | `urus-fasiliti` | Facility CRUD. |
+| `urus-laundry` | Laundry machine CRUD, Out of Service toggle, and force-clear a stuck reminder. `superadmin`/`admin_kiz` manage; `pengetua` read-only. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
 | `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
 | `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
@@ -272,5 +281,12 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
   `lib/settings.ts` handles logo uploads with a 2 MB cap and a MIME allowlist
   (png/jpeg/webp/svg). The generic route has neither.
 - **Chat realtime.** Client polls a Server Action every 3s. No WebSocket layer.
+- **Laundry status.** Derived, never stored: `lib/laundry-meta.ts` maps the latest
+  non-deleted reminder + `machine.status` + a configurable grace window
+  (`AppSetting` `laundry_timer_grace_minutes`, default 30) to
+  `no_active`/`laundry_active`/`timer_ended`/`out_of_service`. No cron. The member
+  client polls a Server Action every 20s and ticks the countdown locally; a newer
+  reminder supersedes whatever was running (residents chose overwrite over queueing)
+  and each student holds at most one active reminder.
 - **Seed.** `npm run seed` creates sample users, blocks, facilities, bookings, and
   announcements. Login IDs are in `prisma/seed.ts`.

@@ -208,6 +208,15 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
             <Box sx={{ position: "relative", display: "flex", gap: 1, flexWrap: "wrap" }}>
               <Button
                 component={Link}
+                href={`/${role}/sos`}
+                variant="contained"
+                color="error"
+                startIcon={<KIcon icon="sos" size={18} />}
+              >
+                SOS
+              </Button>
+              <Button
+                component={Link}
                 href={`/${role}/kad-maya`}
                 variant="contained"
                 startIcon={<KIcon icon="qr_code_2" size={18} />}
@@ -387,7 +396,8 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
           data.helpdesk ||
           data.officeOpen ||
           data.emergencyContacts.length > 0 ||
-          data.livingGuides.length > 0) && (
+          data.livingGuides.length > 0 ||
+          data.laundry) && (
           <BentoItem span={12} spanXs={2} delay={0.1}>
             <HomeWidgets
               role={role}
@@ -397,6 +407,7 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
               officeOpen={data.officeOpen}
               emergencyContacts={data.emergencyContacts}
               livingGuides={data.livingGuides}
+              laundry={data.laundry}
             />
           </BentoItem>
         )}

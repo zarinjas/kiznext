@@ -336,7 +336,7 @@ export function AiSettingsForm({
                 </Box>
               )}
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                <TextField label="Gemini chat model" value={model} onChange={(e) => setModel(e.target.value)} helperText="e.g. gemini-2.0-flash" fullWidth />
+                <TextField label="Gemini chat model" value={model} onChange={(e) => setModel(e.target.value)} helperText="e.g. gemini-3.6-flash" fullWidth />
                 <TextField
                   label="Gemini embedding model"
                   value={embedModel}

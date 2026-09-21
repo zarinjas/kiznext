@@ -79,6 +79,12 @@ export interface LivingGuideView {
   link: string | null
 }
 
+export interface LaundryWidgetView {
+  machineName: string
+  /** ISO end time of the running reminder (KL instant). */
+  endsAt: string
+}
+
 export interface ResidentHomeData {
   /** Canonical room line + session + roommate, null until published. */
   room: {
@@ -105,6 +111,8 @@ export interface ResidentHomeData {
   officeOpen: boolean
   emergencyContacts: EmergencyContactView[]
   livingGuides: LivingGuideView[]
+  /** Running laundry reminder (student-only surface), null when none. */
+  laundry: LaundryWidgetView | null
   /** "Stay Connected" social-links section (self-hides when empty/disabled). */
   stayConnected: StayConnectedSection
 }
@@ -176,7 +184,7 @@ export async function getResidentHomeData(input: {
   }
 
   // ── Acknowledgement target (also feeds the Important Notice widget) ──────
-  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail, stayConnected] =
+  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail, stayConnected, laundryReminder] =
     await Promise.all([
       getAcknowledgmentTarget(),
       prisma.announcement.findMany({
@@ -208,6 +216,11 @@ export async function getResidentHomeData(input: {
       }),
       getResidentRoomDetail(userId),
       getStayConnectedSection(),
+      prisma.laundryReminder.findFirst({
+        where: { userId, deletedAt: null, endedAt: null, endsAt: { gt: now } },
+        orderBy: { createdAt: "desc" },
+        include: { machine: { select: { name: true } } },
+      }),
     ])
   const ackedSet = new Set(ackedRows.map((a) => a.announcementId))
   const announcementDone = targetAnnouncement ? ackedSet.has(targetAnnouncement.id) : false
@@ -355,6 +368,9 @@ export async function getResidentHomeData(input: {
     officeOpen: isOfficeHours(now),
     emergencyContacts,
     livingGuides,
+    laundry: laundryReminder
+      ? { machineName: laundryReminder.machine.name, endsAt: laundryReminder.endsAt.toISOString() }
+      : null,
     stayConnected,
   }
 }

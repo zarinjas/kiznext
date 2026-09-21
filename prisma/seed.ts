@@ -1165,6 +1165,22 @@ async function main() {
     create: { key: "bilik_allocations_published", value: "false" },
   })
 
+  // SOS emergency-call routing numbers (office hours → office, after hours →
+  // duty fellow). Seeded idempotently so the SOS button works out of the box;
+  // admins change them in /urus-tetapan without a reseed.
+  const sosSettings = [
+    { key: "sos_office_phone", value: "03-8921 4000" },
+    { key: "sos_fellow_phone", value: "012-345 6789" },
+    { key: "sos_fellow_name", value: "Duty Fellow (on-call)" },
+  ]
+  for (const s of sosSettings) {
+    const existing = await prisma.appSetting.findUnique({ where: { key: s.key } })
+    if (!existing) {
+      await prisma.appSetting.create({ data: s })
+    }
+  }
+  console.log("SOS routing settings seeded")
+
   // Open accommodation application window: opened yesterday, closes in 7 days.
   const existingWindow = await prisma.selectionWindow.findFirst({ where: { isActive: true } })
   if (!existingWindow) {
@@ -1180,6 +1196,29 @@ async function main() {
     })
     console.log("Selection window seeded (open now)")
   }
+
+  // Laundry machines — reminder-based status (no machine API). Seeded
+  // idempotently by name so reseeds don't duplicate them.
+  const laundryMachines = [
+    { name: "Machine 1", location: "Laundry Room, Block K18A", sortOrder: 1 },
+    { name: "Machine 2", location: "Laundry Room, Block K18A", sortOrder: 2 },
+    { name: "Machine 3", location: "Laundry Room, Block K18A", sortOrder: 3 },
+    { name: "Machine 4", location: "Laundry Room, Block K18A", sortOrder: 4 },
+    { name: "Machine 5", location: "Laundry Room, Block K18A", sortOrder: 5 },
+    { name: "Machine 6", location: "Laundry Room, Block K18A", sortOrder: 6 },
+  ]
+  for (const machine of laundryMachines) {
+    const existing = await prisma.laundryMachine.findFirst({ where: { name: machine.name } })
+    if (existing) {
+      await prisma.laundryMachine.update({
+        where: { id: existing.id },
+        data: { location: machine.location, sortOrder: machine.sortOrder, deletedAt: null },
+      })
+    } else {
+      await prisma.laundryMachine.create({ data: machine })
+    }
+  }
+  console.log(`Laundry machines seeded (${laundryMachines.length})`)
 }
 
 main()

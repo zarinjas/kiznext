@@ -18,9 +18,17 @@ export async function POST(req: NextRequest) {
   }
 
   // Whitelisted subdirectory — chat attachments go to /uploads/chat, Digital
-  // Guide PDFs to /uploads/guides, everything else stays under /uploads/fasiliti.
+  // Guide PDFs to /uploads/guides, laundry machine photos to /uploads/laundry,
+  // everything else stays under /uploads/fasiliti.
   const requestedDir = String(formData.get("dir") ?? "fasiliti")
-  const dir = requestedDir === "chat" ? "chat" : requestedDir === "guides" ? "guides" : "fasiliti"
+  const dir =
+    requestedDir === "chat"
+      ? "chat"
+      : requestedDir === "guides"
+        ? "guides"
+        : requestedDir === "laundry"
+          ? "laundry"
+          : "fasiliti"
 
   const buffer = Buffer.from(await file.arrayBuffer())
 

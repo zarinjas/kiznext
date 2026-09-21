@@ -17,7 +17,15 @@ export default async function UrusPenggunaPage() {
     orderBy: [{ role: "asc" }, { name: "asc" }],
   })
 
-  const roomLabels = await getResidentRoomLabels(users.map((u) => u.id))
+  const [roomLabels, blockRows] = await Promise.all([
+    getResidentRoomLabels(users.map((u) => u.id)),
+    prisma.residenceBlock.findMany({
+      where: { deletedAt: null },
+      orderBy: { sortOrder: "asc" },
+      select: { name: true },
+    }),
+  ])
+  const blockOptions = blockRows.map((b) => b.name)
 
   const needsReview = users.filter((u) => u.accountStatus !== "active").length
 
@@ -35,6 +43,7 @@ export default async function UrusPenggunaPage() {
       <UsersClient
         currentUserId={session.user.id}
         isSuperAdmin={session.user.role === "superadmin"}
+        blockOptions={blockOptions}
         users={users.map((u) => ({
           id: u.id,
           matricId: u.matricId,
@@ -42,6 +51,8 @@ export default async function UrusPenggunaPage() {
           email: u.email,
           phone: u.phone,
           role: u.role,
+          block: u.block,
+          position: u.position,
           accountStatus: u.accountStatus,
           emailVerifiedAt: u.emailVerifiedAt?.toISOString() ?? null,
           roomLabel: roomLabels.get(u.id) ?? null,

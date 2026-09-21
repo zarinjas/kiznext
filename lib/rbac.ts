@@ -23,6 +23,10 @@ export const GUEST_HOUSE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 export const RESIDENCE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "staf"]
 export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", "pengetua"]
 
+/** Laundry machines — admins manage, pengetua reads. Students use the member page. */
+export const LAUNDRY_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz"]
+export const LAUNDRY_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
+
 /** Self-service registration lifecycle. See `prisma/schema.prisma` `AccountStatus`. */
 export type AccountStatus = "unverified" | "pending" | "active";
 
@@ -34,4 +38,22 @@ export function requireRole(userRole: Role | undefined, allowedRoles: Role[]): v
   if (!userRole || !allowedRoles.includes(userRole)) {
     throw new Error("Unauthorized: insufficient permissions");
   }
+}
+
+/**
+ * Office held within the `pengetua` role. Same permissions either way — the
+ * position only changes the label shown on the Digital Resident ID.
+ */
+export type PengetuaPosition = "pengetua" | "timbalan_pengetua";
+
+export const PENGETUA_POSITION_LABELS: Record<PengetuaPosition, string> = {
+  pengetua: "Pengetua",
+  timbalan_pengetua: "Timbalan Pengetua",
+};
+
+/** Label for a stored position value. Only the deputy overrides the role
+ *  label — a plain "pengetua" falls back to the role's own label. */
+export function positionLabel(position: string | null | undefined): string | null {
+  if (position === "timbalan_pengetua") return PENGETUA_POSITION_LABELS.timbalan_pengetua;
+  return null;
 }

@@ -17,9 +17,18 @@ export interface TriageResult {
   suggestedReply?: string
 }
 
+/**
+ * How the concierge produced a reply:
+ * - `kiz` — grounded in the KIZ knowledge base (citations available).
+ * - `chat` — general conversation / general knowledge, not KIZ-specific.
+ * - `unknown` — a KIZ question the knowledge base doesn't cover (offer the office).
+ */
+export type ConciergeKind = "chat" | "kiz" | "unknown"
+
 export interface ConciergeReply {
   enabled: boolean
   answer: string
+  kind: ConciergeKind
   confident: boolean
   sources: { title: string; href: string | null }[]
   /** True when the office is open right now — drives the escalation copy. */

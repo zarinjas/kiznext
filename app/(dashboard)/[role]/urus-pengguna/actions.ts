@@ -19,9 +19,24 @@ export interface UserInput {
   email?: string
   phone?: string
   role: Role
+  /** Block a fellow looks after — only persisted for the `fellow` role. */
+  block?: string
+  /** Office within the `pengetua` role — only persisted for `pengetua`. */
+  position?: string
 }
 
 const ADMIN_ROLES: Role[] = ["superadmin", "admin_kiz"]
+
+function normalizeBlock(role: Role, block?: string): string | null {
+  if (role !== "fellow") return null
+  return block?.trim() || null
+}
+
+function normalizePosition(role: Role, position?: string): string | null {
+  if (role !== "pengetua") return null
+  const value = position?.trim()
+  return value === "pengetua" || value === "timbalan_pengetua" ? value : null
+}
 
 function canManageRole(sessionRole: Role, targetRole: Role): boolean {
   if (targetRole === "superadmin") return sessionRole === "superadmin"
@@ -66,6 +81,8 @@ export async function createUser(input: UserInput & { password: string }) {
         email: input.email?.trim() || null,
         phone: input.phone?.trim() || null,
         role: input.role,
+        block: normalizeBlock(input.role, input.block),
+        position: normalizePosition(input.role, input.position),
         passwordHash,
         residentCardQr: matricId,
         deletedAt: null,
@@ -79,6 +96,8 @@ export async function createUser(input: UserInput & { password: string }) {
         email: input.email?.trim() || null,
         phone: input.phone?.trim() || null,
         role: input.role,
+        block: normalizeBlock(input.role, input.block),
+        position: normalizePosition(input.role, input.position),
         passwordHash,
         residentCardQr: matricId,
       },
@@ -113,6 +132,8 @@ export async function updateUser(id: string, input: UserInput) {
       email: input.email?.trim() || null,
       phone: input.phone?.trim() || null,
       role: input.role,
+      block: normalizeBlock(input.role, input.block),
+      position: normalizePosition(input.role, input.position),
     },
   })
 

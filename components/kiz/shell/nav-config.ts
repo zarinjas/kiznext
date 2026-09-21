@@ -2,6 +2,7 @@ import type { Role } from "@/lib/rbac"
 import {
   ADMIN_ROLES,
   GUEST_HOUSE_ROLES,
+  LAUNDRY_VIEW_ROLES,
   RESIDENCE_VIEW_ROLES,
   SUPPORT_ROLES,
 } from "@/lib/rbac"
@@ -58,6 +59,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Room Selection", href: `/${role}/bilik`, icon: "bedroom_parent", roles: ["ahli"] },
         { label: "Check-in / Out", href: `/${role}/checkin`, icon: "how_to_reg", roles: ["ahli"] },
         { label: "Facilities", href: `/${role}/tempahan-fasiliti`, icon: "meeting_room" },
+        { label: "Laundry", href: `/${role}/laundry`, icon: "local_laundry_service", roles: ["ahli"] },
         { label: "Guest House", href: `/${role}/rumah-tamu`, icon: "hotel", roles: ["ahli", "staf", "fellow"] },
         { label: "My Bookings", href: `/${role}/tempahan`, icon: "calendar_month" },
       ],
@@ -65,6 +67,7 @@ export function navForRole(role: Role): NavGroup[] {
     {
       label: "Support",
       items: [
+        { label: "SOS", href: `/${role}/sos`, icon: "sos" },
         { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent", roles: ["ahli", "pengetua"] },
         { label: "Lost & Found", href: `/${role}/hilang`, icon: "search" },
         { label: "Offices", href: `/${role}/pejabat`, icon: "domain" },
@@ -75,7 +78,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Community",
       items: [
         { label: "Community Chat", href: `/${role}/chat`, icon: "forum" },
-        { label: "eCard", href: `/${role}/kad-maya`, icon: "qr_code_2" },
+        { label: "Digital Resident ID", href: `/${role}/kad-maya`, icon: "qr_code_2" },
         { label: "Profile", href: `/${role}/profile`, icon: "person" },
       ],
     },
@@ -98,6 +101,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true, roles: ADMIN_ROLES },
         { label: "Stay Connected", href: `/${role}/urus-sosial`, icon: "link", admin: true, roles: ADMIN_ROLES },
         { label: "Facilities", href: `/${role}/urus-fasiliti`, icon: "apartment", admin: true, roles: ADMIN_ROLES },
+        { label: "Laundry", href: `/${role}/urus-laundry`, icon: "local_laundry_service", admin: true, roles: LAUNDRY_VIEW_ROLES },
         { label: "Offices", href: `/${role}/urus-pejabat`, icon: "domain", admin: true, roles: ADMIN_ROLES },
         { label: "AR Directory", href: `/${role}/urus-direktori`, icon: "view_in_ar", admin: true, roles: ADMIN_ROLES },
       ],

@@ -13,7 +13,7 @@ import { createUser, updateUser } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KButton } from "@/components/kiz/primitives/k-button"
 import { ROLE_LABELS } from "@/components/kiz/shell/nav-config"
-import type { Role } from "@/lib/rbac"
+import { PENGETUA_POSITION_LABELS, type PengetuaPosition, type Role } from "@/lib/rbac"
 
 export interface UserFormData {
   id?: string
@@ -22,17 +22,21 @@ export interface UserFormData {
   email: string
   phone: string
   role: Role
+  block?: string
+  position?: string
 }
 
 interface Props {
   initialData?: UserFormData
   isSuperAdmin: boolean
+  /** Residence block names, for the fellow block picker. */
+  blockOptions: string[]
   onClose: () => void
 }
 
 const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "fellow", "ahli", "staf"]
 
-export function UserForm({ initialData, isSuperAdmin, onClose }: Props) {
+export function UserForm({ initialData, isSuperAdmin, blockOptions, onClose }: Props) {
   const router = useRouter()
   const isEditing = !!initialData?.id
 
@@ -56,6 +60,8 @@ export function UserForm({ initialData, isSuperAdmin, onClose }: Props) {
       email: (form.get("email") as string) ?? "",
       phone: (form.get("phone") as string) ?? "",
       role,
+      block: (form.get("block") as string) ?? "",
+      position: (form.get("position") as string) ?? "",
     }
 
     try {
@@ -112,6 +118,41 @@ export function UserForm({ initialData, isSuperAdmin, onClose }: Props) {
             </MenuItem>
           ))}
         </TextField>
+
+        {role === "fellow" && (
+          <TextField
+            id="block"
+            name="block"
+            label="Block"
+            select
+            defaultValue={initialData?.block ?? ""}
+            helperText="The residence block this fellow looks after."
+          >
+            <MenuItem value="">— None —</MenuItem>
+            {blockOptions.map((b) => (
+              <MenuItem key={b} value={b}>
+                {b}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
+
+        {role === "pengetua" && (
+          <TextField
+            id="position"
+            name="position"
+            label="Jawatan"
+            select
+            defaultValue={initialData?.position ?? "pengetua"}
+            helperText="Same access either way — only the label on the Digital Resident ID changes."
+          >
+            {(Object.keys(PENGETUA_POSITION_LABELS) as PengetuaPosition[]).map((p) => (
+              <MenuItem key={p} value={p}>
+                {PENGETUA_POSITION_LABELS[p]}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
 
         {!isEditing && (
           <TextField

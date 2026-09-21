@@ -18,6 +18,9 @@ const DASHBOARD_POSTER_MAX_SIZE = 12 * 1024 * 1024
 
 const CARD_BG_MAX_SIZE = 4 * 1024 * 1024
 const STUDENT_CARD_BG_KEY = "student_card_bg"
+const FELLOW_CARD_BG_KEY = "fellow_card_bg"
+/** Principal, Deputy Principal, staff and admins share this card background. */
+const STAFF_CARD_BG_KEY = "staff_card_bg"
 const STUDENT_CARD_UKM_LOGO_KEY = "student_card_ukm_logo"
 const STUDENT_CARD_KIZ_LOGO_KEY = "student_card_kiz_logo"
 /** Superadmin-set residential session shown on the student card, e.g. "2026/2027". */
@@ -121,7 +124,7 @@ export async function removeAppLogo(): Promise<{ success: boolean; error?: strin
   }
 }
 
-/** Student Digital Card design — admin-configurable background image. */
+/** Digital Resident ID design — admin-configurable background image + logos. */
 export interface StudentCardDesign {
   backgroundUrl: string | null
   /** UKM crest — left logo slot on the card. */
@@ -130,6 +133,25 @@ export interface StudentCardDesign {
   kizLogoUrl: string | null
   /** "Residential Session" line shown on the card, e.g. "2026/2027". */
   session: string | null
+}
+
+/**
+ * Which uploaded background a role uses. Students keep their own design,
+ * fellows get a dedicated one, and everyone else (principal, deputy principal,
+ * staff, admins) shares a third.
+ */
+export type CardDesignSlot = "student" | "fellow" | "staff"
+
+const CARD_BG_KEYS: Record<CardDesignSlot, string> = {
+  student: STUDENT_CARD_BG_KEY,
+  fellow: FELLOW_CARD_BG_KEY,
+  staff: STAFF_CARD_BG_KEY,
+}
+
+function cardSlotForRole(role: string): CardDesignSlot {
+  if (role === "ahli") return "student"
+  if (role === "fellow") return "fellow"
+  return "staff"
 }
 
 /** Resolve the uploaded student-card logos, falling UI-side to a monogram tile. */
@@ -182,12 +204,30 @@ export async function setResidentialSession(
 }
 
 export async function getStudentCardDesign(): Promise<StudentCardDesign> {
+  return getCardDesign("ahli")
+}
+
+/**
+ * Resolve the Digital Resident ID design for a role — picks the right uploaded
+ * background (student / fellow / shared staff) plus the shared logos + session.
+ */
+export async function getCardDesign(role: string): Promise<StudentCardDesign> {
   const [bg, logos, session] = await Promise.all([
-    getAppSetting(STUDENT_CARD_BG_KEY),
+    getAppSetting(CARD_BG_KEYS[cardSlotForRole(role)]),
     getStudentCardLogos(),
     getResidentialSession(),
   ])
   return { backgroundUrl: bg ?? null, ...logos, session }
+}
+
+/** All three uploaded card backgrounds, for the admin settings form. */
+export async function getAllCardBackgrounds(): Promise<Record<CardDesignSlot, string | null>> {
+  const [student, fellow, staff] = await Promise.all([
+    getAppSetting(STUDENT_CARD_BG_KEY),
+    getAppSetting(FELLOW_CARD_BG_KEY),
+    getAppSetting(STAFF_CARD_BG_KEY),
+  ])
+  return { student: student ?? null, fellow: fellow ?? null, staff: staff ?? null }
 }
 
 export async function uploadStudentCardLogo(
@@ -265,9 +305,11 @@ export async function removeStudentCardLogo(
   }
 }
 
-export async function uploadStudentCardBackground(
+export async function uploadCardBackground(
+  slot: CardDesignSlot,
   formData: FormData
 ): Promise<{ success: boolean; error?: string; url?: string }> {
+  const settingKey = CARD_BG_KEYS[slot]
   try {
     const session = await auth()
     if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
@@ -279,7 +321,7 @@ export async function uploadStudentCardBackground(
       return { success: false, error: "No file selected" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key: settingKey } })
     if (existing?.value) {
       const oldPath = path.join(process.cwd(), "public", existing.value)
       try { await unlink(oldPath) } catch {}
@@ -288,7 +330,7 @@ export async function uploadStudentCardBackground(
     let url: string
     try {
       const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
-        prefix: "student-card-bg",
+        prefix: `${slot}-card-bg`,
         maxBytes: CARD_BG_MAX_SIZE,
       })
       url = result.url
@@ -297,37 +339,40 @@ export async function uploadStudentCardBackground(
     }
 
     await prisma.appSetting.upsert({
-      where: { key: STUDENT_CARD_BG_KEY },
+      where: { key: settingKey },
       update: { value: url },
-      create: { key: STUDENT_CARD_BG_KEY, value: url },
+      create: { key: settingKey, value: url },
     })
 
     revalidatePath("/", "layout")
     return { success: true, url }
   } catch (err) {
-    return actionError("uploadStudentCardBackground", err)
+    return actionError(`uploadCardBackground:${slot}`, err)
   }
 }
 
-export async function removeStudentCardBackground(): Promise<{ success: boolean; error?: string }> {
+export async function removeCardBackground(
+  slot: CardDesignSlot
+): Promise<{ success: boolean; error?: string }> {
+  const settingKey = CARD_BG_KEYS[slot]
   try {
     const session = await auth()
     if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
       return { success: false, error: "Unauthorized" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key: settingKey } })
     if (existing?.value) {
       const filePath = path.join(process.cwd(), "public", existing.value)
       try { await unlink(filePath) } catch {}
     }
 
-    await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_BG_KEY } })
+    await prisma.appSetting.deleteMany({ where: { key: settingKey } })
 
     revalidatePath("/", "layout")
     return { success: true }
   } catch (err) {
-    return actionError("removeStudentCardBackground", err)
+    return actionError(`removeCardBackground:${slot}`, err)
   }
 }
 

@@ -26,7 +26,7 @@ export function BottomNav({ role, bilikOpen = false }: { role: Role; bilikOpen?:
 
   const home = groups[0]?.items[0]
   const facilities = find("Facilities")
-  const kad = find("eCard")
+  const kad = find("Digital Resident ID")
   const chat = find("Community Chat")
 
   const isActive = (href: string) =>
@@ -35,7 +35,7 @@ export function BottomNav({ role, bilikOpen = false }: { role: Role; bilikOpen?:
   const tabs = [
     home && { label: "Home", href: home.href, icon: "home" },
     facilities && { label: "Book", href: facilities.href, icon: facilities.icon },
-    kad && { label: "eCard", href: kad.href, icon: kad.icon },
+    kad && { label: "Resident ID", href: kad.href, icon: kad.icon },
     chat && { label: "Chat", href: chat.href, icon: chat.icon },
     { label: "More", href: `/${role}/lagi`, icon: "grid_view" },
   ].filter(Boolean) as { label: string; href: string; icon: string }[]

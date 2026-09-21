@@ -29,6 +29,10 @@ export interface UserRow {
   email: string | null
   phone: string | null
   role: Role
+  /** Block a fellow looks after, e.g. "K18A". */
+  block: string | null
+  /** Office within the pengetua role ("pengetua" / "timbalan_pengetua"). */
+  position: string | null
   accountStatus: AccountStatus
   emailVerifiedAt: string | null
   /** Canonical allocated room ("K18A-101 (Bed A)"), null when not allocated. */
@@ -40,6 +44,8 @@ interface Props {
   users: UserRow[]
   currentUserId: string
   isSuperAdmin: boolean
+  /** Residence block names, for the fellow block picker. */
+  blockOptions: string[]
 }
 
 const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "fellow", "ahli", "staf"]
@@ -54,7 +60,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })
 }
 
-export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
+export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }: Props) {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
   const [accountFilter, setAccountFilter] = useState<string>("all")
@@ -137,11 +143,13 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
     },
     {
       field: "room",
-      headerName: "Room",
-      width: 150,
+      headerName: "Block / Room",
+      width: 160,
       renderCell: ({ row }) =>
         row.roomLabel ? (
           <Typography variant="body2" noWrap>{row.roomLabel}</Typography>
+        ) : row.block ? (
+          <Typography variant="body2" noWrap>Block {row.block}</Typography>
         ) : (
           <Typography variant="body2" sx={{ color: "text.disabled" }}>—</Typography>
         ),
@@ -285,13 +293,14 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
       />
 
       <KDialog open={showCreate} onClose={() => setShowCreate(false)} title="Add User" icon="person_add">
-        <UserForm isSuperAdmin={isSuperAdmin} onClose={() => setShowCreate(false)} />
+        <UserForm isSuperAdmin={isSuperAdmin} blockOptions={blockOptions} onClose={() => setShowCreate(false)} />
       </KDialog>
 
       {editing && (
         <KDialog open onClose={() => setEditing(null)} title={`Edit: ${editing.name}`} icon="edit">
           <UserForm
             isSuperAdmin={isSuperAdmin}
+            blockOptions={blockOptions}
             onClose={() => setEditing(null)}
             initialData={{
               id: editing.id,
@@ -300,6 +309,8 @@ export function UsersClient({ users, currentUserId, isSuperAdmin }: Props) {
               email: editing.email ?? "",
               phone: editing.phone ?? "",
               role: editing.role,
+              block: editing.block ?? "",
+              position: editing.position ?? "",
             }}
           />
         </KDialog>

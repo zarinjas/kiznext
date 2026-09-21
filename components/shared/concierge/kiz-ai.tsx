@@ -316,7 +316,7 @@ export function KizAi({
                   lineHeight: 1.5,
                 }}
               >
-                Hi! I&apos;m {name}. Ask me anything about KIZ — office hours, bookings, rooms, or lost items.
+                Hi! I&apos;m {name}. Ask me anything — KIZ info like office hours, bookings and rooms, or just chat.
               </Box>
             </Box>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pl: 5.5 }}>

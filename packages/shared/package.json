@@ -1,0 +1,12 @@
+{
+  "name": "@kiz/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure, platform-free code shared by the KIZ web app and the KIZ mobile app. No Prisma, no Next.js, no browser APIs.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  }
+}

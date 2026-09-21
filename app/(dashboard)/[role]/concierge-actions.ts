@@ -12,32 +12,35 @@ export async function askConcierge(question: string): Promise<ConciergeReply> {
   const session = await auth()
   const officeOpen = isOfficeHours()
   if (!session?.user?.id) {
-    return { enabled: false, answer: "", confident: false, sources: [], officeOpen, error: "Unauthorized" }
+    return { enabled: false, answer: "", kind: "unknown", confident: false, sources: [], officeOpen, error: "Unauthorized" }
   }
 
   const q = question.trim()
   if (q.length < 2) {
-    return { enabled: true, answer: "", confident: false, sources: [], officeOpen }
+    return { enabled: true, answer: "", kind: "unknown", confident: false, sources: [], officeOpen }
   }
 
   const cfg = await getAiConfig()
   if (!cfg.enabled) {
-    return { enabled: false, answer: "", confident: false, sources: [], officeOpen }
+    return { enabled: false, answer: "", kind: "unknown", confident: false, sources: [], officeOpen }
   }
 
   try {
     const result = await answerQuestion(q)
 
-    if (!result.confident || !result.answer) {
+    // Only genuine "I don't know this KIZ thing" misses feed the FAQ feedback
+    // loop — greetings and general chat are answered, not logged.
+    if (result.kind === "unknown" || !result.answer) {
       await prisma.aiUnansweredLog.create({
         data: { userId: session.user.id, question: q.slice(0, 500), bestScore: result.bestScore },
       })
-      return { enabled: true, answer: "", confident: false, sources: [], officeOpen }
+      return { enabled: true, answer: "", kind: "unknown", confident: false, sources: [], officeOpen }
     }
 
     return {
       enabled: true,
       answer: result.answer,
+      kind: result.kind,
       confident: true,
       sources: result.sources,
       officeOpen,
@@ -47,6 +50,7 @@ export async function askConcierge(question: string): Promise<ConciergeReply> {
     return {
       enabled: true,
       answer: "",
+      kind: "unknown",
       confident: false,
       sources: [],
       officeOpen,
