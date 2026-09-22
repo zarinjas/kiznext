@@ -20,11 +20,20 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { KButton } from "@/components/kiz/primitives/k-button"
 import { Surface } from "@/components/kiz/primitives/list-group"
 import { color } from "@/lib/theme"
+import { OFFICE_TONE_OPTIONS } from "@/lib/office-meta"
 
 interface OfficeView {
   id: string
   name: string
+  nameEn: string | null
   description: string | null
+  categoryLabel: string | null
+  categoryIcon: string | null
+  categoryTone: string | null
+  services: string[]
+  location: string | null
+  hoursLabel: string | null
+  phone: string | null
   featuredImage: string | null
   gallery: string[]
 }
@@ -91,7 +100,15 @@ function ImageThumb({ src, onRemove, alt }: { src: string; onRemove: () => void;
 function OfficeEditor({ office }: { office: OfficeView }) {
   const router = useRouter()
   const [name, setName] = useState(office.name)
+  const [nameEn, setNameEn] = useState(office.nameEn ?? "")
   const [description, setDescription] = useState(office.description ?? "")
+  const [categoryLabel, setCategoryLabel] = useState(office.categoryLabel ?? "")
+  const [categoryIcon, setCategoryIcon] = useState(office.categoryIcon ?? "")
+  const [categoryTone, setCategoryTone] = useState(office.categoryTone ?? "brand")
+  const [services, setServices] = useState(office.services.join("\n"))
+  const [location, setLocation] = useState(office.location ?? "")
+  const [hoursLabel, setHoursLabel] = useState(office.hoursLabel ?? "")
+  const [phone, setPhone] = useState(office.phone ?? "")
   const [featured, setFeatured] = useState<string | null>(office.featuredImage)
   const [gallery, setGallery] = useState<string[]>(office.gallery)
   const [uploading, setUploading] = useState(false)
@@ -148,7 +165,21 @@ function OfficeEditor({ office }: { office: OfficeView }) {
     setSaving(true)
     setError(null)
     try {
-      await updateOffice(office.id, { name: name.trim() || office.name, description })
+      await updateOffice(office.id, {
+        name: name.trim() || office.name,
+        nameEn: nameEn.trim() || null,
+        description: description.trim() || null,
+        categoryLabel: categoryLabel.trim() || null,
+        categoryIcon: categoryIcon.trim() || null,
+        categoryTone,
+        services: services
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        location: location.trim() || null,
+        hoursLabel: hoursLabel.trim() || null,
+        phone: phone.trim() || null,
+      })
     } catch {
       setError("Couldn't save — try again.")
     } finally {
@@ -181,6 +212,13 @@ function OfficeEditor({ office }: { office: OfficeView }) {
 
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} size="small" />
         <TextField
+          label="English title (shown on the card)"
+          value={nameEn}
+          onChange={(e) => setNameEn(e.target.value)}
+          size="small"
+          placeholder="e.g. KIZ Administration Office"
+        />
+        <TextField
           label="What this office handles"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -189,6 +227,70 @@ function OfficeEditor({ office }: { office: OfficeView }) {
           size="small"
           placeholder="Describe the office function students should know…"
         />
+
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+          <TextField
+            label="Category chip"
+            value={categoryLabel}
+            onChange={(e) => setCategoryLabel(e.target.value)}
+            size="small"
+            placeholder="e.g. Student & College Matters"
+          />
+          <TextField
+            label="Category icon (Material Symbol)"
+            value={categoryIcon}
+            onChange={(e) => setCategoryIcon(e.target.value)}
+            size="small"
+            placeholder="e.g. school"
+          />
+          <TextField
+            select
+            label="Chip colour"
+            value={categoryTone}
+            onChange={(e) => setCategoryTone(e.target.value)}
+            size="small"
+          >
+            {OFFICE_TONE_OPTIONS.map((t) => (
+              <MenuItem key={t.value} value={t.value}>
+                {t.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            size="small"
+            placeholder="e.g. 03-8921 4000"
+          />
+        </Box>
+
+        <TextField
+          label="Go here for"
+          value={services}
+          onChange={(e) => setServices(e.target.value)}
+          multiline
+          minRows={4}
+          size="small"
+          placeholder={"One service per line:\nCheck-in and check-out\nRoom and resident matters"}
+        />
+
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+          <TextField
+            label="Location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            size="small"
+            placeholder="e.g. Ground Floor · KIZ Lobby"
+          />
+          <TextField
+            label="Opening hours"
+            value={hoursLabel}
+            onChange={(e) => setHoursLabel(e.target.value)}
+            size="small"
+            placeholder="e.g. Monday–Friday · 8:00 AM–5:00 PM"
+          />
+        </Box>
 
         <Box>
           <Box sx={{ fontSize: 12.5, fontWeight: 600, color: "text.secondary", mb: 1 }}>Featured image</Box>

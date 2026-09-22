@@ -287,7 +287,20 @@ model Block {
 model Office {
   id            String   @id @default(uuid())
   name          String   @unique
+  /// English display title shown on the student office cards. Falls back to `name`.
+  nameEn        String?  @map("name_en")
   description   String?
+  /// Category chip shown above the card title (e.g. "Student & College Matters").
+  categoryLabel String?  @map("category_label")
+  categoryIcon  String?  @map("category_icon")
+  categoryTone  String?  @map("category_tone")
+  /// "Go here for" bullet list of services handled by this office.
+  services      String[] @default([])
+  /// Where the office is, e.g. "Ground Floor · KIZ Lobby".
+  location      String?  @map("location")
+  /// Human hours label, e.g. "Monday–Friday · 8:00 AM–5:00 PM".
+  hoursLabel    String?  @map("hours_label")
+  phone         String?  @map("phone")
   featuredImage String?  @map("featured_image")
   gallery       String[] @map("gallery")
   sortOrder     Int      @default(0) @map("sort_order")

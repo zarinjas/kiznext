@@ -162,12 +162,40 @@ async function main() {
   const officeData = [
     {
       name: "Pejabat Pentadbiran KIZ",
-      description: "College administration — registration, resident matters, forms, and booking approvals.",
+      nameEn: "KIZ Administration Office",
+      description: "For residential and student-related matters.",
+      categoryLabel: "Student & College Matters",
+      categoryIcon: "school",
+      categoryTone: "success",
+      services: [
+        "Check-in and check-out",
+        "Room and resident matters",
+        "College forms and letters",
+        "Facility booking enquiries",
+        "General KIZ enquiries",
+      ],
+      location: "Ground Floor · KIZ Lobby",
+      hoursLabel: "Monday–Friday · 8:00 AM–5:00 PM",
+      phone: "03-8921 4000",
       sortOrder: 1,
     },
     {
       name: "Pejabat UKM Real Estate",
-      description: "UKM Real Estate — property, facility, and building management matters.",
+      nameEn: "UKM Real Estate Office",
+      description: "For accommodation, payment and property-related matters.",
+      categoryLabel: "Accommodation & Property",
+      categoryIcon: "apartment",
+      categoryTone: "info",
+      services: [
+        "Accommodation agreements",
+        "Accommodation payments",
+        "Payment receipts",
+        "Maintenance and property matters",
+        "Other UKM Real Estate services",
+      ],
+      location: "Ground Floor · KIZ Lobby",
+      hoursLabel: "Monday–Friday · 8:00 AM–5:00 PM",
+      phone: "03-8921 4000",
       sortOrder: 2,
     },
   ]
@@ -175,7 +203,7 @@ async function main() {
   for (const o of officeData) {
     await prisma.office.upsert({
       where: { name: o.name },
-      update: {},
+      update: o,
       create: o,
     })
   }

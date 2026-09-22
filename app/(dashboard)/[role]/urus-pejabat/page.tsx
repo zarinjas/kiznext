@@ -34,7 +34,15 @@ export default async function UrusPejabatPage() {
         offices={offices.map((o) => ({
           id: o.id,
           name: o.name,
+          nameEn: o.nameEn,
           description: o.description,
+          categoryLabel: o.categoryLabel,
+          categoryIcon: o.categoryIcon,
+          categoryTone: o.categoryTone,
+          services: o.services,
+          location: o.location,
+          hoursLabel: o.hoursLabel,
+          phone: o.phone,
           featuredImage: o.featuredImage,
           gallery: o.gallery,
         }))}

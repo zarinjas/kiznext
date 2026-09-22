@@ -15,7 +15,15 @@ const pulse = keyframes`
  * When the office is open the dot pulses so the badge reads as live, which
  * supports the goal of routing small questions online instead of to the counter.
  */
-export function OfficeOpenBadge({ open }: { open: boolean }) {
+export function OfficeOpenBadge({
+  open,
+  openLabel = "Office Open",
+  closedLabel = "Office Closed",
+}: {
+  open: boolean
+  openLabel?: string
+  closedLabel?: string
+}) {
   return (
     <Box
       role="status"
@@ -44,7 +52,7 @@ export function OfficeOpenBadge({ open }: { open: boolean }) {
           ...(open && { animation: `${pulse} 2.2s ease-out infinite` }),
         }}
       />
-      {open ? "Office Open" : "Office Closed"}
+      {open ? openLabel : closedLabel}
     </Box>
   )
 }

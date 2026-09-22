@@ -17,6 +17,13 @@ export class AiError extends Error {
   }
 }
 
+export interface GenerateImage {
+  /** MIME type of the inline image, e.g. "image/jpeg". */
+  mimeType: string
+  /** Base64-encoded image bytes (no data-URL prefix). */
+  data: string
+}
+
 export interface GenerateOptions {
   prompt: string
   system?: string
@@ -26,10 +33,14 @@ export interface GenerateOptions {
   json?: boolean
   /** Optional Gemini response schema (OpenAPI subset) when `json` is true. */
   responseSchema?: unknown
+  /** Optional inline image for vision models (OCR, describe, translate). */
+  image?: GenerateImage
 }
 
 interface GeminiPart {
   text?: string
+  /** Inline image bytes for vision requests. */
+  inlineData?: { mimeType: string; data: string }
   /** Reasoning parts emitted by Gemini 2.5+/3 "thinking" models. */
   thought?: boolean
 }
@@ -69,7 +80,12 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
   if (!cfg.apiKey) throw new AiError("Gemini API key is not set")
 
   const url = `${GEMINI_BASE}/${encodeURIComponent(cfg.model)}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`
-  const contents = [{ role: "user", parts: [{ text: opts.prompt }] }]
+  const inputParts: GeminiPart[] = []
+  if (opts.image) {
+    inputParts.push({ inlineData: { mimeType: opts.image.mimeType, data: opts.image.data } })
+  }
+  inputParts.push({ text: opts.prompt })
+  const contents = [{ role: "user", parts: inputParts }]
 
   const attempt = (noThinking: boolean) =>
     postJson<GeminiResponse>(
@@ -112,9 +128,17 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
 
 async function callOllama(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
   const url = `${cfg.ollamaUrl}/v1/chat/completions`
-  const messages: { role: string; content: string }[] = []
+  const messages: { role: string; content: unknown }[] = []
   if (opts.system) messages.push({ role: "system", content: opts.system })
-  messages.push({ role: "user", content: opts.prompt })
+  // Vision-capable Ollama models accept the OpenAI content-parts form. Plain
+  // text models get a bare string so nothing changes for the text-only path.
+  const userContent = opts.image
+    ? [
+        { type: "image_url", image_url: { url: `data:${opts.image.mimeType};base64,${opts.image.data}` } },
+        { type: "text", text: opts.prompt },
+      ]
+    : opts.prompt
+  messages.push({ role: "user", content: userContent })
 
   const body: Record<string, unknown> = {
     model: cfg.ollamaModel,

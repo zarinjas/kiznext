@@ -42,6 +42,7 @@ export default function AppLayout() {
       <Stack.Screen name="hilang" options={{ headerShown: true, title: "Lost & Found" }} />
       <Stack.Screen name="pejabat" options={{ headerShown: true, title: "Offices" }} />
       <Stack.Screen name="direktori" options={{ headerShown: true, title: "AR Directory" }} />
+      <Stack.Screen name="ar-terjemah" options={{ headerShown: true, title: "AR Translate" }} />
       <Stack.Screen name="urus-helpdesk" options={{ headerShown: true, title: "Helpdesk Inbox" }} />
       <Stack.Screen
         name="urus-helpdesk/[ticketId]"

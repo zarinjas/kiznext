@@ -57,6 +57,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Lost & Found", icon: "search", path: "hilang" },
         { label: "Offices", icon: "domain", path: "pejabat" },
         { label: "AR Directory", icon: "view_in_ar", path: "direktori" },
+        { label: "AR Translate", icon: "translate", path: "ar-terjemah" },
       ],
     },
     {

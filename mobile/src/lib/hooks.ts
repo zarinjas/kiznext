@@ -7,6 +7,8 @@ import type {
   AdminGHBooking,
   AdminTicketSummary,
   Announcement,
+  ArTranslateMeta,
+  ArTranslateResult,
   BilikState,
   ChatSnapshot,
   CheckInLookup,
@@ -319,6 +321,23 @@ export function useDestinations() {
     queryKey: ["destinations"],
     queryFn: () => apiGet<{ destinations: Destination[] }>("/destinations"),
   })
+}
+
+// ── AR Translate (KIZ Lens) ──────────────────────────────────────────────────
+export function useArTranslateMeta() {
+  return useQuery({
+    queryKey: ["ar-translate-meta"],
+    queryFn: () => apiGet<ArTranslateMeta>("/ar-translate"),
+  })
+}
+
+/** One-shot OCR + translate of a captured camera frame. */
+export function arTranslateScan(input: {
+  image: string
+  targetLang: string
+  mimeType?: string
+}): Promise<ArTranslateResult> {
+  return apiPost<ArTranslateResult>("/ar-translate", input)
 }
 
 // ── Admin (urus-*) ───────────────────────────────────────────────────────────

@@ -86,6 +86,9 @@ const GLYPHS: Record<string, Glyph> = {
   sos: "sos",
   call: "call",
   bedtime: "bedtime",
+  translate: "translate",
+  document_scanner: "document-scanner",
+  auto_awesome: "auto-awesome",
 }
 
 export interface IconProps {

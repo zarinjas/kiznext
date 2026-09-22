@@ -384,6 +384,31 @@ export interface Destination {
   description: string | null
 }
 
+// ── AR Translate (KIZ Lens) ──────────────────────────────────────────────────
+export interface ArTranslateBox {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface ArTranslateBlock {
+  text: string
+  translation: string
+  box: ArTranslateBox | null
+}
+
+export interface ArTranslateResult {
+  sourceLang: string
+  targetLang: string
+  blocks: ArTranslateBlock[]
+}
+
+export interface ArTranslateMeta {
+  languages: { code: string; native: string; english: string }[]
+  suggestedLang: string | null
+}
+
 // ── Admin (urus-*) ───────────────────────────────────────────────────────────
 export interface AdminTicketSummary {
   id: string
