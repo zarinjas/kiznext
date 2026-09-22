@@ -38,5 +38,18 @@ export interface ConciergeReply {
 
 export interface AiTestResult {
   chat: { ok: boolean; detail: string }
+  json: { ok: boolean; detail: string }
+  vision: { ok: boolean; detail: string }
   embed: { ok: boolean; detail: string }
+}
+
+/** A free OpenRouter model, as listed by the admin model browser. */
+export interface OpenrouterModel {
+  id: string
+  name: string
+  context: number
+  /** True when the model accepts image input (required for KIZ Lens). */
+  vision: boolean
+  /** True when the model advertises structured/JSON output support. */
+  structured: boolean
 }

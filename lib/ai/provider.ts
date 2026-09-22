@@ -160,19 +160,33 @@ async function callOpenAiCompatible(opts: GenerateOptions, target: OpenAiTarget)
     : opts.prompt
   messages.push({ role: "user", content: userContent })
 
-  const body: Record<string, unknown> = {
+  const wantJson = Boolean(opts.json)
+  const buildBody = (withResponseFormat: boolean): Record<string, unknown> => ({
     model: target.model,
     messages,
     temperature: opts.temperature ?? 0.4,
     max_tokens: opts.maxOutputTokens ?? 1024,
     stream: false,
-    ...(opts.json ? { response_format: { type: "json_object" } } : {}),
-  }
+    ...(wantJson && withResponseFormat ? { response_format: { type: "json_object" } } : {}),
+  })
 
   const headers: Record<string, string> = { ...(target.extraHeaders ?? {}) }
   if (target.apiKey) headers.Authorization = `Bearer ${target.apiKey}`
 
-  const data = await postJson<OpenAiChatResponse>(url, body, target.label, headers)
+  let data: OpenAiChatResponse
+  try {
+    data = await postJson<OpenAiChatResponse>(url, buildBody(true), target.label, headers)
+  } catch (err) {
+    // Some (free) models reject `response_format: json_object` — retry without
+    // it and rely on the prompt's "JSON only" instruction. Mirrors the Gemini
+    // thinking-config retry above.
+    if (wantJson && err instanceof AiError && err.status === 400 && /response_format|json/i.test(err.message)) {
+      data = await postJson<OpenAiChatResponse>(url, buildBody(false), target.label, headers)
+    } else {
+      throw err
+    }
+  }
+
   const text = data.choices?.[0]?.message?.content ?? ""
   if (!text.trim()) throw new AiError(`${target.label} returned an empty response`)
   return text.trim()

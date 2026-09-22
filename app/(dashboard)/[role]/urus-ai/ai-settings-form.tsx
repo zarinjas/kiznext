@@ -21,9 +21,10 @@ import {
   reindexKnowledgeAction,
   clearUnanswered,
   testAiConnection,
+  listOpenrouterModels,
 } from "@/lib/ai/admin-actions"
 import { buildFaqTemplateXlsx } from "@/lib/ai/faq-template"
-import type { UnansweredRow, AiTestResult } from "@/lib/ai/types"
+import type { UnansweredRow, AiTestResult, OpenrouterModel } from "@/lib/ai/types"
 import type { ConciergeFrames } from "@/lib/ai/config"
 
 interface Props {
@@ -91,6 +92,9 @@ export function AiSettingsForm({
   const [openrouterModel, setOpenrouterModel] = useState(initialOpenrouterModel)
   const [removeKey, setRemoveKey] = useState(false)
   const [removeOpenrouterKey, setRemoveOpenrouterKey] = useState(false)
+  const [models, setModels] = useState<OpenrouterModel[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState("")
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -104,6 +108,7 @@ export function AiSettingsForm({
   const needsGemini = chatProvider === "gemini" || embedProvider === "gemini"
   const needsOllama = chatProvider === "ollama" || embedProvider === "ollama"
   const needsOpenrouter = chatProvider === "openrouter"
+  const selectedOpenrouter = models.find((m) => m.id === openrouterModel)
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -152,6 +157,21 @@ export function AiSettingsForm({
       setTest(await testAiConnection())
     } finally {
       setTesting(false)
+    }
+  }
+
+  async function handleLoadModels() {
+    setModelsError("")
+    setModelsLoading(true)
+    try {
+      const res = await listOpenrouterModels()
+      if (res.success && res.models) {
+        setModels(res.models)
+      } else {
+        setModelsError(res.error ?? "Couldn't load models.")
+      }
+    } finally {
+      setModelsLoading(false)
     }
   }
 
@@ -446,6 +466,50 @@ export function AiSettingsForm({
                   fullWidth
                 />
               </Box>
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleLoadModels}
+                  disabled={modelsLoading}
+                  startIcon={modelsLoading ? <CircularProgress size={14} /> : <KIcon icon="download" size={15} />}
+                  sx={{ textTransform: "none" }}
+                >
+                  {modelsLoading ? "Loading…" : "Load free models"}
+                </Button>
+                {models.length > 0 && (
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {models.length} free model{models.length === 1 ? "" : "s"} ·{" "}
+                    {models.filter((m) => m.vision).length} vision-capable
+                  </Typography>
+                )}
+              </Box>
+              {modelsError && <Alert severity="error">{modelsError}</Alert>}
+              {models.length > 0 && (
+                <TextField
+                  select
+                  label="Free OpenRouter models"
+                  value={selectedOpenrouter ? openrouterModel : ""}
+                  onChange={(e) => setOpenrouterModel(e.target.value)}
+                  fullWidth
+                  helperText="Picked from your OpenRouter account. A vision-capable model is needed for KIZ Lens (AR translate)."
+                >
+                  {models.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>
+                      {m.name}
+                      {m.vision ? " · vision" : ""}
+                      {m.structured ? " · structured" : ""}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+              {selectedOpenrouter && !selectedOpenrouter.vision && (
+                <Alert severity="warning">
+                  This model isn&apos;t vision-capable — chat will work, but KIZ Lens (AR translate) needs a
+                  vision model such as a Qwen-VL or Llama vision model.
+                </Alert>
+              )}
             </>
           )}
 
@@ -467,6 +531,14 @@ export function AiSettingsForm({
           {test && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
               <Alert severity={test.chat.ok ? "success" : "error"}>Chat: {test.chat.detail}</Alert>
+              <Alert severity={test.json.ok ? "success" : "error"}>
+                JSON output: {test.json.detail}
+                {!test.json.ok && " — KIZ-AI needs a model that can return JSON."}
+              </Alert>
+              <Alert severity={test.vision.ok ? "success" : "warning"}>
+                Vision: {test.vision.detail}
+                {!test.vision.ok && " — KIZ Lens (AR translate) needs a vision-capable model."}
+              </Alert>
               <Alert severity={test.embed.ok ? "success" : "warning"}>Embeddings: {test.embed.detail}</Alert>
             </Box>
           )}
