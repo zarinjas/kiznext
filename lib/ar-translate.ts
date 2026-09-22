@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db"
 import { getAiConfig } from "@/lib/ai/config"
-import { generateJson } from "@/lib/ai/provider"
+import { AiError, generateJson } from "@/lib/ai/provider"
 import {
   AR_TRANSLATE_SYSTEM,
   buildArTranslatePrompt,
@@ -86,15 +86,30 @@ export async function translateImage(input: TranslateImageInput): Promise<ArTran
   const cfg = await getAiConfig()
   if (!cfg.enabled) return null
 
-  try {
-    const result = await generateJson<ArTranslateJson>(cfg, {
+  const mimeType = input.mimeType || "image/jpeg"
+  const ask = (maxOutputTokens: number) =>
+    generateJson<ArTranslateJson>(cfg, {
       system: AR_TRANSLATE_SYSTEM,
       prompt: buildArTranslatePrompt(lang.english, lang.code),
-      image: { mimeType: input.mimeType || "image/jpeg", data: image },
+      image: { mimeType, data: image },
       responseSchema: AR_TRANSLATE_RESPONSE_SCHEMA,
       temperature: 0,
-      maxOutputTokens: 2500,
+      maxOutputTokens,
     })
+
+  try {
+    // A dense form/sign can blow past a small budget and truncate the JSON.
+    // Start lean (fast for the common case), then retry once with more room.
+    let result: ArTranslateJson
+    try {
+      result = await ask(4096)
+    } catch (err) {
+      if (err instanceof AiError && /token limit|truncat/i.test(err.message)) {
+        result = await ask(8192)
+      } else {
+        throw err
+      }
+    }
 
     const blocks: ArTranslateBlock[] = (result.blocks ?? [])
       .map((b) => ({
@@ -109,7 +124,10 @@ export async function translateImage(input: TranslateImageInput): Promise<ArTran
       targetLang: lang.code,
       blocks,
     }
-  } catch {
+  } catch (err) {
+    // Surface the real reason (timeout, bad model, blocked, malformed JSON) in
+    // the server log — the UI keeps the friendly generic message.
+    console.error("[ar-translate] translateImage failed", err)
     return null
   }
 }

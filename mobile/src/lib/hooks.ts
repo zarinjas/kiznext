@@ -32,6 +32,7 @@ import type {
   Panorama,
   ResidentHome,
   SosData,
+  WalletLinks,
 } from "./types"
 
 /** One-shot KIZ-AI question. Returns the reply (never throws for AI-off). */
@@ -77,7 +78,7 @@ export function useToggleAnnouncementReaction() {
 export function useHome() {
   return useQuery({
     queryKey: ["home"],
-    queryFn: () => apiGet<{ home: ResidentHome | null }>("/home"),
+    queryFn: () => apiGet<{ home: ResidentHome | null; heroBackgroundUrl: string | null }>("/home"),
   })
 }
 
@@ -92,6 +93,14 @@ export function useEcard() {
   return useQuery({
     queryKey: ["ecard"],
     queryFn: () => apiGet<EcardData>("/ecard"),
+  })
+}
+
+export function useWalletLinks() {
+  return useQuery({
+    queryKey: ["ecard", "wallet"],
+    queryFn: () => apiGet<WalletLinks>("/ecard/wallet"),
+    staleTime: 5 * 60 * 1000,
   })
 }
 

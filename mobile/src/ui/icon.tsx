@@ -57,6 +57,7 @@ const GLYPHS: Record<string, Glyph> = {
   push_pin: "push-pin",
   attachment: "attachment",
   send: "send",
+  reply: "reply",
   assignment: "assignment",
   swap_horiz: "swap-horiz",
   handyman: "handyman",
@@ -96,9 +97,11 @@ const GLYPHS: Record<string, Glyph> = {
   radio_button_unchecked: "radio-button-unchecked",
   history: "history",
   check: "check",
+  arrow_forward: "arrow-forward",
   info: "info",
   fingerprint: "fingerprint",
   volume_up: "volume-up",
+  account_balance_wallet: "account-balance-wallet",
 }
 
 export interface IconProps {

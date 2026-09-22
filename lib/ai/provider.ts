@@ -71,9 +71,22 @@ function buildGenerationConfig(cfg: AiConfig, opts: GenerateOptions, noThinking:
   }
 }
 
-interface OllamaResponse {
+interface OpenAiChatResponse {
   choices?: { message?: { content?: string } }[]
   error?: { message?: string }
+}
+
+/** An OpenAI-compatible chat endpoint (Ollama, OpenRouter, Groq, …). */
+interface OpenAiTarget {
+  /** Base URL without the trailing `/chat/completions`. */
+  baseUrl: string
+  /** Bearer token; omit for a keyless local server like Ollama. */
+  apiKey?: string | null
+  model: string
+  /** Label used in errors, e.g. "OpenRouter". */
+  label: string
+  /** Extra headers, e.g. OpenRouter's attribution header. */
+  extraHeaders?: Record<string, string>
 }
 
 async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
@@ -123,15 +136,22 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
     ].filter(Boolean)
     throw new AiError(`Gemini returned an empty response${bits.length ? ` (${bits.join(", ")})` : ""}`)
   }
+  // In JSON mode a MAX_TOKENS finish means the object was cut off mid-way and
+  // will never parse — fail with the real reason instead of "malformed JSON".
+  if (opts.json && candidate?.finishReason === "MAX_TOKENS") {
+    throw new AiError(
+      `Gemini hit the output token limit (${opts.maxOutputTokens ?? 1024}) and the JSON was truncated`
+    )
+  }
   return text.trim()
 }
 
-async function callOllama(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
-  const url = `${cfg.ollamaUrl}/v1/chat/completions`
+async function callOpenAiCompatible(opts: GenerateOptions, target: OpenAiTarget): Promise<string> {
+  const url = `${target.baseUrl.replace(/\/+$/, "")}/chat/completions`
   const messages: { role: string; content: unknown }[] = []
   if (opts.system) messages.push({ role: "system", content: opts.system })
-  // Vision-capable Ollama models accept the OpenAI content-parts form. Plain
-  // text models get a bare string so nothing changes for the text-only path.
+  // Vision-capable models accept the OpenAI content-parts form. Plain text
+  // models get a bare string so nothing changes for the text-only path.
   const userContent = opts.image
     ? [
         { type: "image_url", image_url: { url: `data:${opts.image.mimeType};base64,${opts.image.data}` } },
@@ -141,7 +161,7 @@ async function callOllama(cfg: AiConfig, opts: GenerateOptions): Promise<string>
   messages.push({ role: "user", content: userContent })
 
   const body: Record<string, unknown> = {
-    model: cfg.ollamaModel,
+    model: target.model,
     messages,
     temperature: opts.temperature ?? 0.4,
     max_tokens: opts.maxOutputTokens ?? 1024,
@@ -149,19 +169,27 @@ async function callOllama(cfg: AiConfig, opts: GenerateOptions): Promise<string>
     ...(opts.json ? { response_format: { type: "json_object" } } : {}),
   }
 
-  const data = await postJson<OllamaResponse>(url, body, "Ollama")
+  const headers: Record<string, string> = { ...(target.extraHeaders ?? {}) }
+  if (target.apiKey) headers.Authorization = `Bearer ${target.apiKey}`
+
+  const data = await postJson<OpenAiChatResponse>(url, body, target.label, headers)
   const text = data.choices?.[0]?.message?.content ?? ""
-  if (!text.trim()) throw new AiError("Ollama returned an empty response")
+  if (!text.trim()) throw new AiError(`${target.label} returned an empty response`)
   return text.trim()
 }
 
-async function postJson<T>(url: string, body: unknown, label: string): Promise<T> {
+async function postJson<T>(
+  url: string,
+  body: unknown,
+  label: string,
+  headers?: Record<string, string>
+): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
       signal: controller.signal,
     })
@@ -182,7 +210,19 @@ async function postJson<T>(url: string, body: unknown, label: string): Promise<T
 }
 
 export async function generateText(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
-  return cfg.chatProvider === "ollama" ? callOllama(cfg, opts) : callGemini(cfg, opts)
+  if (cfg.chatProvider === "ollama") {
+    return callOpenAiCompatible(opts, { baseUrl: cfg.ollamaUrl, model: cfg.ollamaModel, label: "Ollama" })
+  }
+  if (cfg.chatProvider === "openrouter") {
+    return callOpenAiCompatible(opts, {
+      baseUrl: cfg.openrouterBaseUrl,
+      apiKey: cfg.openrouterApiKey,
+      model: cfg.openrouterModel,
+      label: "OpenRouter",
+      extraHeaders: { "X-Title": "KIZ Super App" },
+    })
+  }
+  return callGemini(cfg, opts)
 }
 
 /** Generate a JSON object and parse it. Throws `AiError` on invalid JSON. */
@@ -192,6 +232,7 @@ export async function generateJson<T>(cfg: AiConfig, opts: GenerateOptions): Pro
   try {
     return JSON.parse(cleaned) as T
   } catch {
+    console.error("[ai:generateJson] malformed JSON from model:", cleaned.slice(0, 500))
     throw new AiError("Model returned malformed JSON")
   }
 }

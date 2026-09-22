@@ -1,5 +1,20 @@
 /* KIZ design system reset — tokens live in lib/theme (MUI cssVariables). */
-*, *::before, *::after { box-sizing: border-box; }
+
+/*
+ * Do NOT add a universal `box-sizing: border-box` reset here.
+ *
+ * MUI is emitted into `@layer mui` (AppRouterCacheProvider enableCssLayer), and
+ * unlayered declarations beat layered ones in the cascade. An unlayered
+ * `*, *::before, *::after { box-sizing: border-box }` therefore overrides
+ * MUI's `.MuiInputBase-input { box-sizing: content-box }` — the opt-out that
+ * lets outlined inputs add their padding on top of `height: 1.4375em`.
+ * The result was collapsed fields (medium 56→33px, small 40→20px) while
+ * selects/textarea kept their natural height, so forms looked broken.
+ *
+ * MUI's <CssBaseline /> (rendered in app-providers.tsx, inside @layer mui)
+ * already sets `html { box-sizing: border-box }` + `* { box-sizing: inherit }`,
+ * so the reset is redundant anyway. See lib/theme/theme.ts MuiOutlinedInput.
+ */
 html { -webkit-text-size-adjust: 100%; }
 
 body {

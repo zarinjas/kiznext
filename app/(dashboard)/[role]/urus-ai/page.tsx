@@ -33,6 +33,10 @@ export default async function UrusAiPage() {
         initialOllamaUrl={ai.ollamaUrl}
         initialOllamaModel={ai.ollamaModel}
         initialOllamaEmbedModel={ai.ollamaEmbedModel}
+        openrouterApiKeySet={ai.openrouterApiKeySet}
+        openrouterApiKeyFromEnv={ai.openrouterApiKeyFromEnv}
+        initialOpenrouterBaseUrl={ai.openrouterBaseUrl}
+        initialOpenrouterModel={ai.openrouterModel}
         avatarUrl={ai.avatarUrl}
         frames={ai.frames}
         knowledgeCount={ai.knowledgeCount}

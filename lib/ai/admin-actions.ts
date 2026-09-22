@@ -16,6 +16,8 @@ import {
   DEFAULT_OLLAMA_URL,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_OLLAMA_EMBED_MODEL,
+  DEFAULT_OPENROUTER_BASE_URL,
+  DEFAULT_OPENROUTER_MODEL,
   getConciergeFrames,
   type ConciergeEmotion,
   type ConciergeFrames,
@@ -52,13 +54,16 @@ async function upsertSetting(key: string, value: string) {
 export async function getAiAdminConfig() {
   await requireAiAdmin()
   const cfg = await getAiConfig()
-  const [keyRow, knowledge, withEmbedding] = await Promise.all([
+  const [keyRow, orKeyRow, knowledge, withEmbedding] = await Promise.all([
     prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.apiKey } }),
+    prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.openrouterApiKey } }),
     prisma.aiKnowledge.count({ where: { deletedAt: null } }),
     prisma.aiKnowledge.count({ where: { deletedAt: null, NOT: { embedding: "" } } }),
   ])
   const envKey = process.env.GEMINI_API_KEY?.trim() || null
   const storedKey = keyRow?.value?.trim() || null
+  const envOrKey = process.env.OPENROUTER_API_KEY?.trim() || null
+  const storedOrKey = orKeyRow?.value?.trim() || null
   return {
     apiKeySet: Boolean(storedKey || envKey),
     apiKeyFromEnv: !storedKey && Boolean(envKey),
@@ -70,6 +75,10 @@ export async function getAiAdminConfig() {
     ollamaUrl: cfg.ollamaUrl,
     ollamaModel: cfg.ollamaModel,
     ollamaEmbedModel: cfg.ollamaEmbedModel,
+    openrouterApiKeySet: Boolean(storedOrKey || envOrKey),
+    openrouterApiKeyFromEnv: !storedOrKey && Boolean(envOrKey),
+    openrouterBaseUrl: cfg.openrouterBaseUrl,
+    openrouterModel: cfg.openrouterModel,
     conciergeName: cfg.conciergeName,
     avatarUrl: cfg.avatarUrl,
     frames: await getConciergeFrames(),
@@ -91,6 +100,10 @@ interface AiConfigInput {
   ollamaUrl: string
   ollamaModel: string
   ollamaEmbedModel: string
+  openrouterApiKey: string
+  removeOpenrouterKey: boolean
+  openrouterBaseUrl: string
+  openrouterModel: string
 }
 
 export async function saveAiConfig(input: AiConfigInput): Promise<{ success: boolean; error?: string }> {
@@ -103,10 +116,19 @@ export async function saveAiConfig(input: AiConfigInput): Promise<{ success: boo
       await upsertSetting(AI_SETTING_KEYS.apiKey, input.apiKey.trim())
     }
 
+    if (input.removeOpenrouterKey) {
+      await prisma.appSetting.deleteMany({ where: { key: AI_SETTING_KEYS.openrouterApiKey } })
+    } else if (input.openrouterApiKey.trim()) {
+      await upsertSetting(AI_SETTING_KEYS.openrouterApiKey, input.openrouterApiKey.trim())
+    }
+
     await upsertSetting(AI_SETTING_KEYS.model, input.model.trim() || DEFAULT_AI_MODEL)
     await upsertSetting(AI_SETTING_KEYS.embedModel, input.embedModel.trim() || DEFAULT_GEMINI_EMBED_MODEL)
     await upsertSetting(AI_SETTING_KEYS.name, input.conciergeName.trim() || DEFAULT_CONCIERGE_NAME)
-    await upsertSetting(AI_SETTING_KEYS.chatProvider, input.chatProvider === "ollama" ? "ollama" : "gemini")
+    await upsertSetting(
+      AI_SETTING_KEYS.chatProvider,
+      input.chatProvider === "ollama" ? "ollama" : input.chatProvider === "openrouter" ? "openrouter" : "gemini"
+    )
     await upsertSetting(
       AI_SETTING_KEYS.embedProvider,
       input.embedProvider === "ollama" ? "ollama" : input.embedProvider === "none" ? "none" : "gemini",
@@ -118,6 +140,14 @@ export async function saveAiConfig(input: AiConfigInput): Promise<{ success: boo
     await upsertSetting(AI_SETTING_KEYS.ollamaUrl, input.ollamaUrl.trim() || DEFAULT_OLLAMA_URL)
     await upsertSetting(AI_SETTING_KEYS.ollamaModel, input.ollamaModel.trim() || DEFAULT_OLLAMA_MODEL)
     await upsertSetting(AI_SETTING_KEYS.ollamaEmbedModel, input.ollamaEmbedModel.trim() || DEFAULT_OLLAMA_EMBED_MODEL)
+    await upsertSetting(
+      AI_SETTING_KEYS.openrouterBaseUrl,
+      input.openrouterBaseUrl.trim() || DEFAULT_OPENROUTER_BASE_URL
+    )
+    await upsertSetting(
+      AI_SETTING_KEYS.openrouterModel,
+      input.openrouterModel.trim() || DEFAULT_OPENROUTER_MODEL
+    )
 
     revalidatePath("/", "layout")
     return { success: true }

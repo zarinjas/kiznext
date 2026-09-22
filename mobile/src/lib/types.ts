@@ -105,6 +105,7 @@ export interface ResidentHome {
   officeOpen: boolean
   emergencyContacts: { id: string; title: string; phone: string | null; subtitle: string | null; body: string | null }[]
   livingGuides: { id: string; title: string; subtitle: string | null; body: string | null; link: string | null }[]
+  laundry: { machineName: string; endsAt: string } | null
   stayConnected?: {
     enabled: boolean
     title: string
@@ -138,6 +139,12 @@ export interface EcardData {
     kizLogoUrl: string | null
   }
   ecardRegistered: boolean
+}
+
+/** "Add to Wallet" links; either side is null when that provider isn't configured. */
+export interface WalletLinks {
+  googleWalletUrl: string | null
+  appleWalletUrl: string | null
 }
 
 // ── Digital Guide ────────────────────────────────────────────────────────────

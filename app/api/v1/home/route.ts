@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticate, unauthorized, serverError } from "@/lib/mobile-auth"
 import { getResidentHomeData } from "@/lib/dashboard"
 import { isMemberRole } from "@/lib/rbac"
+import { getDashboardHeroBackground } from "@/lib/settings"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -15,16 +16,20 @@ export async function GET(req: NextRequest) {
   if (!auth) return unauthorized()
 
   if (!isMemberRole(auth.user.role)) {
-    return NextResponse.json({ data: { home: null } })
+    const heroBackgroundUrl = await getDashboardHeroBackground()
+    return NextResponse.json({ data: { home: null, heroBackgroundUrl } })
   }
 
   try {
-    const home = await getResidentHomeData({
-      userId: auth.user.id,
-      matricId: auth.user.matricId,
-      role: auth.user.role as "ahli" | "staf" | "fellow",
-    })
-    return NextResponse.json({ data: { home } })
+    const [home, heroBackgroundUrl] = await Promise.all([
+      getResidentHomeData({
+        userId: auth.user.id,
+        matricId: auth.user.matricId,
+        role: auth.user.role as "ahli" | "staf" | "fellow",
+      }),
+      getDashboardHeroBackground(),
+    ])
+    return NextResponse.json({ data: { home, heroBackgroundUrl } })
   } catch (err) {
     console.error("[api/v1/home] failed", err)
     return serverError("Couldn't load your dashboard.")

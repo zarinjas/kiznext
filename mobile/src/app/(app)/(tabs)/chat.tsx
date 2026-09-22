@@ -1,11 +1,12 @@
-import { CHAT_REACTION_EMOJIS, CHAT_REPORT_REASONS, chatRoleBadge } from "@kiz/shared"
+import { CHAT_REACTION_EMOJIS, CHAT_REPORT_REASONS } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import * as DocumentPicker from "expo-document-picker"
 import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { router } from "expo-router"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -13,6 +14,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   TextInput,
 } from "react-native"
 
@@ -31,10 +33,8 @@ import {
   KButton,
   LoadingScreen,
   Screen,
-  StatusChip,
   Text,
   TextField,
-  type ChipTone,
   type Theme,
 } from "@/ui"
 import { Icon } from "@/ui/icon"
@@ -44,21 +44,6 @@ interface PickedFile {
   name: string
   mime: string
   kind: "image" | "pdf" | "file"
-}
-
-function roleTone(role: string): ChipTone {
-  switch (role) {
-    case "superadmin":
-      return "danger"
-    case "admin_kiz":
-      return "brand"
-    case "staf":
-      return "info"
-    case "fellow":
-      return "warning"
-    default:
-      return "neutral"
-  }
 }
 
 function timeLabel(iso: string): string {
@@ -100,25 +85,29 @@ function Avatar({ name, avatar }: { name: string; avatar: string | null }) {
   )
 }
 
+const SENDER_COLORS = ["#007E85", "#7B61B5", "#C65B3A", "#2F6EB5", "#A33E76", "#55832A"]
+
+function senderColor(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0
+  return SENDER_COLORS[Math.abs(hash) % SENDER_COLORS.length]
+}
+
 function Bubble({
   message,
   mine,
   onLongPress,
-  onPress,
 }: {
   message: ChatMessage
   mine: boolean
   onLongPress: () => void
-  onPress: () => void
 }) {
   const theme = useTheme<Theme>()
-  const badge = chatRoleBadge(message.sender.role)
   const avatar = absoluteUrl(message.sender.avatarUrl)
   const attachment = absoluteUrl(message.attachmentUrl)
 
-  const bubbleBg = mine ? "brand600" : "surface"
-  const textColor = mine ? "#FFFFFF" : theme.colors.ink900
-  const subColor = mine ? "rgba(255,255,255,0.9)" : theme.colors.ink700
+  const textColor = theme.colors.ink900
+  const subColor = theme.colors.ink700
 
   return (
     <Box
@@ -132,33 +121,33 @@ function Bubble({
       {!mine ? <Avatar name={message.sender.name} avatar={avatar} /> : null}
 
       <Box maxWidth="78%" minWidth={0} alignItems={mine ? "flex-end" : "flex-start"}>
-        {!mine ? (
-          <Box flexDirection="row" alignItems="center" gap="xs" marginBottom="xs" paddingLeft="xs">
-            <Text variant="caption" style={{ fontWeight: "700", color: theme.colors.ink900 }} numberOfLines={1}>
-              {message.sender.name}
-            </Text>
-            <StatusChip label={badge.label} tone={roleTone(message.sender.role)} />
-          </Box>
-        ) : null}
-
-        <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={250}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Message from ${mine ? "you" : message.sender.name}. Hold for actions.`} onLongPress={onLongPress} delayLongPress={250}>
           <Box
             paddingHorizontal="m"
             paddingVertical="s"
             borderRadius="cardLg"
-            backgroundColor={bubbleBg}
-            borderWidth={mine ? 0 : 1}
-            borderColor={mine ? undefined : "border"}
+            style={{
+              backgroundColor: mine ? "#D9FDD3" : "#FFFFFF",
+              borderTopRightRadius: mine ? 4 : theme.borderRadii.cardLg,
+              borderTopLeftRadius: mine ? theme.borderRadii.cardLg : 4,
+            }}
+            borderWidth={1}
+            borderColor="border"
           >
+            {!mine ? (
+              <Text variant="caption" numberOfLines={1} style={{ color: senderColor(message.sender.id), fontWeight: "700", marginBottom: 2 }}>
+                {message.sender.name}
+              </Text>
+            ) : null}
             {message.replyPreview ? (
               <Box
                 marginBottom="s"
                 paddingLeft="s"
                 borderLeftWidth={2}
-                style={{ borderLeftColor: mine ? "rgba(255,255,255,0.5)" : theme.colors.brand300 }}
+                style={{ borderLeftColor: theme.colors.brand300 }}
               >
                 <Text variant="caption" numberOfLines={1} style={{ color: subColor }}>
-                  {message.replyPreview.senderName}: {message.replyPreview.text}
+                  {message.replyPreview.senderName}: {message.replyPreview.text || "📎 Attachment"}
                 </Text>
               </Box>
             ) : null}
@@ -172,7 +161,7 @@ function Bubble({
             {attachment && message.attachmentType === "image" ? (
               <Image
                 source={{ uri: attachment }}
-                style={{ width: 190, height: 190, borderRadius: theme.borderRadii.card, marginTop: 6 }}
+                style={{ width: 210, height: 190, borderRadius: theme.borderRadii.card, marginTop: 6 }}
                 contentFit="cover"
               />
             ) : null}
@@ -194,14 +183,14 @@ function Bubble({
                   paddingHorizontal="s"
                   paddingVertical="s"
                   borderRadius="input"
-                  style={{ backgroundColor: mine ? "rgba(255,255,255,0.18)" : theme.colors.canvasSunk }}
+                  style={{ backgroundColor: theme.colors.canvasSunk }}
                 >
-                  <Icon name="attachment" size={18} color={mine ? "#FFFFFF" : theme.colors.ink500} />
+                  <Icon name="attachment" size={18} color={theme.colors.ink500} />
                   <Text
                     variant="caption"
                     flex={1}
                     numberOfLines={1}
-                    style={{ color: mine ? "#FFFFFF" : theme.colors.ink700 }}
+                    style={{ color: theme.colors.ink700 }}
                   >
                     {message.attachmentName ?? "Document.pdf"}
                   </Text>
@@ -218,25 +207,28 @@ function Bubble({
                 paddingHorizontal="s"
                 paddingVertical="s"
                 borderRadius="input"
-                style={{ backgroundColor: mine ? "rgba(255,255,255,0.18)" : theme.colors.canvasSunk }}
+                style={{ backgroundColor: theme.colors.canvasSunk }}
               >
-                <Icon name="attachment" size={18} color={mine ? "#FFFFFF" : theme.colors.ink500} />
+                <Icon name="attachment" size={18} color={theme.colors.ink500} />
                 <Text
                   variant="caption"
                   flex={1}
                   numberOfLines={1}
-                  style={{ color: mine ? "#FFFFFF" : theme.colors.ink700 }}
+                  style={{ color: theme.colors.ink700 }}
                 >
                   {message.attachmentName ?? "Attachment"}
                 </Text>
               </Box>
             ) : null}
+
+            <Box flexDirection="row" justifyContent="flex-end" alignItems="center" marginTop="xs" gap="xs">
+              <Text variant="caption" style={{ color: theme.colors.ink300, fontSize: 10 }}>
+                {timeLabel(message.createdAt)}
+              </Text>
+              {mine ? <Icon name="check" size={13} color={theme.colors.brand700} /> : null}
+            </Box>
           </Box>
         </Pressable>
-
-        <Text variant="caption" marginTop="xs" style={{ color: theme.colors.ink300 }} paddingHorizontal="xs">
-          {timeLabel(message.createdAt)}
-        </Text>
 
         {message.reactions.length > 0 ? (
           <Box flexDirection="row" gap="xs" flexWrap="wrap" marginTop="xs">
@@ -279,6 +271,7 @@ export default function ChatScreen() {
   const [attachment, setAttachment] = useState<PickedFile | null>(null)
   const [uploading, setUploading] = useState(false)
   const [reportFor, setReportFor] = useState<ChatMessage | null>(null)
+  const listRef = useRef<FlatList<ChatMessage>>(null)
 
   const chat = data?.chat
   const messages = useMemo(() => [...(chat?.messages ?? [])].reverse(), [chat?.messages])
@@ -314,18 +307,24 @@ export default function ChatScreen() {
   async function submit() {
     const value = text.trim()
     if ((!value && !attachment) || uploading || send.isPending) return
+    const submittedAttachment = attachment
+    const submittedReply = replyTo
+    setText("")
+    setAttachment(null)
+    setReplyTo(null)
     setUploading(true)
     try {
       let att: { url: string; type: string; name: string } | null = null
-      if (attachment) {
-        const up = await uploadChatAttachment(attachment.uri, attachment.name, attachment.mime)
-        att = { url: up.url, type: attachment.kind, name: attachment.name }
+      if (submittedAttachment) {
+        const up = await uploadChatAttachment(submittedAttachment.uri, submittedAttachment.name, submittedAttachment.mime)
+        att = { url: up.url, type: submittedAttachment.kind, name: submittedAttachment.name }
       }
-      await send.mutateAsync({ message: value, replyToId: replyTo?.id ?? null, attachment: att })
-      setText("")
-      setReplyTo(null)
-      setAttachment(null)
+      await send.mutateAsync({ message: value, replyToId: submittedReply?.id ?? null, attachment: att })
+      requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: true }))
     } catch (e) {
+      setText((current) => current || value)
+      setAttachment((current) => current ?? submittedAttachment)
+      setReplyTo((current) => current ?? submittedReply)
       Alert.alert("Couldn't send", e instanceof Error ? e.message : "Try again.")
     } finally {
       setUploading(false)
@@ -337,15 +336,24 @@ export default function ChatScreen() {
 
   return (
     <Screen padded={false} edges={["top"]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Box paddingHorizontal="l" paddingVertical="m" borderBottomWidth={1} borderBottomColor="border">
-          <Text variant="heading">Community</Text>
-          <Text variant="caption">
-            {chat.memberCount} members · {chat.onlineCount} online
-          </Text>
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <Box paddingHorizontal="l" paddingVertical="m" borderBottomWidth={1} borderBottomColor="border" backgroundColor="surface">
+          <Box flexDirection="row" alignItems="center" gap="m">
+            <Box width={44} height={44} borderRadius="pill" backgroundColor="brand50" alignItems="center" justifyContent="center">
+              <Icon name="forum" size={23} color={theme.colors.brand700} />
+            </Box>
+            <Box flex={1}>
+              <Text variant="heading">KIZ Community</Text>
+              <Box flexDirection="row" alignItems="center" gap="xs">
+                <Box width={7} height={7} borderRadius="pill" backgroundColor="success" />
+                <Text variant="caption">{chat.memberCount} members · {chat.onlineCount} online</Text>
+              </Box>
+            </Box>
+          </Box>
         </Box>
 
         <FlatList
+          ref={listRef}
           data={messages}
           inverted
           keyExtractor={(item) => item.id}
@@ -354,10 +362,13 @@ export default function ChatScreen() {
               message={item}
               mine={item.sender.id === user?.id}
               onLongPress={() => setPickerFor(item)}
-              onPress={() => setReplyTo(item)}
             />
           )}
-          contentContainerStyle={{ paddingVertical: 12 }}
+          contentContainerStyle={{ paddingVertical: 12, flexGrow: 1, justifyContent: messages.length ? "flex-start" : "center" }}
+          style={styles.messageList}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={<Box alignItems="center" padding="xl"><Icon name="forum" size={36} color={theme.colors.ink300} /><Text variant="bodyStrong" marginTop="m">Start the conversation</Text><Text variant="caption" textAlign="center" marginTop="xs">Say hello to your KIZ community.</Text></Box>}
         />
 
         {pickerFor ? (
@@ -372,7 +383,7 @@ export default function ChatScreen() {
             backgroundColor="canvasSunk"
           >
             <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
-              React to {pickerFor.sender.name}
+              Message actions
             </Text>
             {CHAT_REACTION_EMOJIS.map((emoji) => (
               <Pressable
@@ -395,6 +406,17 @@ export default function ChatScreen() {
                 <Icon name="error_outline" size={18} color={theme.colors.dangerInk} />
               </Pressable>
             ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reply"
+              hitSlop={8}
+              onPress={() => {
+                setReplyTo(pickerFor)
+                setPickerFor(null)
+              }}
+            >
+              <Icon name="reply" size={20} color={theme.colors.brand700} />
+            </Pressable>
             <Pressable onPress={() => setPickerFor(null)}>
               <Icon name="close" size={18} color={theme.colors.ink300} />
             </Pressable>
@@ -449,22 +471,29 @@ export default function ChatScreen() {
           paddingVertical="s"
           borderTopWidth={1}
           borderTopColor="border"
+          backgroundColor="surface"
+          style={styles.composer}
         >
-          <Pressable onPress={pickImage} disabled={busy}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Attach photo" hitSlop={9} onPress={pickImage} disabled={busy}>
             <Icon name="photo_camera" size={22} color={theme.colors.ink500} />
           </Pressable>
-          <Pressable onPress={pickDocument} disabled={busy}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Attach document" hitSlop={9} onPress={pickDocument} disabled={busy}>
             <Icon name="attachment" size={22} color={theme.colors.ink500} />
           </Pressable>
 
-          <Box flex={1} borderWidth={1} borderColor="borderStrong" borderRadius="input" paddingHorizontal="m">
+          <Box flex={1} borderWidth={1} borderColor="borderStrong" borderRadius="sheet" paddingHorizontal="m" backgroundColor="canvasSunk">
             <TextInput
-              style={{ minHeight: 44, maxHeight: 120, fontSize: 15, color: theme.colors.ink900 }}
+              style={{ minHeight: 44, maxHeight: 120, paddingVertical: 11, fontSize: 15, lineHeight: 21, color: theme.colors.ink900, textAlignVertical: "top" }}
               value={text}
               onChangeText={setText}
-              placeholder={user ? `Message as ${user.name.split(" ")[0]}…` : "Message…"}
+              placeholder="Message"
               placeholderTextColor={theme.colors.ink300}
+              selectionColor={theme.colors.brand600}
               multiline
+              maxLength={4000}
+              submitBehavior="submit"
+              returnKeyType="send"
+              onSubmitEditing={() => void submit()}
             />
           </Box>
           <Pressable
@@ -476,10 +505,10 @@ export default function ChatScreen() {
               borderRadius: 22,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: canSend ? theme.colors.brand600 : theme.colors.border,
+              backgroundColor: canSend && !busy ? theme.colors.brand600 : theme.colors.border,
             }}
           >
-            <Icon name="send" size={20} color="#FFFFFF" />
+            {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
           </Pressable>
         </Box>
       </KeyboardAvoidingView>
@@ -488,6 +517,18 @@ export default function ChatScreen() {
     </Screen>
   )
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#EFEAE2" },
+  messageList: { flex: 1, backgroundColor: "#EFEAE2" },
+  composer: {
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+})
 
 function ReportModal({
   message,

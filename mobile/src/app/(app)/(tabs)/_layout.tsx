@@ -15,6 +15,7 @@ export default function TabsLayout() {
           backgroundColor: theme.colors.surface,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen

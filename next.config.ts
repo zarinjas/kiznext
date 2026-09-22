@@ -17,7 +17,9 @@ const nextConfig: NextConfig = {
   // Turbopack blows past the 2 GB VPS build budget and the build hangs on swap
   // (it only ever runs in the urus-bilik server action, so keeping it external
   // is safe). `sharp` is external for the same class of reason.
-  serverExternalPackages: ["sharp", "googleapis"],
+  // `passkit-generator` (Apple Wallet) is external too: it's an ESM package that
+  // pulls in `node-forge`, and it only ever runs in the /api/wallet server route.
+  serverExternalPackages: ["sharp", "googleapis", "passkit-generator"],
   // The VPS has 1.9 GB RAM and Next's build-time TypeScript check needs >1 GB,
   // so it thrashes swap for 20+ minutes (and OOMs below a raised heap limit).
   // Types are checked on the GitHub runner instead — see the `typecheck` job in

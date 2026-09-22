@@ -1,11 +1,38 @@
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { useEffect, useRef } from "react"
+import { Alert, Linking, Platform, Pressable } from "react-native"
 import QRCode from "react-native-qrcode-svg"
 
 import { absoluteUrl } from "@/lib/config"
-import { useEcard, useRegisterEcard } from "@/lib/hooks"
-import { Box, LoadingScreen, Screen, StatusChip, Text } from "@/ui"
+import { useEcard, useRegisterEcard, useWalletLinks } from "@/lib/hooks"
+import { Box, Icon, LoadingScreen, Screen, SectionTitle, StatusChip, Text, type Theme } from "@/ui"
+
+function WalletButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const theme = useTheme<Theme>()
+  return (
+    <Pressable
+      onPress={onPress}
+      android_ripple={{ color: "rgba(255,255,255,0.12)" }}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
+        borderRadius: theme.borderRadii.button,
+        backgroundColor: "#000000",
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Icon name="account_balance_wallet" size={18} color="#FFFFFF" />
+      <Text variant="button" style={{ color: "#FFFFFF" }}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
 
 function LogoSlot({ uri, fallback }: { uri: string | null; fallback: string }) {
   const resolved = absoluteUrl(uri)
@@ -33,7 +60,16 @@ export default function EcardScreen() {
   const theme = useTheme()
   const { data, isLoading } = useEcard()
   const register = useRegisterEcard()
+  const wallet = useWalletLinks()
+  const appleWalletUrl = wallet.data?.appleWalletUrl ?? null
+  const googleWalletUrl = wallet.data?.googleWalletUrl ?? null
   const fired = useRef(false)
+
+  function openWallet(url: string) {
+    Linking.openURL(url).catch(() =>
+      Alert.alert("Couldn't open Wallet", "Please try again in a moment.")
+    )
+  }
 
   // First view registers the eCard (clears the dashboard checklist task).
   useEffect(() => {
@@ -97,6 +133,7 @@ export default function EcardScreen() {
                 label={c.roleLabel ? c.roleLabel.toUpperCase() : "ACTIVE STUDENT"}
                 tone={c.roleLabel ? "brand" : "success"}
                 icon="badge"
+                alignSelf="center"
               />
             </Box>
 
@@ -170,6 +207,26 @@ export default function EcardScreen() {
             Show this QR code to security officers or KIZ staff for identity verification.
           </Text>
         </Box>
+
+        {appleWalletUrl || googleWalletUrl ? (
+          <Box width="100%" maxWidth={380} marginTop="l">
+            <SectionTitle>Add to Wallet</SectionTitle>
+            <Box gap="s">
+              {Platform.OS === "ios" && appleWalletUrl ? (
+                <WalletButton
+                  label="Add to Apple Wallet"
+                  onPress={() => openWallet(appleWalletUrl)}
+                />
+              ) : null}
+              {googleWalletUrl ? (
+                <WalletButton
+                  label="Add to Google Wallet"
+                  onPress={() => openWallet(googleWalletUrl)}
+                />
+              ) : null}
+            </Box>
+          </Box>
+        ) : null}
 
         {background ? (
           <Text variant="caption" textAlign="center" marginTop="m">

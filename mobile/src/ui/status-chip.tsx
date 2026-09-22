@@ -17,10 +17,12 @@ export function StatusChip({
   label,
   tone = "neutral",
   icon,
+  alignSelf = "flex-start",
 }: {
   label: string
   tone?: ChipTone
   icon?: string
+  alignSelf?: "flex-start" | "center" | "flex-end"
 }) {
   const theme = useTheme<Theme>()
   const t = TONES[tone]
@@ -29,7 +31,7 @@ export function StatusChip({
       flexDirection="row"
       alignItems="center"
       gap="xs"
-      alignSelf="flex-start"
+      alignSelf={alignSelf}
       backgroundColor={t.bg}
       borderRadius="pill"
       paddingHorizontal="s"

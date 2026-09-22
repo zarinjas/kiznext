@@ -25,7 +25,7 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { Bento, BentoItem, MetricTile } from "@/components/kiz/patterns/bento"
-import { FormSection } from "@/components/kiz/patterns/form-section"
+import { FormSection, FormGrid } from "@/components/kiz/patterns/form-section"
 import { seatTone, color, radius } from "@/lib/theme"
 import { bedWord } from "@/lib/bilik-format"
 import {
@@ -957,22 +957,22 @@ function BuildingTab({
       {activeBlock && <FormSection title={`${activeBlock.name} rooms`} subtitle={`${activeRooms.length} rooms. Tick rooms first if you want to change more than one status.`} icon="meeting_room" action={<Box sx={{ display: "flex", gap: 1 }}><KButton size="small" variant="outlined" icon="edit" onClick={() => setEditing(activeBlock)}>Edit block</KButton><KButton size="small" variant="outlined" icon="add" onClick={() => setShowAdd((value) => !value)}>{showAdd ? "Hide add rooms" : "Add rooms"}</KButton></Box>}>
         {selectedRoomIds.length > 0 && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.25, mb: 2, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: color.warning.main, backgroundColor: color.warning.soft }}>
           <Typography variant="body2" sx={{ flex: "1 1 200px", minWidth: 0 }}><b>{selectedRoomIds.length} room{selectedRoomIds.length === 1 ? "" : "s"} selected.</b> Change all selected rooms to:</Typography>
-          <TextField select size="small" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as RoomStatus)} sx={{ minWidth: 150, flex: "0 0 auto", "& .MuiInputBase-input": { py: 0.55, fontSize: 13 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField>
+          <TextField select size="small" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as RoomStatus)} sx={{ minWidth: 150, flex: "0 0 auto" }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField>
           <KButton size="small" loading={pending} onClick={applyBulkStatus}>Apply</KButton>
         </Box>}
         {activeRooms.length === 0 ? <KEmpty compact icon="meeting_room" title="No rooms in this block" body="Use Add rooms to create the first room or generate a whole floor." /> : <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(3,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" } }}>{activeRooms.map((room) => <RoomInventoryCard key={room.id} room={room} selected={selectedRoomIds.includes(room.id)} onToggle={() => toggleRoom(room.id)} onStatus={(status) => start(async () => { await setRoomStatus(room.id, status); notify(`${room.number} is now ${status}.`) })} onType={(type) => start(async () => { try { await updateRoomType(room.id, type); notify(`${room.number} is now a ${type === "single" ? "single" : "twin"} room.`) } catch (e) { notify(e instanceof Error ? e.message : "Could not change room type", "error") } })} onDelete={() => onDeleteRoom(activeBlock, room)} onManage={() => setManageRoom(room)} />)}</Box>}
       </FormSection>}
       {showAdd && <Box>
       <FormSection title="Add a block" subtitle="Only use this when a new residence block is opened." icon="add_home">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
-          <TextField label="Block name" placeholder="e.g. K20A" value={newName} onChange={(e) => setNewName(e.target.value)} />
+        <FormGrid columns={4}>
+          <TextField size="small" label="Block name" placeholder="e.g. K20A" value={newName} onChange={(e) => setNewName(e.target.value)} />
           <TextField select size="small" label="Gender" value={newGender} onChange={(e) => setNewGender(e.target.value as Gender)}>
             <MenuItem value="male">Male</MenuItem>
             <MenuItem value="female">Female</MenuItem>
           </TextField>
           <TextField type="number" size="small" label="Floors" value={newFloors} onChange={(e) => setNewFloors(Number(e.target.value))} />
           <TextField type="number" size="small" label="Sort order" value={newSort} onChange={(e) => setNewSort(Number(e.target.value))} />
-        </Box>
+        </FormGrid>
         <Box sx={{ mt: 2 }}>
           <KButton loading={pending} icon="add" onClick={addBlock}>
             Add block
@@ -981,16 +981,16 @@ function BuildingTab({
       </FormSection>
 
       <FormSection title="Add one room" subtitle="Beds are created automatically. The room number is the full code (block · floor · room) and the floor is read from it." icon="add_business">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" } }}>
+        <FormGrid columns={3}>
           <TextField select size="small" label="Block" value={roomBlock} onChange={(e) => setRoomBlock(e.target.value)}>
             {blocks.length === 0 ? <MenuItem value="" disabled>No blocks yet</MenuItem> : blocks.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
           </TextField>
-          <TextField label="Room number" placeholder={activeBlock ? `e.g. ${activeBlock.name}-101` : "e.g. K18A-101"} helperText="Code or just the number — e.g. K18A-101 or 101 for floor 1, room 01." value={roomNumber} onChange={(e) => setRoomNumber(e.target.value)} />
+          <TextField size="small" label="Room number" placeholder={activeBlock ? `e.g. ${activeBlock.name}-101` : "e.g. K18A-101"} helperText="Code or just the number — e.g. K18A-101 or 101 for floor 1, room 01." value={roomNumber} onChange={(e) => setRoomNumber(e.target.value)} />
           <TextField select size="small" label="Type" value={roomType} onChange={(e) => setRoomType(e.target.value as RoomType)}>
             <MenuItem value="single">Single</MenuItem>
             <MenuItem value="double">Double</MenuItem>
           </TextField>
-        </Box>
+        </FormGrid>
         <Box sx={{ mt: 2 }}>
           <KButton loading={pending} icon="add" onClick={addRoom} disabled={!roomBlock}>
             Add room
@@ -999,7 +999,7 @@ function BuildingTab({
       </FormSection>
 
       <FormSection title="Add many rooms at once" subtitle="Use this for a new floor. The system creates the rooms and beds automatically with full codes." icon="grid_on">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
+        <FormGrid columns={4}>
           <TextField select size="small" label="Block" value={genBlock} onChange={(e) => setGenBlock(e.target.value)}>
             {blocks.length === 0 ? <MenuItem value="" disabled>No blocks yet</MenuItem> : blocks.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
           </TextField>
@@ -1009,7 +1009,7 @@ function BuildingTab({
             <MenuItem value="single">Single</MenuItem>
             <MenuItem value="double">Double</MenuItem>
           </TextField>
-        </Box>
+        </FormGrid>
         <Box sx={{ mt: 2 }}>
           <KButton
             loading={pending}
@@ -1649,7 +1649,7 @@ function AssignControl({
         size="small"
         value={bedId}
         onChange={(e) => setBedId(e.target.value)}
-        sx={{ minWidth: 160, "& .MuiInputBase-input": { fontSize: 12, py: 0.5 } }}
+        sx={{ minWidth: 160 }}
         placeholder="Bed"
       >
         {beds.length === 0 ? (
