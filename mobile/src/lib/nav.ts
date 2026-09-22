@@ -45,6 +45,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Check-in / Out", icon: "how_to_reg", path: "checkin", roles: ["ahli"] },
         { label: "Scan counter QR", icon: "qr_code_2", path: "scan" },
         { label: "Facilities", icon: "meeting_room", path: "tempahan-fasiliti" },
+        { label: "Laundry", icon: "local_laundry_service", path: "laundry", roles: ["ahli"] },
         { label: "Guest House", icon: "hotel", path: "rumah-tamu", roles: ["ahli", "staf", "fellow"] },
         { label: "My Bookings", icon: "calendar_month", path: "tempahan" },
       ],
@@ -53,6 +54,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Support",
       items: [
         { label: "SOS", icon: "sos", path: "sos" },
+        { label: "KIZ-AI", icon: "smart_toy", path: "kiz-ai" },
         { label: "Helpdesk", icon: "support_agent", path: "helpdesk", roles: ["ahli", "pengetua"] },
         { label: "Lost & Found", icon: "search", path: "hilang" },
         { label: "Offices", icon: "domain", path: "pejabat" },

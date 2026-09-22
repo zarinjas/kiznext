@@ -3,10 +3,18 @@ import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { router } from "expo-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { Switch } from "react-native"
 
 import { ApiError, apiFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import {
+  authenticateBiometric,
+  biometricLabel,
+  biometricSupported,
+  isBiometricEnabled,
+  setBiometricEnabled,
+} from "@/lib/biometric"
 import { absoluteUrl } from "@/lib/config"
 import type { MobileUser } from "@/lib/types"
 import {
@@ -32,8 +40,41 @@ export default function ProfileScreen() {
   const [uploading, setUploading] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [bioSupported, setBioSupported] = useState(false)
+  const [bioEnabled, setBioEnabled] = useState(false)
+  const [bioLabel, setBioLabel] = useState("Biometric unlock")
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const supported = await biometricSupported()
+      if (!active) return
+      setBioSupported(supported)
+      if (supported) {
+        const [enabled, label] = await Promise.all([isBiometricEnabled(), biometricLabel()])
+        if (!active) return
+        setBioEnabled(enabled)
+        setBioLabel(label)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
 
   if (!user) return null
+
+  async function toggleBiometric(value: boolean) {
+    setError(null)
+    setNotice(null)
+    if (value) {
+      const ok = await authenticateBiometric(`Enable ${bioLabel}`)
+      if (!ok) return
+    }
+    await setBiometricEnabled(value)
+    setBioEnabled(value)
+    setNotice(value ? `${bioLabel} enabled.` : `${bioLabel} turned off.`)
+  }
 
   async function pickAndUploadAvatar() {
     setError(null)
@@ -181,6 +222,26 @@ export default function ProfileScreen() {
       </Box>
 
       <Box height={24} />
+
+      {bioSupported ? (
+        <>
+          <ListGroup title="Security">
+            <ListRow
+              icon="fingerprint"
+              title={bioLabel}
+              subtitle={`Require ${bioLabel} to unlock the app`}
+              trailing={
+                <Switch
+                  value={bioEnabled}
+                  onValueChange={(v) => void toggleBiometric(v)}
+                  trackColor={{ true: theme.colors.brand600, false: theme.colors.border }}
+                />
+              }
+            />
+          </ListGroup>
+          <Box height={24} />
+        </>
+      ) : null}
 
       <ListGroup title="Account">
         <ListRow icon="badge" title="Matric number" meta={user.matricId} />

@@ -27,6 +27,9 @@ export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", 
 export const LAUNDRY_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz"]
 export const LAUNDRY_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
+/** Analytics / reports — admins and the principal (read-only). */
+export const REPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
+
 /** Self-service registration lifecycle. See `prisma/schema.prisma` `AccountStatus`. */
 export type AccountStatus = "unverified" | "pending" | "active";
 

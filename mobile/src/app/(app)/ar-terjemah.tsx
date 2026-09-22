@@ -8,6 +8,7 @@ import { ActivityIndicator, Pressable, ScrollView } from "react-native"
 
 import { ApiError } from "@/lib/api"
 import { arTranslateScan, useArTranslateMeta } from "@/lib/hooks"
+import { speak, stopSpeaking } from "@/lib/speech"
 import type { ArTranslateResult } from "@/lib/types"
 import { Box, Icon, KButton, KEmpty, Screen, Text, type Theme } from "@/ui"
 
@@ -117,10 +118,14 @@ export default function ArTerjemahScreen() {
   )
 
   const resetScan = useCallback(() => {
+    stopSpeaking()
     setFrozen(null)
     setResult(null)
     setError(null)
   }, [])
+
+  // Stop any speech when leaving the screen.
+  useEffect(() => () => stopSpeaking(), [])
 
   if (!permission) {
     return (
@@ -322,13 +327,48 @@ export default function ArTerjemahScreen() {
                       </Text>
                     </Box>
                   ) : null}
+                  <Pressable
+                    onPress={() => speak(result.blocks.map((b) => b.translation).join(". "), activeLang)}
+                    style={{ marginLeft: "auto" }}
+                    hitSlop={8}
+                    accessibilityLabel="Listen to the translation"
+                  >
+                    <Box
+                      flexDirection="row"
+                      alignItems="center"
+                      gap="xs"
+                      paddingHorizontal="s"
+                      paddingVertical="xs"
+                      borderRadius="pill"
+                      backgroundColor="brand50"
+                    >
+                      <Icon name="volume_up" size={14} color={theme.colors.brand700} />
+                      <Text style={{ color: theme.colors.brand700, fontSize: 11, fontWeight: "700" }}>Listen</Text>
+                    </Box>
+                  </Pressable>
                 </Box>
                 {result.blocks.map((block, i) => (
-                  <Box key={i} paddingVertical="s" style={i > 0 ? { borderTopWidth: 1, borderColor: theme.colors.border } : undefined}>
-                    <Text variant="caption">{block.text}</Text>
-                    <Text variant="bodyStrong" marginTop="xs">
-                      {block.translation}
-                    </Text>
+                  <Box
+                    key={i}
+                    paddingVertical="s"
+                    flexDirection="row"
+                    alignItems="flex-start"
+                    gap="s"
+                    style={i > 0 ? { borderTopWidth: 1, borderColor: theme.colors.border } : undefined}
+                  >
+                    <Box flex={1} minWidth={0}>
+                      <Text variant="caption">{block.text}</Text>
+                      <Text variant="bodyStrong" marginTop="xs">
+                        {block.translation}
+                      </Text>
+                    </Box>
+                    <Pressable
+                      onPress={() => speak(block.translation, activeLang)}
+                      hitSlop={8}
+                      accessibilityLabel="Listen to this line"
+                    >
+                      <Icon name="volume_up" size={18} color={theme.colors.brand600} />
+                    </Pressable>
                   </Box>
                 ))}
               </ScrollView>

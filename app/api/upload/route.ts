@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
         ? "guides"
         : requestedDir === "laundry"
           ? "laundry"
-          : "fasiliti"
+          : requestedDir === "onboarding"
+            ? "onboarding"
+            : "fasiliti"
 
   const buffer = Buffer.from(await file.arrayBuffer())
 

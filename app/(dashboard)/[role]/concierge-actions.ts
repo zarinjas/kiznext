@@ -2,61 +2,25 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { getAiConfig } from "@/lib/ai/config"
-import { answerQuestion } from "@/lib/ai"
+import { askConciergeCore } from "@/lib/ai/concierge"
 import type { ConciergeReply } from "@/lib/ai/types"
 import { isOfficeHours } from "@/lib/office-hours"
 
 /** Answer a resident's question from the KIZ knowledge index. */
 export async function askConcierge(question: string): Promise<ConciergeReply> {
   const session = await auth()
-  const officeOpen = isOfficeHours()
   if (!session?.user?.id) {
-    return { enabled: false, answer: "", kind: "unknown", confident: false, sources: [], officeOpen, error: "Unauthorized" }
-  }
-
-  const q = question.trim()
-  if (q.length < 2) {
-    return { enabled: true, answer: "", kind: "unknown", confident: false, sources: [], officeOpen }
-  }
-
-  const cfg = await getAiConfig()
-  if (!cfg.enabled) {
-    return { enabled: false, answer: "", kind: "unknown", confident: false, sources: [], officeOpen }
-  }
-
-  try {
-    const result = await answerQuestion(q)
-
-    // Only genuine "I don't know this KIZ thing" misses feed the FAQ feedback
-    // loop — greetings and general chat are answered, not logged.
-    if (result.kind === "unknown" || !result.answer) {
-      await prisma.aiUnansweredLog.create({
-        data: { userId: session.user.id, question: q.slice(0, 500), bestScore: result.bestScore },
-      })
-      return { enabled: true, answer: "", kind: "unknown", confident: false, sources: [], officeOpen }
-    }
-
     return {
-      enabled: true,
-      answer: result.answer,
-      kind: result.kind,
-      confident: true,
-      sources: result.sources,
-      officeOpen,
-    }
-  } catch (err) {
-    console.error("[ai:askConcierge]", err)
-    return {
-      enabled: true,
+      enabled: false,
       answer: "",
       kind: "unknown",
       confident: false,
       sources: [],
-      officeOpen,
-      error: err instanceof Error ? err.message : "KIZ-AI is unavailable right now.",
+      officeOpen: isOfficeHours(),
+      error: "Unauthorized",
     }
   }
+  return askConciergeCore(session.user.id, question)
 }
 
 export interface EscalateInput {

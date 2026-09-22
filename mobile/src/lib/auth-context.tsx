@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Platform } from "react-native"
 import * as Device from "expo-device"
 import { apiGet, apiPost } from "./api"
+import { persister } from "./persister"
+import { queryClient } from "./query-client"
 import { clearToken, getToken, saveToken } from "./storage"
 import type { MobileUser } from "./types"
 
@@ -70,6 +72,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Best-effort — clear locally regardless.
     }
     await clearToken()
+    // Drop any cached data so the next user can't see the previous one's.
+    queryClient.clear()
+    try {
+      await persister.removeClient()
+    } catch {
+      // Non-fatal — the in-memory cache is already cleared.
+    }
     setUser(null)
   }, [])
 

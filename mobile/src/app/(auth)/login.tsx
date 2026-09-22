@@ -1,11 +1,12 @@
 import { useTheme } from "@shopify/restyle"
 import { router } from "expo-router"
 import { useState } from "react"
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native"
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { loginSchema } from "@kiz/shared"
 
 import { ApiError } from "@/lib/api"
+import { resendVerification } from "@/lib/auth-api"
 import { useAuth } from "@/lib/auth-context"
 import { Box, KButton, Text, TextField, type Theme } from "@/ui"
 import { Icon } from "@/ui/icon"
@@ -19,6 +20,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null)
   const [needsVerify, setNeedsVerify] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [resending, setResending] = useState(false)
 
   async function submit() {
     setError(null)
@@ -43,6 +45,18 @@ export default function LoginScreen() {
       }
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function resend() {
+    setResending(true)
+    try {
+      await resendVerification(matricId, password)
+      Alert.alert("Email sent", "Check your inbox for the verification link.")
+    } catch (err) {
+      Alert.alert("Couldn't resend", err instanceof ApiError ? err.message : "Try again in a moment.")
+    } finally {
+      setResending(false)
     }
   }
 
@@ -100,14 +114,38 @@ export default function LoginScreen() {
                   {error}
                 </Text>
                 {needsVerify ? (
-                  <Text variant="caption" marginTop="xs">
-                    Check your inbox for the verification link, then sign in again.
-                  </Text>
+                  <>
+                    <Text variant="caption" marginTop="xs">
+                      Check your inbox for the verification link, then sign in again.
+                    </Text>
+                    <Box marginTop="s" alignItems="flex-start">
+                      <KButton
+                        label="Resend verification email"
+                        variant="secondary"
+                        fullWidth={false}
+                        loading={resending}
+                        onPress={resend}
+                      />
+                    </Box>
+                  </>
                 ) : null}
               </Box>
             ) : null}
 
             <KButton label="Sign in" onPress={submit} loading={busy} />
+
+            <Box flexDirection="row" justifyContent="space-between" marginTop="s">
+              <Pressable onPress={() => router.push("/daftar")}>
+                <Text variant="caption" style={{ color: theme.colors.brand700, fontWeight: "600" }}>
+                  Create an account
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => router.push("/lupa-kata-laluan")}>
+                <Text variant="caption" style={{ color: theme.colors.brand700, fontWeight: "600" }}>
+                  Forgot password?
+                </Text>
+              </Pressable>
+            </Box>
           </Box>
 
           <Box marginTop="xl" alignItems="center">

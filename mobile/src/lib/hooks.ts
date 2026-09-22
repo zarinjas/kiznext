@@ -12,6 +12,7 @@ import type {
   BilikState,
   ChatSnapshot,
   CheckInLookup,
+  ConciergeReply,
   CheckInOverview,
   CheckInScan,
   CheckInSubmit,
@@ -23,18 +24,53 @@ import type {
   Guide,
   HelpdeskListData,
   HelpdeskThread,
+  LaundrySnapshot,
   LostFoundItem,
   MyBookings,
   Office,
+  OnboardingSlide,
   Panorama,
   ResidentHome,
   SosData,
 } from "./types"
 
+/** One-shot KIZ-AI question. Returns the reply (never throws for AI-off). */
+export function askConcierge(question: string): Promise<ConciergeReply> {
+  return apiPost<ConciergeReply>("/concierge", { question })
+}
+
+export function useOnboardingSlides() {
+  return useQuery({
+    queryKey: ["onboarding"],
+    queryFn: () => apiGet<{ slides: OnboardingSlide[] }>("/onboarding"),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 export function useAnnouncements() {
   return useQuery({
     queryKey: ["announcements"],
     queryFn: () => apiGet<{ announcements: Announcement[] }>("/announcements"),
+  })
+}
+
+export function useMarkAnnouncementRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiPost(`/announcements/${id}/read`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["announcements"] })
+      qc.invalidateQueries({ queryKey: ["home"] })
+    },
+  })
+}
+
+export function useToggleAnnouncementReaction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: string; type: string }) =>
+      apiPost(`/announcements/${input.id}/reaction`, { type: input.type }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
   })
 }
 
@@ -112,8 +148,28 @@ export function useSendReply(ticketId: string | undefined) {
 export function useSendChat() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: { message: string; replyToId?: string | null }) =>
-      apiPost("/chat", input),
+    mutationFn: (input: {
+      message: string
+      replyToId?: string | null
+      attachment?: { url: string; type: string; name: string } | null
+    }) => apiPost("/chat", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat"] }),
+  })
+}
+
+/** Upload a chat attachment (image/PDF) and return its stored path. */
+export function uploadChatAttachment(uri: string, name: string, mimeType: string) {
+  const form = new FormData()
+  form.append("file", { uri, name, type: mimeType } as unknown as Blob)
+  form.append("dir", "chat")
+  return apiFetch<{ url: string; filename: string }>("/upload", { method: "POST", formData: form })
+}
+
+export function useReportChatMessage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { messageId: string; reason: string; note?: string }) =>
+      apiPost(`/chat/${input.messageId}/report`, { reason: input.reason, note: input.note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat"] }),
   })
 }
@@ -280,6 +336,33 @@ export function checkInSubmit(token: string, matricId: string, signature: string
 }
 export function getCheckInDirections() {
   return apiGet<{ url: string | null }>("/checkin/directions")
+}
+
+// ── Laundry ──────────────────────────────────────────────────────────────────
+export function useLaundry() {
+  return useQuery({
+    queryKey: ["laundry"],
+    queryFn: () => apiGet<LaundrySnapshot>("/laundry"),
+    refetchInterval: 20000,
+  })
+}
+
+export function useStartLaundry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { machineId: string; durationMinutes: number }) =>
+      apiPost<LaundrySnapshot>("/laundry", { action: "start", ...input }),
+    onSuccess: (data) => qc.setQueryData(["laundry"], data),
+  })
+}
+
+export function useCancelLaundry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (reminderId: string) =>
+      apiPost<LaundrySnapshot>("/laundry", { action: "cancel", reminderId }),
+    onSuccess: (data) => qc.setQueryData(["laundry"], data),
+  })
 }
 
 // ── Lost & Found ─────────────────────────────────────────────────────────────

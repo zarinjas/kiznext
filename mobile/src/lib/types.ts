@@ -24,6 +24,32 @@ export interface Announcement {
   scheduledAt: string | null
   expiresAt: string | null
   createdAt: string
+  reactions: { noted: number; excited: number; interested: number }
+  mine: string[]
+  unread: boolean
+}
+
+// ── KIZ-AI ───────────────────────────────────────────────────────────────────
+export type ConciergeKind = "chat" | "kiz" | "unknown"
+
+export interface ConciergeReply {
+  enabled: boolean
+  answer: string
+  kind: ConciergeKind
+  confident: boolean
+  sources: { title: string; href: string | null }[]
+  officeOpen: boolean
+  error?: string
+}
+
+// ── Onboarding ───────────────────────────────────────────────────────────────
+export interface OnboardingSlide {
+  id: string
+  title: string
+  body: string | null
+  imageUrl: string | null
+  gradient: string
+  buttonLabel: string | null
 }
 
 // ── SOS ──────────────────────────────────────────────────────────────────────
@@ -338,6 +364,14 @@ export interface CheckInSubmit {
   type?: "check_in" | "check_out"
   signedAtIso?: string
 }
+
+// ── Laundry ──────────────────────────────────────────────────────────────────
+export type {
+  LaundryMachineState,
+  LaundryMachineView,
+  LaundryReminderView,
+  LaundrySnapshot,
+} from "@kiz/shared"
 
 // ── Lost & Found ─────────────────────────────────────────────────────────────
 export interface LostFoundItem {

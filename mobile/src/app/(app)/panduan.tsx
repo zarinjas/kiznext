@@ -1,4 +1,4 @@
-import * as WebBrowser from "expo-web-browser"
+import { router } from "expo-router"
 
 import { absoluteUrl } from "@/lib/config"
 import { useGuides, useMarkGuideRead } from "@/lib/hooks"
@@ -21,7 +21,7 @@ export default function PanduanScreen() {
     const url = absoluteUrl(guide.fileUrl)
     if (!url) return
     markRead.mutate(guide.id)
-    WebBrowser.openBrowserAsync(url).catch(() => {})
+    router.push({ pathname: "/pdf-viewer", params: { url, title: guide.title } })
   }
 
   if (isLoading) return <LoadingScreen label="Loading the library…" />

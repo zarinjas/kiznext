@@ -24,8 +24,10 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="profile" options={{ headerShown: true, title: "Profile" }} />
       <Stack.Screen name="panduan" options={{ headerShown: true, title: "Digital Guide" }} />
+      <Stack.Screen name="pdf-viewer" options={{ headerShown: true, title: "Document" }} />
       <Stack.Screen name="helpdesk" options={{ headerShown: true, title: "Help & Support" }} />
       <Stack.Screen name="sos" options={{ headerShown: true, title: "SOS" }} />
+      <Stack.Screen name="kiz-ai" options={{ headerShown: true, title: "KIZ-AI" }} />
       <Stack.Screen
         name="helpdesk/[ticketId]"
         options={{ headerShown: true, title: "Request" }}
@@ -37,6 +39,7 @@ export default function AppLayout() {
         name="tempahan-fasiliti"
         options={{ headerShown: true, title: "Facilities" }}
       />
+      <Stack.Screen name="laundry" options={{ headerShown: true, title: "Laundry" }} />
       <Stack.Screen name="rumah-tamu" options={{ headerShown: true, title: "Guest House" }} />
       <Stack.Screen name="tempahan" options={{ headerShown: true, title: "My Bookings" }} />
       <Stack.Screen name="hilang" options={{ headerShown: true, title: "Lost & Found" }} />

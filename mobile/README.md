@@ -4,12 +4,17 @@ React Native (Expo) app for Kolej Ibu Zain residents — the mobile counterpart 
 the Next.js web app at the repo root. It talks to the web app's REST API
 (`/api/v1/*`) over bearer-token auth; it never touches the database directly.
 
-> **Status: feature-complete (Phases 0–4).** Everything a resident needs is
-> live — sign-in, dashboard widgets, announcements, eCard + QR, Digital Guide,
-> helpdesk, community chat, room selection, facility & guest-house booking with
-> native date/time pickers, in-app check-in with a signature pad, a native
-> counter-QR scanner, Lost & Found, Offices, the AR Directory camera compass +
-> Leaflet minimap, profile/avatar and push registration. The office gets an
+> **Status: feature-complete (Phases 0–8).** Everything a resident needs is
+> live — sign-in **plus self-registration, password reset and biometric app
+> lock**, first-launch **onboarding carousel** (admin-editable), dashboard
+> widgets, announcements (reactions + read state + attachments), eCard + QR,
+> Digital Guide with an **in-app PDF reader**, helpdesk, **KIZ-AI concierge**,
+> community chat (attachments + reporting), room selection, facility &
+> guest-house booking with native date/time pickers, in-app check-in with a
+> signature pad, a native counter-QR scanner, laundry reminders, Lost & Found,
+> Offices, the AR Directory camera compass + Leaflet minimap, AR Translate with
+> **text-to-speech**, **offline caching**, profile/avatar and push registration.
+> The office gets an
 > **admin subset**: helpdesk inbox, approval centre (facility + guest house) and
 > check-in records. Remaining gaps are listed at the bottom — see
 > `../docs/STATUS.md`.
@@ -142,11 +147,17 @@ mobile/
   metro.config.js           watches ../packages/shared
   src/
     app/                    Expo Router routes (file = screen)
-      _layout.tsx           providers: query client, auth, restyle theme, push
+      _layout.tsx           providers: query client, auth, restyle theme, push + onboarding gate
+      onboarding.tsx        first-launch welcome carousel (admin-editable)
       (auth)/login.tsx      sign-in
+      (auth)/daftar.tsx     self-registration
+      (auth)/lupa-kata-laluan.tsx   forgot password
+      (auth)/set-kata-laluan.tsx    reset password (token)
       (app)/_layout.tsx     auth guard + Stack (pushed screens)
       (app)/(tabs)/         bottom tabs: index, pengumuman, chat, kad-maya, lagi
       (app)/profile.tsx     profile + avatar + sign out
+      (app)/pdf-viewer.tsx  in-app PDF reader (guides, announcements, chat)
+      (app)/kiz-ai.tsx      KIZ-AI concierge chat
       (app)/panduan.tsx     Digital Guide library
       (app)/helpdesk.tsx    helpdesk list + compose
       (app)/helpdesk/[ticketId].tsx   ticket thread
@@ -154,6 +165,7 @@ mobile/
       (app)/tempahan-fasiliti.tsx     facility directory + booking
       (app)/rumah-tamu.tsx  guest house + booking
       (app)/tempahan.tsx    my bookings
+      (app)/laundry.tsx     laundry machine status + reminders
       (app)/checkin.tsx     in-app check-in with signature pad
       (app)/scan.tsx        native counter-QR scanner
       (app)/hilang.tsx      Lost & Found feed + report
@@ -192,24 +204,30 @@ incremental step so the fragile VPS build is never disturbed.
 | Endpoint | Purpose |
 |---|---|
 | `POST /auth/login` | Matric + password → bearer token |
+| `POST /auth/register` · `/auth/resend-verification` | Self-registration + resend verification |
+| `POST /auth/forgot-password` · `/auth/reset-password` | Password reset (token peek via GET) |
 | `GET /auth/me` | Current user (session bootstrap) |
 | `POST /auth/refresh` | Slide session expiry |
 | `POST /auth/logout` | Revoke the session |
+| `GET /onboarding` | Public first-launch slides (no auth) |
+| `POST /concierge` | KIZ-AI question → reply (sources / office handoff) |
 | `GET /profile` · `PATCH /profile` | Read / update profile |
 | `POST /avatar` | Upload profile photo |
 | `POST /upload` | Generic upload (chat / guides / fasiliti) |
 | `POST /devices` · `DELETE /devices` | Register / remove push token |
-| `GET /announcements` | Announcement feed |
+| `GET /announcements` | Announcement feed (reactions + read state) |
+| `POST /announcements/[id]/read` · `/reaction` | Mark read / toggle a reaction |
 | `GET /home` | Member dashboard (room, todos, widgets) |
 | `GET /ecard` · `POST /ecard/register` | Digital ID card + first-view registration |
 | `GET /guides` · `POST /guides/[id]/read` | Digital Guide library + read marker |
 | `GET /helpdesk` · `POST /helpdesk` | Ticket list + create (ticket or live chat) |
 | `GET /helpdesk/[id]` · `POST /helpdesk/[id]/messages` · `POST /helpdesk/[id]/close` | Thread, reply, close |
-| `GET /chat` · `POST /chat` · `POST /chat/[id]/reactions` | Community chat (3s poll), send, react |
+| `GET /chat` · `POST /chat` · `POST /chat/[id]/reactions` · `POST /chat/[id]/report` | Community chat (3s poll), send (text/attachment), react, report |
 | `GET/POST /bilik` · `POST /bilik/withdraw` · `POST /bilik/roommate` · `POST /bilik/check-roommate` | Room selection |
 | `GET /facilities` · `GET /guest-houses` · `GET /bookings` | Booking catalogues + my bookings |
 | `POST /bookings/facility` · `POST /bookings/facility/[id]/cancel` | Facility booking |
 | `POST /bookings/guest-house` · `POST /bookings/guest-house/[id]/cancel` | Guest-house booking |
+| `GET/POST /laundry` | Laundry snapshot + start/cancel reminder |
 | `GET/POST /checkin` | In-app check-in / out (signature) |
 | `POST /checkin/scan` · `POST /checkin/lookup` · `POST /checkin/submit` · `GET /checkin/directions` | Public counter-QR flow |
 | `GET/POST /lost-found` · `POST /lost-found/[id]/claim` | Lost & Found |
@@ -227,19 +245,28 @@ incremental step so the fragile VPS build is never disturbed.
 3. Flip the item's `path` from `null` to the route in `src/lib/nav.ts`.
 4. Run `npm run typecheck && npm run lint` and update `../docs/STATUS.md`.
 
-## Known gaps (post Phase 4)
+## Known gaps (post Phase 8)
 
 - **Admin subset only.** Built: helpdesk inbox, approval centre, check-in
   records. Not built: announcement/guide/facility/office/directory CRUD,
   user management, invitations, app settings, KIZ-AI admin, accommodation
-  (`urus-bilik`) allocation, CSV import. Those stay on the web.
-- Digital Guide opens the PDF in the in-app browser; the web flipbook reader is
-  not ported yet.
-- Community chat sends text only — attachments come later. No offline cache.
+  (`urus-bilik`) allocation, CSV import, reports. Those stay on the web.
+- Digital Guide opens the PDF in an **in-app reader** (`react-native-pdf`), not
+  the web's page-flip flipbook.
+- Community chat supports image/PDF attachments and reporting; moderation
+  (delete/dismiss) stays on the web.
+- **KIZ-AI needs a provider key** (Gemini or Ollama) configured in the web App
+  Settings → KIZ-AI; without it the chat replies "isn't switched on yet".
+- Offline cache serves the **last data it saw** (24 h); it is not a write queue —
+  mutations still need a connection.
+- Biometric unlock is a **device-local convenience flag**, not server-enforced.
 - Check-in records are read-only on mobile (no manual check-in / session CRUD).
+- Password-reset / verification emails still link to the web (`mykiz.my`); deep
+  links into the app are not configured (the app has the `set-kata-laluan`
+  screen ready for when they are).
 - iOS/Android `ios/` and `android/` folders are generated by EAS/prebuild and are
   intentionally gitignored — configure native behaviour in `app.json` only.
-- Push, camera, location and the signature WebView need a **development build**
-  (not Expo Go).
+- Push, camera, location, the signature WebView and the native PDF reader
+  (`react-native-pdf`) need a **development build** (not Expo Go).
 - `assets/images/*` are a generated teal "K" placeholder — swap in the official
   KIZ logo before submitting.

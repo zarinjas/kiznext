@@ -4,6 +4,7 @@ import { nowMalaysia } from "@/lib/timezone"
 import {
   LAUNDRY_DEFAULT_GRACE_MINUTES,
   deriveMachineState,
+  isValidDuration,
   type LaundryMachineView,
   type LaundryReminderView,
   type LaundrySnapshot,
@@ -115,4 +116,56 @@ export async function getLaundrySnapshot(userId: string): Promise<LaundrySnapsho
     graceMinutes,
     serverNow: now.toISOString(),
   }
+}
+
+/**
+ * Start a reminder on a machine for a user. A newer reminder replaces whatever
+ * is running on that machine (residents opted for overwrite over queueing), and
+ * a resident only ever holds one active reminder — any other is closed as
+ * `superseded`. Shared by the web Server Action and the mobile API route.
+ */
+export async function startLaundryReminder(
+  userId: string,
+  machineId: string,
+  durationMinutes: number,
+): Promise<void> {
+  const machine = await prisma.laundryMachine.findFirst({
+    where: { id: machineId, deletedAt: null },
+  })
+  if (!machine) throw new Error("That machine no longer exists.")
+  if (machine.status === "out_of_service") throw new Error("That machine is out of service right now.")
+  if (!isValidDuration(durationMinutes)) {
+    throw new Error("Pick a cycle length between 15 and 180 minutes.")
+  }
+
+  const now = nowMalaysia()
+  const endsAt = new Date(now.getTime() + durationMinutes * 60_000)
+
+  await prisma.$transaction([
+    prisma.laundryReminder.updateMany({
+      where: { machineId, deletedAt: null, endedAt: null },
+      data: { endedAt: now, endedReason: "superseded" },
+    }),
+    prisma.laundryReminder.updateMany({
+      where: { userId, deletedAt: null, endedAt: null },
+      data: { endedAt: now, endedReason: "superseded" },
+    }),
+    prisma.laundryReminder.create({
+      data: { machineId, userId, durationMinutes, startedAt: now, endsAt },
+    }),
+  ])
+}
+
+/** Cancel a resident's own reminder (soft-end; the row stays for history). */
+export async function cancelLaundryReminder(userId: string, reminderId: string): Promise<void> {
+  const reminder = await prisma.laundryReminder.findFirst({
+    where: { id: reminderId, userId, deletedAt: null },
+  })
+  if (!reminder) throw new Error("Reminder not found.")
+  if (reminder.endedAt) return
+
+  await prisma.laundryReminder.update({
+    where: { id: reminder.id },
+    data: { endedAt: nowMalaysia(), endedReason: "cancelled" },
+  })
 }
