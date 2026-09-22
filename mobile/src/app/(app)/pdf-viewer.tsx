@@ -1,15 +1,26 @@
+import Constants from "expo-constants"
 import { useTheme } from "@shopify/restyle"
 import { Stack, useLocalSearchParams } from "expo-router"
 import { useState } from "react"
 import { ActivityIndicator, Dimensions } from "react-native"
-import Pdf from "react-native-pdf"
 
-import { Box, KButton, KEmpty, Text } from "@/ui"
+import { Box, KEmpty, Text } from "@/ui"
 
 /**
  * In-app PDF reader used by the Digital Guide, announcement attachments and
- * chat attachments. Renders natively via `react-native-pdf` (needs a dev build).
+ * chat attachments. `react-native-pdf` is a native module: Expo Go doesn't ship
+ * it, so it is required only in a development/release build. Requiring it
+ * unconditionally at the top would throw during route registration and crash
+ * the whole app in Expo Go.
  */
+const inExpoGo = Constants.executionEnvironment === "storeClient"
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const PdfView: React.ComponentType<Record<string, unknown>> | null = inExpoGo
+  ? null
+  : (require("react-native-pdf").default as React.ComponentType<Record<string, unknown>>)
+/* eslint-enable @typescript-eslint/no-require-imports */
+
 export default function PdfViewerScreen() {
   const theme = useTheme()
   const params = useLocalSearchParams<{ url?: string; title?: string }>()
@@ -28,6 +39,19 @@ export default function PdfViewerScreen() {
     )
   }
 
+  if (!PdfView) {
+    return (
+      <Box flex={1} backgroundColor="canvas" padding="l">
+        <Stack.Screen options={{ title }} />
+        <KEmpty
+          icon="menu_book"
+          title="PDF reading needs the full app"
+          message="The in-app reader isn't available in Expo Go. Open this document on the web, or use a development build to read it here."
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box flex={1} backgroundColor="canvas">
       <Stack.Screen options={{ title }} />
@@ -35,16 +59,15 @@ export default function PdfViewerScreen() {
       {error ? (
         <Box padding="l">
           <KEmpty icon="error_outline" title="Couldn't open the PDF" message={error} />
-          <KButton label="Try again" variant="secondary" onPress={() => setError(null)} />
         </Box>
       ) : (
-        <Pdf
+        <PdfView
           source={{ uri: url, cache: true }}
           trustAllCerts={false}
           enablePaging
           style={{ flex: 1, width: Dimensions.get("window").width, backgroundColor: theme.colors.canvas }}
-          onLoadComplete={(numberOfPages) => setPages(numberOfPages)}
-          onPageChanged={(pageNumber) => setPage(pageNumber)}
+          onLoadComplete={(numberOfPages: number) => setPages(numberOfPages)}
+          onPageChanged={(pageNumber: number) => setPage(pageNumber)}
           onError={() => setError("The file may have moved or isn't a valid PDF.")}
           renderActivityIndicator={() => (
             <ActivityIndicator color={theme.colors.brand600} size="large" />

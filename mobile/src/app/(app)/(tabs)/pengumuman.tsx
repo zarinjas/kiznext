@@ -16,9 +16,9 @@ import {
   PageHeader,
   Screen,
   StatusChip,
-  Surface,
   Text,
   type ChipTone,
+  type Theme,
 } from "@/ui"
 import { Icon } from "@/ui/icon"
 
@@ -87,6 +87,19 @@ export default function AnnouncementsScreen() {
   )
 }
 
+function tagAccent(tag: string): keyof Theme["colors"] {
+  switch (tag) {
+    case "important":
+      return "danger"
+    case "event":
+      return "info"
+    case "sports":
+      return "success"
+    default:
+      return "brand600"
+  }
+}
+
 function AnnouncementCard({
   announcement,
   canInteract,
@@ -96,12 +109,22 @@ function AnnouncementCard({
   canInteract: boolean
   onOpen: () => void
 }) {
-  const theme = useTheme()
+  const theme = useTheme<Theme>()
   const meta = announcementTagMeta(announcement.tag)
+  const accent = tagAccent(announcement.tag)
 
   return (
     <Pressable onPress={onOpen}>
-      <Surface>
+      <Box
+        borderRadius="cardLg"
+        borderWidth={1}
+        borderColor="border"
+        borderLeftWidth={4}
+        borderLeftColor={accent}
+        backgroundColor="surface"
+        padding="l"
+        overflow="hidden"
+      >
         <Box flexDirection="row" alignItems="center" gap="s" flexWrap="wrap">
           <StatusChip label={meta.label} tone={toneForTag(announcement.tag)} icon={meta.icon} />
           {announcement.isPinned ? (
@@ -138,7 +161,7 @@ function AnnouncementCard({
             <ReactionRow announcement={announcement} compact />
           </Box>
         ) : null}
-      </Surface>
+      </Box>
     </Pressable>
   )
 }

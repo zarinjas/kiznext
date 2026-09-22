@@ -16,6 +16,7 @@ export async function GET() {
           body: s.body,
           imageUrl: s.imageUrl,
           gradient: s.gradient,
+          gradientOpacity: s.gradientOpacity,
           buttonLabel: s.buttonLabel,
         })),
       },

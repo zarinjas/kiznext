@@ -1,15 +1,19 @@
 import { useTheme } from "@shopify/restyle"
+import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useState } from "react"
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { loginSchema } from "@kiz/shared"
 
+import { GradientBg } from "@/components/gradient"
 import { ApiError } from "@/lib/api"
 import { resendVerification } from "@/lib/auth-api"
 import { useAuth } from "@/lib/auth-context"
+import { API_BASE_URL } from "@/lib/config"
 import { Box, KButton, Text, TextField, type Theme } from "@/ui"
-import { Icon } from "@/ui/icon"
+
+const LOGO_URL = `${API_BASE_URL}/api/app-icon`
 
 export default function LoginScreen() {
   const theme = useTheme<Theme>()
@@ -62,6 +66,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={["top", "bottom"]}>
+      <GradientBg id="loginbg" colors={["#F6F5FF", "#EFF6FF", "#FFFFFF"]} direction="tb" />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -69,14 +74,18 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Box alignItems="center" marginTop="xxl" marginBottom="xl">
             <Box
-              width={64}
-              height={64}
+              width={84}
+              height={84}
               borderRadius="cardLg"
-              backgroundColor="brand600"
+              backgroundColor="surface"
+              borderWidth={1}
+              borderColor="border"
               alignItems="center"
               justifyContent="center"
+              overflow="hidden"
+              padding="m"
             >
-              <Icon name="school" size={32} color="#FFFFFF" />
+              <Image source={{ uri: LOGO_URL }} style={{ width: 64, height: 64 }} contentFit="contain" />
             </Box>
             <Box height={16} />
             <Text variant="title">MyKIZ</Text>

@@ -49,6 +49,7 @@ export interface OnboardingSlide {
   body: string | null
   imageUrl: string | null
   gradient: string
+  gradientOpacity: number
   buttonLabel: string | null
 }
 

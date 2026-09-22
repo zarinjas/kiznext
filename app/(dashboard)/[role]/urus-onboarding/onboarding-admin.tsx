@@ -8,6 +8,7 @@ import Button from "@mui/material/Button"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
 import TextField from "@mui/material/TextField"
+import Slider from "@mui/material/Slider"
 import { ONBOARDING_GRADIENTS, gradientCss } from "@/lib/onboarding-meta"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KDialog } from "@/components/kiz/primitives/k-dialog"
@@ -260,6 +261,7 @@ function SlideForm({ initial, onClose }: { initial?: OnboardingSlideView; onClos
   const [body, setBody] = useState(initial?.body ?? "")
   const [buttonLabel, setButtonLabel] = useState(initial?.buttonLabel ?? "")
   const [gradient, setGradient] = useState(initial?.gradient ?? ONBOARDING_GRADIENTS[0].key)
+  const [opacity, setOpacity] = useState(initial?.gradientOpacity ?? 60)
   const [imageUrl, setImageUrl] = useState<string | null>(initial?.imageUrl ?? null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -288,7 +290,7 @@ function SlideForm({ initial, onClose }: { initial?: OnboardingSlideView; onClos
     if (!title.trim()) return setError("Give this slide a title.")
     setSaving(true)
     try {
-      const payload = { title, body, buttonLabel, gradient, imageUrl }
+      const payload = { title, body, buttonLabel, gradient, gradientOpacity: opacity, imageUrl }
       if (initial) await updateOnboardingSlide(initial.id, payload)
       else await createOnboardingSlide(payload)
       router.refresh()
@@ -352,6 +354,24 @@ function SlideForm({ initial, onClose }: { initial?: OnboardingSlideView; onClos
             />
           ))}
         </Box>
+      </Box>
+
+      <Box>
+        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1 }}>
+          Gradient strength — {opacity}%
+        </Typography>
+        <Slider
+          value={opacity}
+          onChange={(_, v) => setOpacity(v as number)}
+          min={0}
+          max={100}
+          step={5}
+          valueLabelDisplay="auto"
+          sx={{ maxWidth: 320 }}
+        />
+        <Typography variant="caption" sx={{ color: "text.disabled" }}>
+          How strong the gradient overlays the image. 0 = image only, 100 = solid gradient.
+        </Typography>
       </Box>
 
       <Box>

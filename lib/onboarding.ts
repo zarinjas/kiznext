@@ -18,6 +18,7 @@ export interface OnboardingSlideView {
   body: string | null
   imageUrl: string | null
   gradient: string
+  gradientOpacity: number
   buttonLabel: string | null
   sortOrder: number
   isActive: boolean
@@ -28,6 +29,7 @@ export interface OnboardingSlideInput {
   body?: string | null
   imageUrl?: string | null
   gradient?: string | null
+  gradientOpacity?: number
   buttonLabel?: string | null
 }
 
@@ -37,6 +39,7 @@ function toView(s: {
   body: string | null
   imageUrl: string | null
   gradient: string
+  gradientOpacity: number
   buttonLabel: string | null
   sortOrder: number
   isActive: boolean
@@ -47,6 +50,7 @@ function toView(s: {
     body: s.body,
     imageUrl: s.imageUrl,
     gradient: s.gradient,
+    gradientOpacity: s.gradientOpacity,
     buttonLabel: s.buttonLabel,
     sortOrder: s.sortOrder,
     isActive: s.isActive,
@@ -95,11 +99,13 @@ function validateInput(data: OnboardingSlideInput) {
   if (imageUrl && !imageUrl.startsWith("/uploads/") && !/^https?:\/\//.test(imageUrl)) {
     throw new Error("Upload the image first.")
   }
+  const gradientOpacity = Math.max(0, Math.min(100, Math.round(data.gradientOpacity ?? 60)))
   return {
     title,
     body: data.body?.trim() || null,
     imageUrl,
     gradient,
+    gradientOpacity,
     buttonLabel: data.buttonLabel?.trim() || null,
   }
 }

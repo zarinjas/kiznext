@@ -11,29 +11,13 @@ import {
   useWindowDimensions,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg"
 
+import { GradientBg } from "@/components/gradient"
 import { absoluteUrl } from "@/lib/config"
 import { useOnboardingSlides } from "@/lib/hooks"
 import { markOnboardingSeen } from "@/lib/storage"
 import type { OnboardingSlide } from "@/lib/types"
 import { Box, KButton, LoadingScreen, Text } from "@/ui"
-
-function GradientBg({ colors }: { colors: string[] }) {
-  const stops = colors.length > 1 ? colors : [colors[0] ?? "#0891B2", colors[0] ?? "#0891B2"]
-  return (
-    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-      <Defs>
-        <LinearGradient id="onboarding-grad" x1="0" y1="0" x2="1" y2="1">
-          {stops.map((c, i) => (
-            <Stop key={i} offset={i / (stops.length - 1)} stopColor={c} />
-          ))}
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill="url(#onboarding-grad)" />
-    </Svg>
-  )
-}
 
 export default function OnboardingScreen() {
   const { width } = useWindowDimensions()
@@ -93,9 +77,11 @@ export default function OnboardingScreen() {
         <Box flex={1} justifyContent="space-between" padding="l">
           <Box flexDirection="row" justifyContent="flex-end">
             <Pressable onPress={finish} hitSlop={12}>
-              <Text variant="button" style={styles.white}>
-                Skip
-              </Text>
+              <Box paddingHorizontal="m" paddingVertical="s" borderRadius="pill" style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>
+                <Text variant="button" style={styles.white}>
+                  Skip
+                </Text>
+              </Box>
             </Pressable>
           </Box>
 
@@ -127,26 +113,34 @@ export default function OnboardingScreen() {
 function Slide({ slide, width }: { slide: OnboardingSlide; width: number }) {
   const g = getOnboardingGradient(slide.gradient)
   const image = absoluteUrl(slide.imageUrl)
+  const overlayOpacity = Math.max(0, Math.min(100, slide.gradientOpacity ?? 60)) / 100
 
   return (
-    <Box width={width} flex={1}>
-      <GradientBg colors={g.colors} />
-      <Box flex={1} alignItems="center" justifyContent="center" padding="xl" gap="l">
-        {image ? (
-          <Image
-            source={{ uri: image }}
-            style={{ width: 240, height: 240, borderRadius: 24 }}
-            contentFit="contain"
-          />
-        ) : null}
-        <Text variant="title" textAlign="center" style={styles.white}>
-          {slide.title}
-        </Text>
-        {slide.body ? (
-          <Text variant="body" textAlign="center" style={styles.whiteSoft}>
-            {slide.body}
+    <Box width={width} flex={1} overflow="hidden" backgroundColor="ink900">
+      {image ? (
+        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+      ) : null}
+
+      {/* Gradient overlay in front of the image — strength adjustable in admin. */}
+      <GradientBg
+        id={`onb-${slide.id}`}
+        colors={g.colors}
+        direction="br"
+        opacity={image ? overlayOpacity : 1}
+      />
+
+      {/* Title + text at the bottom, right-aligned. */}
+      <Box flex={1} justifyContent="flex-end" padding="l">
+        <Box alignItems="flex-end" gap="s">
+          <Text variant="title" textAlign="right" style={styles.white}>
+            {slide.title}
           </Text>
-        ) : null}
+          {slide.body ? (
+            <Text variant="body" textAlign="right" style={styles.whiteSoft}>
+              {slide.body}
+            </Text>
+          ) : null}
+        </Box>
       </Box>
     </Box>
   )
@@ -154,5 +148,5 @@ function Slide({ slide, width }: { slide: OnboardingSlide; width: number }) {
 
 const styles = StyleSheet.create({
   white: { color: "#FFFFFF" },
-  whiteSoft: { color: "rgba(255,255,255,0.9)" },
+  whiteSoft: { color: "rgba(255,255,255,0.92)" },
 })

@@ -66,6 +66,19 @@ export default function EcardScreen() {
           backgroundColor="surface"
           overflow="hidden"
         >
+          {background ? (
+            <Image
+              source={{ uri: background }}
+              style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+              contentFit="cover"
+            />
+          ) : null}
+          {background ? (
+            <Box
+              style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.86)" }}
+            />
+          ) : null}
+
           <Box padding="l">
             <Box flexDirection="row" alignItems="center" justifyContent="center" gap="s">
               <LogoSlot uri={c.ukmLogoUrl} fallback="UKM" />

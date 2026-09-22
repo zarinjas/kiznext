@@ -75,12 +75,39 @@ function kindFor(name: string, mime: string): "image" | "pdf" | "file" {
   return "file"
 }
 
+function Avatar({ name, avatar }: { name: string; avatar: string | null }) {
+  const theme = useTheme<Theme>()
+  return (
+    <Box
+      width={30}
+      height={30}
+      borderRadius="pill"
+      overflow="hidden"
+      backgroundColor="canvasSunk"
+      borderWidth={1}
+      borderColor="border"
+      alignItems="center"
+      justifyContent="center"
+    >
+      {avatar ? (
+        <Image source={{ uri: avatar }} style={{ width: 30, height: 30 }} contentFit="cover" />
+      ) : (
+        <Text variant="caption" style={{ color: theme.colors.brand700, fontWeight: "700" }}>
+          {name.charAt(0).toUpperCase()}
+        </Text>
+      )}
+    </Box>
+  )
+}
+
 function Bubble({
   message,
+  mine,
   onLongPress,
   onPress,
 }: {
   message: ChatMessage
+  mine: boolean
   onLongPress: () => void
   onPress: () => void
 }) {
@@ -89,110 +116,127 @@ function Bubble({
   const avatar = absoluteUrl(message.sender.avatarUrl)
   const attachment = absoluteUrl(message.attachmentUrl)
 
+  const bubbleBg = mine ? "brand600" : "surface"
+  const textColor = mine ? "#FFFFFF" : theme.colors.ink900
+  const subColor = mine ? "rgba(255,255,255,0.9)" : theme.colors.ink700
+
   return (
-    <Box flexDirection="row" gap="s" paddingHorizontal="l" paddingVertical="xs" alignItems="flex-start">
-      <Box
-        width={32}
-        height={32}
-        borderRadius="pill"
-        overflow="hidden"
-        backgroundColor="canvasSunk"
-        alignItems="center"
-        justifyContent="center"
-      >
-        {avatar ? (
-          <Image source={{ uri: avatar }} style={{ width: 32, height: 32 }} contentFit="cover" />
-        ) : (
-          <Text variant="caption">{message.sender.name.charAt(0).toUpperCase()}</Text>
-        )}
-      </Box>
+    <Box
+      flexDirection="row"
+      gap="s"
+      paddingHorizontal="l"
+      paddingVertical="xs"
+      alignItems="flex-end"
+      justifyContent={mine ? "flex-end" : "flex-start"}
+    >
+      {!mine ? <Avatar name={message.sender.name} avatar={avatar} /> : null}
 
-      <Box flex={1} minWidth={0}>
-        <Box flexDirection="row" alignItems="center" gap="xs">
-          <Text variant="caption" style={{ fontWeight: "600", color: theme.colors.ink900 }} numberOfLines={1}>
-            {message.sender.name}
-          </Text>
-          <StatusChip label={badge.label} tone={roleTone(message.sender.role)} />
-          <Text variant="caption" style={{ marginLeft: "auto" }}>
-            {timeLabel(message.createdAt)}
-          </Text>
-        </Box>
-
-        {message.replyPreview ? (
-          <Box marginTop="xs" paddingLeft="s" borderLeftWidth={2} borderLeftColor="brand300">
-            <Text variant="caption" numberOfLines={1}>
-              {message.replyPreview.senderName}: {message.replyPreview.text}
+      <Box maxWidth="78%" minWidth={0} alignItems={mine ? "flex-end" : "flex-start"}>
+        {!mine ? (
+          <Box flexDirection="row" alignItems="center" gap="xs" marginBottom="xs" paddingLeft="xs">
+            <Text variant="caption" style={{ fontWeight: "700", color: theme.colors.ink900 }} numberOfLines={1}>
+              {message.sender.name}
             </Text>
+            <StatusChip label={badge.label} tone={roleTone(message.sender.role)} />
           </Box>
         ) : null}
 
-        {message.message ? (
-          <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={250}>
-            <Text variant="body" marginTop="xs">
-              {message.message}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {attachment && message.attachmentType === "image" ? (
-          <Pressable onLongPress={onLongPress}>
-            <Image
-              source={{ uri: attachment }}
-              style={{ width: 200, height: 200, borderRadius: theme.borderRadii.card, marginTop: 6 }}
-              contentFit="cover"
-            />
-          </Pressable>
-        ) : null}
-
-        {attachment && message.attachmentType === "pdf" ? (
-          <Pressable
-            onLongPress={onLongPress}
-            onPress={() =>
-              router.push({
-                pathname: "/pdf-viewer",
-                params: { url: attachment, title: message.attachmentName ?? "Attachment" },
-              })
-            }
-          >
-            <Box
-              flexDirection="row"
-              alignItems="center"
-              gap="s"
-              marginTop="xs"
-              paddingHorizontal="m"
-              paddingVertical="s"
-              borderRadius="input"
-              borderWidth={1}
-              borderColor="border"
-              backgroundColor="canvasSunk"
-            >
-              <Icon name="attachment" size={18} color={theme.colors.ink500} />
-              <Text variant="caption" flex={1} numberOfLines={1}>
-                {message.attachmentName ?? "Document.pdf"}
-              </Text>
-            </Box>
-          </Pressable>
-        ) : null}
-
-        {attachment && message.attachmentType === "file" ? (
+        <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={250}>
           <Box
-            flexDirection="row"
-            alignItems="center"
-            gap="s"
-            marginTop="xs"
             paddingHorizontal="m"
             paddingVertical="s"
-            borderRadius="input"
-            borderWidth={1}
-            borderColor="border"
-            backgroundColor="canvasSunk"
+            borderRadius="cardLg"
+            backgroundColor={bubbleBg}
+            borderWidth={mine ? 0 : 1}
+            borderColor={mine ? undefined : "border"}
           >
-            <Icon name="attachment" size={18} color={theme.colors.ink500} />
-            <Text variant="caption" flex={1} numberOfLines={1}>
-              {message.attachmentName ?? "Attachment"}
-            </Text>
+            {message.replyPreview ? (
+              <Box
+                marginBottom="s"
+                paddingLeft="s"
+                borderLeftWidth={2}
+                style={{ borderLeftColor: mine ? "rgba(255,255,255,0.5)" : theme.colors.brand300 }}
+              >
+                <Text variant="caption" numberOfLines={1} style={{ color: subColor }}>
+                  {message.replyPreview.senderName}: {message.replyPreview.text}
+                </Text>
+              </Box>
+            ) : null}
+
+            {message.message ? (
+              <Text variant="body" style={{ color: textColor }}>
+                {message.message}
+              </Text>
+            ) : null}
+
+            {attachment && message.attachmentType === "image" ? (
+              <Image
+                source={{ uri: attachment }}
+                style={{ width: 190, height: 190, borderRadius: theme.borderRadii.card, marginTop: 6 }}
+                contentFit="cover"
+              />
+            ) : null}
+
+            {attachment && message.attachmentType === "pdf" ? (
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/pdf-viewer",
+                    params: { url: attachment, title: message.attachmentName ?? "Attachment" },
+                  })
+                }
+              >
+                <Box
+                  flexDirection="row"
+                  alignItems="center"
+                  gap="s"
+                  marginTop="s"
+                  paddingHorizontal="s"
+                  paddingVertical="s"
+                  borderRadius="input"
+                  style={{ backgroundColor: mine ? "rgba(255,255,255,0.18)" : theme.colors.canvasSunk }}
+                >
+                  <Icon name="attachment" size={18} color={mine ? "#FFFFFF" : theme.colors.ink500} />
+                  <Text
+                    variant="caption"
+                    flex={1}
+                    numberOfLines={1}
+                    style={{ color: mine ? "#FFFFFF" : theme.colors.ink700 }}
+                  >
+                    {message.attachmentName ?? "Document.pdf"}
+                  </Text>
+                </Box>
+              </Pressable>
+            ) : null}
+
+            {attachment && message.attachmentType === "file" ? (
+              <Box
+                flexDirection="row"
+                alignItems="center"
+                gap="s"
+                marginTop="s"
+                paddingHorizontal="s"
+                paddingVertical="s"
+                borderRadius="input"
+                style={{ backgroundColor: mine ? "rgba(255,255,255,0.18)" : theme.colors.canvasSunk }}
+              >
+                <Icon name="attachment" size={18} color={mine ? "#FFFFFF" : theme.colors.ink500} />
+                <Text
+                  variant="caption"
+                  flex={1}
+                  numberOfLines={1}
+                  style={{ color: mine ? "#FFFFFF" : theme.colors.ink700 }}
+                >
+                  {message.attachmentName ?? "Attachment"}
+                </Text>
+              </Box>
+            ) : null}
           </Box>
-        ) : null}
+        </Pressable>
+
+        <Text variant="caption" marginTop="xs" style={{ color: theme.colors.ink300 }} paddingHorizontal="xs">
+          {timeLabel(message.createdAt)}
+        </Text>
 
         {message.reactions.length > 0 ? (
           <Box flexDirection="row" gap="xs" flexWrap="wrap" marginTop="xs">
@@ -207,7 +251,7 @@ function Bubble({
                   borderRadius="pill"
                   borderWidth={1}
                   borderColor={r.mine ? "brand300" : "border"}
-                  backgroundColor={r.mine ? "brand50" : "canvasSunk"}
+                  backgroundColor={r.mine ? "brand50" : "surface"}
                 >
                   <Text variant="caption">{r.emoji}</Text>
                   <Text variant="caption">{r.count}</Text>
@@ -308,6 +352,7 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <Bubble
               message={item}
+              mine={item.sender.id === user?.id}
               onLongPress={() => setPickerFor(item)}
               onPress={() => setReplyTo(item)}
             />
