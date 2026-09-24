@@ -81,6 +81,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Community",
       items: [
         { label: "Community Chat", icon: "forum", path: "chat" },
+        { label: "KIZ Cafe", icon: "restaurant", path: "kafe" },
         { label: "Digital Resident ID", icon: "qr_code_2", path: "kad-maya" },
         { label: "Profile", icon: "person", path: "profile" },
       ],

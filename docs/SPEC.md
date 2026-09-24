@@ -32,6 +32,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Lost & Found | Community-reported lost/found items with a photo. |
 | Accommodation Applications | Accepted students (imported from eKolej via CSV) request a single room, a same-gender double-room roommate by matric ID, or flexible placement during an admin-defined window. Students never choose or see physical rooms; admins allocate final rooms after review. See `ROOM-SELECTION.md`. |
 | Directory | AR Directory — pick a destination and a camera-compass arrow + live distance guide you to it (outdoor GPS/compass; indoor rooms are pinned by lat/lng inside the single-floor admin building). Admin manages the destination pins. |
+| Smart Ordering (KIZ Cafe) | The campus cafe has no app of its own. The cafe uploads a photo of its menu; **KIZ-AI's vision model reads it into orderable items** (the admin reviews + publishes them, or adds items by hand). Students build a cart and hand the order off to **WhatsApp** — a `wa.me` deep link pre-filled with an itemised receipt and a `#KIZ-CAFE-NNNN` pickup reference, so the cafe receives a normal WhatsApp message and there is no payment gateway (paid at pickup). Orders are stored for history + one-tap reorder, and a highlight card promotes the feature on the member dashboard. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
 | Invitations | Superadmin invites people (student or admin) to self-register by email — one at a time or in bulk. An invited student whose matric is already on the active intake is marked a resident and activated on registration; admin invitations never need an intake match. |
 
@@ -60,6 +61,8 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
 | Manage digital guides (`urus-panduan`) | ✓ | ✓ | — | — | — | — |
 | Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — |
 | Manage facilities, parcels | ✓ | ✓ | — | — | — | — |
+| Manage KIZ Cafe menu (`urus-kafe`) | ✓ | ✓ | — | — | — | — |
+| Order from KIZ Cafe (`kafe`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | App settings (logo) | ✓ | ✓ | — | — | — | — |
 | View-only reporting | ✓ | ✓ | ✓ | — | — | — |
 | Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — |
@@ -180,6 +183,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `AiKnowledge` | ai_knowledge | KIZ-AI retrieval index over app content. `sourceType` (announcement/facility/office/content/guesthouse/event/faq), `sourceId`, `title`, `content`, `embedding` (JSON `number[]`), `hash` (sha256, skip-unchanged), `href` (citation route suffix). Rebuilt by an admin "Re-index" action. |
 | `AiUnansweredLog` | ai_unanswered_log | Questions KIZ-AI couldn't answer: `userId`, `question`, `bestScore`, `ticketId` (set when escalated), `resolved`. Powers the admin "top unanswered" feedback loop. |
 | `Faq` | faqs | Admin-curated Q&A that KIZ-AI answers (the "training" surface — no fine-tuning): `category`, `question`, `answer`, `keywords` (alt phrasings/BM/ZH), `language`, `published`, `sortOrder`. Importable/exportable as CSV. Published + answered rows are indexed into `ai_knowledge`. |
+| `CafeItem` | cafe_items | A single orderable item on the KIZ Cafe menu. AI-extracted rows start `published = false` (draft) until an admin reviews them. `name`, `price`, `category`, `description`, `dietary` (String[] — halal/vegetarian/spicy/contains_nuts), `imageUrl`, `isAvailable`, `published`, `sortOrder`. Admin CRUD at `urus-kafe`. |
+| `CafeOrder` | cafe_orders | A student's cafe order. `refCode` unique (`KIZ-CAFE-NNNN`), `items` (JSON snapshot `[{ name, price, qty }]`), `subtotal`, `pickupTime`, `note`, `whatsappSentAt` (set when the student opens the WhatsApp deep link). Powers "My Orders" + one-tap reorder; payment is settled at pickup. |
 
 New enums: `Gender` (male/female), `RoomType` (single/double), `RoomApplicationType`
 (single/double/flexible), `RoomApplicationStatus`, `RoomStatus`
@@ -218,6 +223,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `rumah-tamu` | Guest house booking + own bookings + cancel. Admins and `pengetua` are redirected to `urus-rumah-tamu` (admin view only). |
 | `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
 | `hilang` | Lost & Found report form + list. |
+| `kafe` | Smart Ordering — the KIZ Cafe menu (photo + item cards with dietary tags), a cart, and a WhatsApp checkout. The order opens in WhatsApp pre-filled; the app stores it with a `#KIZ-CAFE-NNNN` reference for pickup and one-tap reorder. |
 | `bilik` | Room selection — eligibility gate, window status, visual block/floor/room/bed picker. Desktop grid + detail panel; mobile bottom-sheet + sticky confirm bar. |
 | `parcel` | My parcels. Currently behind a hardcoded "coming soon" banner. |
 | `kad-maya` | Digital ID card for every role, QR generated server-side from matric ID. Same layout for all; students show room/session, non-students show their role label (Admin KIZ / Staff / Fellow / Principal). |
@@ -241,6 +247,7 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `urus-fasiliti` | Facility CRUD. |
 | `urus-laundry` | Laundry machine CRUD, Out of Service toggle, and force-clear a stuck reminder. `superadmin`/`admin_kiz` manage; `pengetua` read-only. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
+| `urus-kafe` | **Smart Ordering admin** — cafe details (name, WhatsApp number, location, hours, accepting-orders toggle), upload the menu photo, **"Extract menu with AI"** (KIZ-AI vision → reviewable item drafts), edit/publish/remove items, and a live WhatsApp message preview. `superadmin`/`admin_kiz`. |
 | `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
 | `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
 | `urus-jemputan` | **Superadmin only.** Invite people to self-register by email (one at a time or in bulk), choosing Student or Admin KIZ; manage issued invitations (status, resend, revoke, soft-delete). |

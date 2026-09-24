@@ -30,6 +30,9 @@ export const LAUNDRY_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"
 /** Analytics / reports — admins and the principal (read-only). */
 export const REPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
+/** KIZ Cafe smart ordering — admins manage the menu + cafe settings. */
+export const CAFE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz"]
+
 /**
  * Broadcast push notifications — admins plus the principal. The deputy
  * principal shares the `pengetua` role (only `position` differs), so this

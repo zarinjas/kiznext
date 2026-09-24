@@ -27,6 +27,7 @@ Status: MVP feature-complete, not production-ready.
 | Auth | Auth.js v5 (next-auth beta), Credentials provider (matricId + bcrypt), JWT strategy |
 | File storage | Local filesystem under `public/uploads/` |
 | Chat realtime | Client polling every 3s against a Server Action (no Pusher/WebSocket) |
+| Cafe ordering | WhatsApp `wa.me` deep link — the order is pre-filled and the student presses send (no WhatsApp Business API). Menu photos are digitised by the existing AI vision provider (`generateJson` + `image`). No new library. |
 | PDF / QR | `pdf-lib` (generate) / `qrcode` / `pdfjs-dist` (render PDFs in the Digital Guide flipbook — approved exception to the no-new-libs rule; worker served by `/api/pdf-worker`) |
 | Google Sheets | `googleapis` — service-account **read-only** pull of the accepted-list sheet for the accommodation sync (approved exception to the no-new-libs rule). |
 | Maps (AR mini-map) | `leaflet` + `@types/leaflet` — client-only, dynamically imported, free OpenStreetMap tiles for the AR Directory mini-map (approved exception to the no-new-libs rule). |

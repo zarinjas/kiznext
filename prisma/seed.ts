@@ -875,6 +875,45 @@ async function main() {
   }
   console.log("Upcoming activities seeded")
 
+  // ── KIZ Cafe smart ordering ───────────────────────────────────────────────
+  // Cafe identity lives in AppSettings (never overwrite an admin's edits) plus
+  // a small starter menu so the dashboard highlight + ordering flow are
+  // demoable right after seeding.
+  const cafeSettings: [string, string][] = [
+    ["cafe_name", "KIZ Cafe"],
+    ["cafe_phone", "60123456789"],
+    ["cafe_location", "KIZ Cafeteria, Ground Floor"],
+    ["cafe_hours_label", "Daily · 7:30 AM – 10:00 PM"],
+    ["cafe_opens_at", "07:30"],
+    ["cafe_closes_at", "22:00"],
+    ["cafe_tagline", "Order from your phone and skip the queue — KIZ-AI read our menu, so ordering takes seconds."],
+    ["cafe_active", "1"],
+  ]
+  for (const [key, value] of cafeSettings) {
+    await prisma.appSetting.upsert({ where: { key }, update: {}, create: { key, value } })
+  }
+
+  const cafeItems = [
+    { name: "Nasi Lemak Ayam", price: 6.5, category: "Makanan", description: "Coconut rice, sambal, fried chicken & egg.", dietary: ["halal", "spicy"] },
+    { name: "Mee Goreng Mamak", price: 5.5, category: "Makanan", description: "Spicy fried noodles with tofu & egg.", dietary: ["halal", "spicy"] },
+    { name: "Chicken Rice", price: 7.0, category: "Set Meal", description: "Roasted chicken, fragrant rice & soup.", dietary: ["halal"] },
+    { name: "Vegetarian Fried Rice", price: 5.0, category: "Set Meal", description: "Wok-fried rice with garden vegetables.", dietary: ["vegetarian"] },
+    { name: "Teh Tarik", price: 2.5, category: "Minuman", description: "Pulled milk tea.", dietary: ["halal"] },
+    { name: "Kopi O Ais", price: 2.2, category: "Minuman", description: "Iced black coffee.", dietary: [] },
+    { name: "Air Sirap Limau", price: 2.8, category: "Minuman", description: "Rose syrup with lime.", dietary: [] },
+    { name: "Kuih Muih (3 pcs)", price: 3.0, category: "Snek", description: "Assorted local kuih.", dietary: ["halal"] },
+    { name: "Cekodok Pisang", price: 2.0, category: "Snek", description: "Fried banana fritters.", dietary: ["halal"] },
+  ]
+  let cafeSort = 0
+  for (const item of cafeItems) {
+    const existing = await prisma.cafeItem.findFirst({ where: { name: item.name, deletedAt: null } })
+    if (!existing) {
+      await prisma.cafeItem.create({ data: { ...item, published: true, sortOrder: cafeSort } })
+    }
+    cafeSort++
+  }
+  console.log("KIZ Cafe menu seeded")
+
   // ── Room selection (bilik) ────────────────────────────────────────────────
   // Residence blocks (gender-restricted), rooms + auto beds, an active intake,
   // and an open selection window so the picker is demoable right after seeding.

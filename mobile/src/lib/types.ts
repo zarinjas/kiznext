@@ -119,6 +119,14 @@ export interface ResidentHome {
   emergencyContacts: { id: string; title: string; phone: string | null; subtitle: string | null; body: string | null }[]
   livingGuides: { id: string; title: string; subtitle: string | null; body: string | null; link: string | null }[]
   laundry: { machineName: string; endsAt: string } | null
+  cafe: {
+    name: string
+    tagline: string
+    location: string
+    openNow: boolean
+    itemCount: number
+    menuImage: string | null
+  } | null
   stayConnected?: {
     enabled: boolean
     title: string
@@ -393,6 +401,9 @@ export type {
   LaundryReminderView,
   LaundrySnapshot,
 } from "@kiz/shared"
+
+// ── KIZ Cafe (smart ordering) ────────────────────────────────────────────────
+export type { CafeConfig, CafeItem, CafeCartLine, CafeOrder, CafeData } from "@kiz/shared"
 
 // ── Lost & Found ─────────────────────────────────────────────────────────────
 export interface LostFoundItem {

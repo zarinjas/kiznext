@@ -81,6 +81,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Community",
       items: [
         { label: "Community Chat", href: `/${role}/chat`, icon: "forum" },
+        { label: "KIZ Cafe", href: `/${role}/kafe`, icon: "restaurant" },
         { label: "Digital Resident ID", href: `/${role}/kad-maya`, icon: "qr_code_2" },
         { label: "Profile", href: `/${role}/profile`, icon: "person" },
       ],
@@ -105,6 +106,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Content",
       items: [
         { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true, roles: ADMIN_ROLES },
+        { label: "KIZ Cafe", href: `/${role}/urus-kafe`, icon: "restaurant", admin: true, roles: ADMIN_ROLES },
         { label: "Notifications", href: `/${role}/urus-notifikasi`, icon: "notifications_active", admin: true, roles: NOTIFICATION_SEND_ROLES },
         { label: "Digital Guides", href: `/${role}/urus-panduan`, icon: "menu_book", admin: true, roles: ADMIN_ROLES },
         { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true, roles: ADMIN_ROLES },

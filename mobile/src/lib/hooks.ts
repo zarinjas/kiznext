@@ -10,6 +10,7 @@ import type {
   ArTranslateMeta,
   ArTranslateResult,
   BilikState,
+  CafeData,
   ChatSnapshot,
   CheckInLookup,
   ConciergeReply,
@@ -414,6 +415,29 @@ export function useCancelLaundry() {
     mutationFn: (reminderId: string) =>
       apiPost<LaundrySnapshot>("/laundry", { action: "cancel", reminderId }),
     onSuccess: (data) => qc.setQueryData(["laundry"], data),
+  })
+}
+
+// ── KIZ Cafe (smart ordering) ────────────────────────────────────────────────
+export function useCafe() {
+  return useQuery({
+    queryKey: ["cafe"],
+    queryFn: () => apiGet<CafeData>("/cafe"),
+  })
+}
+
+export function usePlaceCafeOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      lines: { itemId: string; qty: number }[]
+      pickupTime?: string
+      note?: string
+    }) => apiPost<{ refCode: string; whatsappUrl: string; message: string }>("/cafe", input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cafe"] })
+      qc.invalidateQueries({ queryKey: ["home"] })
+    },
   })
 }
 

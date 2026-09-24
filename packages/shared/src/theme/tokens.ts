@@ -104,6 +104,8 @@ export const gradientStops = {
   hero: ["#0E5E8A", "#0891B2", "#39C2DA"],
   lens: ["#4C3FAF", "#6F5BE0", "#A99EF5"],
   wayfinder: ["#0E5E8A", "#0891B2", "#22D3EE"],
+  /** KIZ Cafe smart ordering — a warm, food-appropriate gradient. */
+  cafe: ["#9A3412", "#EA580C", "#F59E0B"],
   login: ["#F6F5FF", "#EFF6FF", "#FFFFFF"],
 } as const
 

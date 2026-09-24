@@ -44,6 +44,7 @@ export default function AppLayout() {
       <Stack.Screen name="rumah-tamu" options={{ headerShown: true, title: "Guest House" }} />
       <Stack.Screen name="tempahan" options={{ headerShown: true, title: "My Bookings" }} />
       <Stack.Screen name="hilang" options={{ headerShown: true, title: "Lost & Found" }} />
+      <Stack.Screen name="kafe" options={{ headerShown: true, title: "KIZ Cafe" }} />
       <Stack.Screen name="pejabat" options={{ headerShown: true, title: "Offices" }} />
       <Stack.Screen name="direktori" options={{ headerShown: true, title: "AR Wayfinder" }} />
       <Stack.Screen name="ar-terjemah" options={{ headerShown: true, title: "KIZ Lens" }} />

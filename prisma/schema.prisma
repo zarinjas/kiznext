@@ -81,6 +81,7 @@ model User {
   laundryReminders       LaundryReminder[]
   sentNotifications      Notification[]          @relation("SentNotifications")
   receivedNotifications  NotificationRecipient[] @relation("ReceivedNotifications")
+  cafeOrders             CafeOrder[]
 
   @@map("users")
 }
@@ -1300,6 +1301,62 @@ model NotificationRecipient {
   @@unique([notificationId, userId])
   @@index([userId, readAt])
   @@map("notification_recipients")
+}
+
+// ── Smart Ordering (KIZ Cafe) ───────────────────────────────────────────────
+// The cafe uploads a photo of its menu; KIZ-AI's vision model reads it into
+// `CafeItem` rows (draft until an admin reviews + publishes). Students build a
+// cart and hand the order off to WhatsApp — the cafe receives a normal WhatsApp
+// message, so there is no cafe-side app and no payment gateway (settled at
+// pickup). See `lib/cafe.ts` + `lib/cafe-ai.ts`.
+
+/// One orderable item on the cafe menu. AI-extracted rows start `published =
+/// false` so they can't reach students until an admin confirms them.
+model CafeItem {
+  id          String   @id @default(uuid())
+  name        String
+  price       Float
+  /// Grouping shown as a chip on the member menu, e.g. "Makanan" / "Minuman".
+  category    String   @default("Makanan")
+  description String?
+  /// Dietary tags — keys from `lib/cafe-meta.ts` (halal / vegetarian / spicy / …).
+  dietary     String[] @default([])
+  imageUrl    String?  @map("image_url")
+  isAvailable Boolean  @default(true) @map("is_available")
+  published   Boolean  @default(false)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@index([published])
+  @@map("cafe_items")
+}
+
+/// A student's cafe order. Payment is settled face-to-face (no gateway). The
+/// line items are snapshotted as JSON so "My Orders" and one-tap reorder keep
+/// working even after the menu changes. `whatsappSentAt` is set when the student
+/// opens the prefilled WhatsApp deep link.
+model CafeOrder {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  /// Human-friendly pickup reference, e.g. "KIZ-CAFE-0021".
+  refCode        String    @unique @map("ref_code")
+  /// Snapshot frozen at order time: [{ name, price, qty }].
+  items          Json      @map("items")
+  subtotal       Float
+  /// Requested pickup time, free text ("12:45 PM" / "After class").
+  pickupTime     String?   @map("pickup_time")
+  note           String?
+  whatsappSentAt DateTime? @map("whatsapp_sent_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("cafe_orders")
 }
 
 /// Admin-editable welcome slides shown once on the mobile app's first launch.

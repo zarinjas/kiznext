@@ -4,6 +4,8 @@ import { getCheckInStatusForMatrics, type CheckInStatusValue } from "@/lib/check
 import { getStayConnectedSection, type StayConnectedSection } from "@/lib/stay-connected"
 import { nowMalaysia, formatMalaysia } from "@/lib/timezone"
 import { isOfficeHours } from "@/lib/office-hours"
+import { getCafeConfig } from "@/lib/cafe"
+import { isCafeOpen } from "@/lib/cafe-meta"
 
 /**
  * Member ("resident-style") dashboard data assembly.
@@ -85,6 +87,16 @@ export interface LaundryWidgetView {
   endsAt: string
 }
 
+/** KIZ Cafe highlight shown on the member dashboard (null when no menu yet). */
+export interface CafeHighlightView {
+  name: string
+  tagline: string
+  location: string
+  openNow: boolean
+  itemCount: number
+  menuImage: string | null
+}
+
 export interface ResidentHomeData {
   /** Canonical room line + session + roommate, null until published. */
   room: {
@@ -115,6 +127,8 @@ export interface ResidentHomeData {
   laundry: LaundryWidgetView | null
   /** "Stay Connected" social-links section (self-hides when empty/disabled). */
   stayConnected: StayConnectedSection
+  /** Smart-ordering highlight — null until the cafe publishes a menu. */
+  cafe: CafeHighlightView | null
 }
 
 function dateLabel(d: Date): string {
@@ -184,7 +198,7 @@ export async function getResidentHomeData(input: {
   }
 
   // ── Acknowledgement target (also feeds the Important Notice widget) ──────
-  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail, stayConnected, laundryReminder] =
+  const [targetAnnouncement, pinnedAnnouncements, ackedRows, nextEvents, helpdeskTickets, contentItems, roomDetail, stayConnected, laundryReminder, cafeConfig, cafeItemCount] =
     await Promise.all([
       getAcknowledgmentTarget(),
       prisma.announcement.findMany({
@@ -221,6 +235,8 @@ export async function getResidentHomeData(input: {
         orderBy: { createdAt: "desc" },
         include: { machine: { select: { name: true } } },
       }),
+      getCafeConfig(),
+      prisma.cafeItem.count({ where: { deletedAt: null, published: true } }),
     ])
   const ackedSet = new Set(ackedRows.map((a) => a.announcementId))
   const announcementDone = targetAnnouncement ? ackedSet.has(targetAnnouncement.id) : false
@@ -372,5 +388,16 @@ export async function getResidentHomeData(input: {
       ? { machineName: laundryReminder.machine.name, endsAt: laundryReminder.endsAt.toISOString() }
       : null,
     stayConnected,
+    cafe:
+      cafeItemCount > 0
+        ? {
+            name: cafeConfig.name,
+            tagline: cafeConfig.tagline,
+            location: cafeConfig.location,
+            openNow: isCafeOpen(cafeConfig, now),
+            itemCount: cafeItemCount,
+            menuImage: cafeConfig.menuImage,
+          }
+        : null,
   }
 }

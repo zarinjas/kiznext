@@ -235,6 +235,126 @@ export function AhliHome({ role, user, memberTag, greeting, data, heroBackground
           </Box>
         </BentoItem>
 
+        {/* ── KIZ Cafe smart ordering highlight ───────────────────────────── */}
+        {data.cafe && (
+          <BentoItem span={12} spanXs={2} delay={0.02}>
+            <Box
+              component={Link}
+              href={`/${role}/kafe`}
+              sx={{
+                position: "relative",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 2,
+                p: { xs: 2.25, sm: 2.75 },
+                borderRadius: `${radius.cardLg}px`,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundImage: gradient.panel,
+                textDecoration: "none",
+                color: "inherit",
+                WebkitTapHighlightColor: "transparent",
+                transition: "transform 160ms ease, border-color 160ms ease",
+                "@media (hover: hover)": {
+                  "&:hover": { transform: "translateY(-1px)", borderColor: color.brand[300] },
+                },
+                "&:active": { opacity: 0.95 },
+              }}
+            >
+              <Box sx={{ position: "absolute", inset: 0, backgroundImage: gradient.mesh, pointerEvents: "none" }} />
+              <Box sx={{ position: "relative", minWidth: 0, display: "flex", gap: 1.75, alignItems: "center" }}>
+                <Box
+                  sx={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: `${radius.card}px`,
+                    backgroundImage: gradient.hero,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    display: { xs: "none", sm: "flex" },
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <KIcon icon="restaurant" size={26} sx={{ color: color.brand[700] }} />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 999,
+                        backgroundColor: color.accent[100],
+                        color: color.accent[700],
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      <KIcon icon="auto_awesome" size={12} />
+                      SMART ORDERING
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        px: 0.875,
+                        py: 0.25,
+                        borderRadius: 999,
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        ...(data.cafe.openNow
+                          ? { backgroundColor: color.success.soft, color: color.success.ink }
+                          : { backgroundColor: color.neutral.soft, color: color.neutral.ink }),
+                      }}
+                    >
+                      {data.cafe.openNow ? "Open now" : "Closed"}
+                    </Box>
+                  </Box>
+                  <Typography sx={{ fontWeight: 640, fontSize: { xs: 15.5, sm: 17 }, letterSpacing: "-0.02em", mt: 0.75 }}>
+                    {data.cafe.name} — order from your phone
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      fontSize: 13,
+                      mt: 0.25,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {data.cafe.tagline}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.disabled", display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.75 }}
+                  >
+                    <KIcon icon="restaurant_menu" size={13} />
+                    {data.cafe.itemCount} items · {data.cafe.location}
+                  </Typography>
+                </Box>
+              </Box>
+              <Button
+                variant="contained"
+                endIcon={<KIcon icon="arrow_forward" size={17} />}
+                sx={{ position: "relative", flexShrink: 0, whiteSpace: "nowrap" }}
+              >
+                Order now
+              </Button>
+            </Box>
+          </BentoItem>
+        )}
+
         {/* ── Pinned announcements ────────────────────────────────────────── */}
         {data.pinnedAnnouncements.length > 0 && (
           <BentoItem span={12} spanXs={2} delay={0.03}>

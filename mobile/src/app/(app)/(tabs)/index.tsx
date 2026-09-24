@@ -343,6 +343,60 @@ function Showcase({
   )
 }
 
+/**
+ * KIZ Cafe smart ordering — a flagship surface, so it gets its own promoted
+ * card right under the AI & AR block. Hidden until the cafe publishes a menu.
+ */
+function CafeHighlight({ home }: { home: ResidentHome }) {
+  const cafe = home.cafe
+  if (!cafe) return null
+
+  return (
+    <>
+      <SectionHeader title="KIZ Cafe" action="Order" onPress={() => router.push("/kafe")} />
+      <FadeInUp>
+        <PressScale
+          onPress={() => router.push("/kafe")}
+          scaleTo={0.98}
+          accessibilityRole="button"
+          accessibilityLabel={`${cafe.name}. Order food. ${cafe.openNow ? "Open now" : "Closed"}`}
+          style={styles.cafeCard}
+        >
+          <GradientBg id="home-cafe" colors={[...gradientStops.cafe]} direction="br" />
+          <View style={styles.cafeInner}>
+            <View style={styles.cafeTop}>
+              <View style={styles.cafeGlyph}>
+                <Icon name="restaurant" size={22} color="#FFFFFF" />
+              </View>
+              <View style={styles.cafeBadge}>
+                <Icon name="auto_awesome" size={10} color="#FFFFFF" />
+                <Text style={styles.cafeBadgeText}>AI MENU · SMART ORDERING</Text>
+              </View>
+            </View>
+            <Text style={styles.cafeTitle}>{cafe.name}</Text>
+            <Text numberOfLines={2} style={styles.cafeTagline}>{cafe.tagline}</Text>
+            <View style={styles.cafeMetaRow}>
+              <Text numberOfLines={1} style={styles.cafeMeta}>
+                {cafe.itemCount} items · {cafe.location}
+              </Text>
+              <View
+                style={[
+                  styles.cafeStatus,
+                  { backgroundColor: cafe.openNow ? "rgba(255,255,255,0.94)" : "rgba(0,0,0,0.30)" },
+                ]}
+              >
+                <Text style={[styles.cafeStatusText, { color: cafe.openNow ? "#9A3412" : "#FFFFFF" }]}>
+                  {cafe.openNow ? "Open now" : "Closed"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </PressScale>
+      </FadeInUp>
+    </>
+  )
+}
+
 function QuickAccess({ home }: { home: ResidentHome | null }) {
   const actions = orderedActions(home)
 
@@ -577,6 +631,8 @@ export default function DashboardScreen() {
           {/* Innovation first — visible without scrolling. */}
           <Showcase backgrounds={showcase} aiName={aiName} />
 
+          {home ? <CafeHighlight home={home} /> : null}
+
           {home ? <LaundryTile home={home} /> : null}
 
           <QuickAccess home={home} />
@@ -664,6 +720,19 @@ const styles = StyleSheet.create({
   showcaseBadgeText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: "800", letterSpacing: .5 },
   showcaseTitle: { color: "#FFFFFF", fontSize: 17, lineHeight: 21, fontWeight: "800", letterSpacing: -0.3 },
   showcaseTagline: { color: "rgba(255,255,255,.88)", fontSize: 11.5, lineHeight: 15, marginTop: 3 },
+
+  cafeCard: { height: 176, borderRadius: 22, overflow: "hidden", ...shadow },
+  cafeInner: { flex: 1, padding: 16, justifyContent: "space-between" },
+  cafeTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 6 },
+  cafeGlyph: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,.20)", borderWidth: 1, borderColor: "rgba(255,255,255,.28)", alignItems: "center", justifyContent: "center" },
+  cafeBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: "rgba(0,0,0,.26)" },
+  cafeBadgeText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: "800", letterSpacing: .5 },
+  cafeTitle: { color: "#FFFFFF", fontSize: 19, lineHeight: 23, fontWeight: "800", letterSpacing: -0.4 },
+  cafeTagline: { color: "rgba(255,255,255,.9)", fontSize: 12, lineHeight: 16, marginTop: 3 },
+  cafeMetaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 },
+  cafeMeta: { color: "rgba(255,255,255,.85)", fontSize: 11.5, fontWeight: "600", flex: 1, minWidth: 0 },
+  cafeStatus: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
+  cafeStatusText: { fontSize: 10.5, fontWeight: "800", letterSpacing: .3 },
 
   askCard: { marginTop: 12, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: color.brand[100], padding: 12, flexDirection: "row", alignItems: "center", gap: 11, ...shadow },
   askGlyph: { width: 40, height: 40, borderRadius: 13, backgroundColor: color.brand[50], alignItems: "center", justifyContent: "center" },
