@@ -10,20 +10,26 @@ import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { useState } from "react"
-import { Alert, Modal, Pressable, ScrollView } from "react-native"
+import { Alert } from "react-native"
 
 import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { absoluteUrl } from "@/lib/config"
 import { useClaimItem, useLostFound, useReportItem } from "@/lib/hooks"
+import { useLayout } from "@/lib/responsive"
 import type { LostFoundItem } from "@/lib/types"
 import {
+  AsyncBoundary,
   Box,
+  CardGrid,
   DateField,
+  FullScreenModal,
   KButton,
   KEmpty,
-  LoadingScreen,
+  KPill,
+  PillRail,
   Screen,
+  Skeleton,
   StatusChip,
   Surface,
   Text,
@@ -32,6 +38,9 @@ import {
   useToast,
   type ChipTone,
 } from "@/ui"
+
+/** A 160pt-tall photo is right on a phone but absurd stretched across an iPad. */
+const PHOTO_MAX_WIDTH = 420
 
 function statusTone(status: string): ChipTone {
   if (status === "lost") return "info"
@@ -42,27 +51,11 @@ function statusTone(status: string): ChipTone {
 export default function LostFoundScreen() {
   const theme = useTheme()
   const { user } = useAuth()
-  const { data, isLoading, refetch } = useLostFound()
+  const { data, isLoading, isError, refetch } = useLostFound()
   const claim = useClaimItem()
   const toast = useToast()
 
   const [open, setOpen] = useState(false)
-
-  if (isLoading) return <LoadingScreen label="Loading Lost & Found…" />
-
-  if (!data) {
-    return (
-      <Screen scroll edges={[]}>
-        <KEmpty
-          tone="danger"
-          icon="error_outline"
-          title="Couldn't load Lost & Found"
-          message="Check your connection and try again."
-          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
-        />
-      </Screen>
-    )
-  }
 
   return (
     <Screen scroll edges={[]}>
@@ -70,38 +63,54 @@ export default function LostFoundScreen() {
         <KButton label="New report" icon="add" onPress={() => setOpen(true)} />
       </Box>
 
-      {data.items.length === 0 ? (
-        <KEmpty
-          icon="search"
-          title="Nothing reported yet"
-          message="Lost something or picked something up? Let the community know."
-        />
-      ) : (
-        <Box gap="m" marginTop="l">
-          {data.items.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              mine={item.reportedBy === user?.id}
-              onClaim={() =>
-                Alert.alert("Mark as claimed?", "This removes the item from the active list.", [
-                  { text: "Not yet", style: "cancel" },
-                  {
-                    text: "Mark claimed",
-                    onPress: () =>
-                      claim.mutate(item.id, {
-                        onSuccess: () => toast.success("Marked as claimed."),
-                        onError: () => toast.error("Couldn't update the item. Try again."),
-                      }),
-                  },
-                ])
-              }
-              claiming={claim.isPending}
-              theme={theme}
+      <AsyncBoundary
+        data={data}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={() => refetch()}
+        skeleton={<Skeleton.CardList count={3} />}
+        errorTitle="Couldn't load Lost & Found"
+      >
+        {(loaded) =>
+          loaded.items.length === 0 ? (
+            <KEmpty
+              icon="search"
+              title="Nothing reported yet"
+              message="Lost something or picked something up? Let the community know."
+              action={<KButton label="New report" icon="add" onPress={() => setOpen(true)} />}
             />
-          ))}
-        </Box>
-      )}
+          ) : (
+            <Box marginTop="l">
+              <CardGrid
+                items={loaded.items}
+                phoneColumns={1}
+                keyExtractor={(item) => item.id}
+                renderItem={(item) => (
+                  <ItemCard
+                    item={item}
+                    mine={item.reportedBy === user?.id}
+                    onClaim={() =>
+                      Alert.alert("Mark as claimed?", "This removes the item from the active list.", [
+                        { text: "Not yet", style: "cancel" },
+                        {
+                          text: "Mark claimed",
+                          onPress: () =>
+                            claim.mutate(item.id, {
+                              onSuccess: () => toast.success("Marked as claimed."),
+                              onError: () => toast.error("Couldn't update the item. Try again."),
+                            }),
+                        },
+                      ])
+                    }
+                    claiming={claim.isPending}
+                    theme={theme}
+                  />
+                )}
+              />
+            </Box>
+          )
+        }
+      </AsyncBoundary>
 
       <Box height={32} />
 
@@ -148,7 +157,14 @@ function ItemCard({
       {photo ? (
         <Image
           source={{ uri: photo }}
-          style={{ width: "100%", height: 160, borderRadius: theme.borderRadii.card, marginTop: 12 }}
+          style={{
+            width: "100%",
+            maxWidth: PHOTO_MAX_WIDTH,
+            alignSelf: "center",
+            height: 160,
+            borderRadius: theme.borderRadii.card,
+            marginTop: 12,
+          }}
           contentFit="cover"
         />
       ) : null}
@@ -179,6 +195,8 @@ function ItemCard({
 function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useTheme()
   const report = useReportItem()
+  const toast = useToast()
+  const { isTablet } = useLayout()
 
   const [type, setType] = useState<"lost" | "found" | null>(null)
   const [itemName, setItemName] = useState("")
@@ -200,6 +218,11 @@ function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => vo
     setHappenedTime("")
     setPhoto(null)
     setError(null)
+  }
+
+  function dismiss() {
+    reset()
+    onClose()
   }
 
   async function pickPhoto() {
@@ -242,133 +265,129 @@ function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => vo
       onSuccess: () => {
         reset()
         onClose()
+        // `toast.success` fires `notifySuccess()` internally — calling it here
+        // as well would double-buzz on the same event.
+        toast.success("Report submitted. Thanks for helping out.")
       },
       onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't save the report."),
     })
   }
 
+  const selectedMeta = type ? lostFoundTypeMeta(type) : null
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Box flex={1} justifyContent="flex-end">
-        <Box backgroundColor="surface" borderTopLeftRadius="sheet" borderTopRightRadius="sheet" maxHeight="92%">
-          <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Box flexDirection="row" alignItems="center" justifyContent="space-between">
-              <Text variant="heading">New report</Text>
-              <Pressable
-                onPress={() => {
-                  reset()
-                  onClose()
-                }}
-              >
-                <Text variant="caption">Close</Text>
-              </Pressable>
+    <FullScreenModal
+      visible={visible}
+      onClose={dismiss}
+      title="New report"
+      subtitle="Lost something, or picked something up around KIZ?"
+      footer={
+        type ? <KButton label="Submit report" onPress={submit} loading={report.isPending} /> : undefined
+      }
+    >
+      <Box gap="l">
+        <Box>
+          <Text variant="label" marginBottom="s" marginLeft="xs">
+            WHAT HAPPENED?
+          </Text>
+          <PillRail>
+            {LOST_FOUND_TYPES.map((t) => (
+              <KPill
+                key={t.value}
+                label={t.title}
+                icon={t.icon}
+                selected={type === t.value}
+                onPress={() => setType(t.value)}
+              />
+            ))}
+          </PillRail>
+          {selectedMeta ? (
+            <Text variant="caption" marginTop="s" marginLeft="xs">
+              {selectedMeta.hint}
+            </Text>
+          ) : null}
+        </Box>
+
+        {type && selectedMeta ? (
+          <>
+            <TextField label="Item" value={itemName} onChangeText={setItemName} autoCapitalize="sentences" />
+            <TextField
+              label="Description"
+              value={description}
+              onChangeText={setDescription}
+              autoCapitalize="sentences"
+            />
+
+            <Box>
+              <Text variant="label" marginBottom="s" marginLeft="xs">
+                {selectedMeta.locationLabel.toUpperCase()}
+              </Text>
+              <PillRail>
+                {[...KIZ_LOCATIONS, OTHER_LOCATION].map((loc) => (
+                  <KPill
+                    key={loc}
+                    label={loc === OTHER_LOCATION ? "Other location…" : loc}
+                    selected={loc === location}
+                    onPress={() => setLocation(loc)}
+                  />
+                ))}
+              </PillRail>
+              {location === OTHER_LOCATION ? (
+                <Box marginTop="s">
+                  <TextField
+                    label="Exact location"
+                    value={locationOther}
+                    onChangeText={setLocationOther}
+                    autoCapitalize="sentences"
+                  />
+                </Box>
+              ) : null}
             </Box>
 
-            {!type ? (
-              <Box gap="m" marginTop="l">
-                {LOST_FOUND_TYPES.map((t) => (
-                  <Pressable key={t.value} onPress={() => setType(t.value)}>
-                    <Surface>
-                      <StatusChip label={t.title} tone={t.value === "lost" ? "info" : "success"} icon={t.icon} />
-                      <Text variant="caption" marginTop="s">
-                        {t.hint}
-                      </Text>
-                    </Surface>
-                  </Pressable>
-                ))}
-              </Box>
-            ) : (
-              <Box gap="l" marginTop="l">
-                <StatusChip
-                  label={lostFoundTypeMeta(type).title}
-                  tone={type === "lost" ? "info" : "success"}
-                  icon={lostFoundTypeMeta(type).icon}
-                />
-                <TextField label="Item" value={itemName} onChangeText={setItemName} autoCapitalize="sentences" />
-                <TextField
-                  label="Description"
-                  value={description}
-                  onChangeText={setDescription}
-                  autoCapitalize="sentences"
-                />
+            <DateField
+              label={selectedMeta.whenLabel}
+              value={happenedDate}
+              onChange={setHappenedDate}
+              maximumDate={todayMalaysiaDate()}
+            />
+            <TimeField label="Approx. time (optional)" value={happenedTime} onChange={setHappenedTime} />
 
-                <Box>
-                  <Text variant="label" marginBottom="s" marginLeft="xs">
-                    {lostFoundTypeMeta(type).locationLabel.toUpperCase()}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <Box flexDirection="row" gap="s">
-                      {[...KIZ_LOCATIONS, OTHER_LOCATION].map((loc) => {
-                        const active = loc === location
-                        const label = loc === OTHER_LOCATION ? "Other location…" : loc
-                        return (
-                          <Pressable key={loc} onPress={() => setLocation(loc)}>
-                            <Box
-                              paddingHorizontal="m"
-                              paddingVertical="s"
-                              borderRadius="pill"
-                              borderWidth={1}
-                              borderColor={active ? "brand600" : "border"}
-                              backgroundColor={active ? "brand50" : "surface"}
-                            >
-                              <Text
-                                variant="caption"
-                                style={{ color: active ? theme.colors.brand700 : theme.colors.ink500 }}
-                              >
-                                {label}
-                              </Text>
-                            </Box>
-                          </Pressable>
-                        )
-                      })}
-                    </Box>
-                  </ScrollView>
-                  {location === OTHER_LOCATION ? (
-                    <Box marginTop="s">
-                      <TextField
-                        label="Exact location"
-                        value={locationOther}
-                        onChangeText={setLocationOther}
-                        autoCapitalize="sentences"
-                      />
-                    </Box>
-                  ) : null}
-                </Box>
-
-                <DateField
-                  label={lostFoundTypeMeta(type).whenLabel}
-                  value={happenedDate}
-                  onChange={setHappenedDate}
-                  maximumDate={todayMalaysiaDate()}
-                />
-                <TimeField label="Approx. time (optional)" value={happenedTime} onChange={setHappenedTime} />
-
-                <Box>
-                  <KButton
-                    label={photo ? "Change photo" : "Attach a photo"}
-                    variant="secondary"
-                    icon="photo_camera"
-                    onPress={pickPhoto}
+            <Box>
+              <KButton
+                label={photo ? "Change photo" : "Attach a photo"}
+                variant="secondary"
+                icon="photo_camera"
+                onPress={pickPhoto}
+              />
+              {photo ? (
+                <Box marginTop="s">
+                  <Image
+                    source={{ uri: photo.uri }}
+                    style={{
+                      width: "100%",
+                      maxWidth: isTablet ? PHOTO_MAX_WIDTH : undefined,
+                      alignSelf: "center",
+                      height: 160,
+                      borderRadius: theme.borderRadii.card,
+                    }}
+                    contentFit="cover"
+                    accessibilityLabel="Attached photo preview"
                   />
-                  {photo ? (
-                    <Text variant="caption" marginTop="xs" marginLeft="xs">
-                      {photo.fileName ?? "photo attached"}
-                    </Text>
-                  ) : null}
-                </Box>
-
-                {error ? (
-                  <Text variant="caption" style={{ color: theme.colors.dangerInk }}>
-                    {error}
+                  <Text variant="caption" marginTop="xs" marginLeft="xs">
+                    {photo.fileName ?? "photo attached"}
                   </Text>
-                ) : null}
+                </Box>
+              ) : null}
+            </Box>
 
-                <KButton label="Submit report" onPress={submit} loading={report.isPending} />
-              </Box>
-            )}
-          </ScrollView>
-        </Box>
+            {error ? (
+              <Text variant="caption" style={{ color: theme.colors.dangerInk }}>
+                {error}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
       </Box>
-    </Modal>
+    </FullScreenModal>
   )
 }

@@ -2,17 +2,22 @@ import { helpdeskCategoryMeta, helpdeskLocationLabel, ticketRef } from "@kiz/sha
 import { useTheme } from "@shopify/restyle"
 import { useLocalSearchParams } from "expo-router"
 import { useState } from "react"
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput } from "react-native"
+import { KeyboardAvoidingView, Platform, ScrollView, TextInput } from "react-native"
 
+import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useAdminTicketAction, useHelpdeskThread, useSendReply } from "@/lib/hooks"
+import { useLayout } from "@/lib/responsive"
 import {
   Box,
   KButton,
+  KEmpty,
   LoadingScreen,
+  PressScale,
   Screen,
   StatusChip,
   Text,
+  useToast,
   type ChipTone,
 } from "@/ui"
 
@@ -53,23 +58,64 @@ export default function AdminTicketScreen() {
   const theme = useTheme()
   const { user } = useAuth()
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>()
-  const { data, isLoading } = useHelpdeskThread(ticketId)
+  const { data, isLoading, isError, refetch } = useHelpdeskThread(ticketId)
   const reply = useSendReply(ticketId)
   const action = useAdminTicketAction(ticketId)
+  const toast = useToast()
+  const { bubbleMaxWidth } = useLayout()
   const [text, setText] = useState("")
 
-  if (isLoading || !data) return <LoadingScreen label="Loading ticket…" />
+  if (isLoading) return <LoadingScreen label="Loading ticket…" />
+
+  if (isError || !data) {
+    return (
+      <Screen scroll edges={["top"]}>
+        <KEmpty
+          icon="error_outline"
+          tone="danger"
+          title="Couldn't load this ticket"
+          message="Check your connection and try again."
+          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
+        />
+      </Screen>
+    )
+  }
 
   const { ticket, messages, canReply } = data
   const category = helpdeskCategoryMeta(ticket.category)
   const closed = ticket.status === "closed"
   const resolved = ticket.status === "resolved"
 
+  const ACTION_DONE: Record<"assign" | "resolve" | "close" | "reopen" | "more_info", string> = {
+    assign: "Ticket assigned to you.",
+    resolve: "Ticket marked resolved.",
+    close: "Ticket closed.",
+    reopen: "Ticket reopened.",
+    more_info: "Asked the resident for more info.",
+  }
+
+  function runAction(next: "assign" | "resolve" | "close" | "reopen" | "more_info") {
+    action.mutate(next, {
+      onSuccess: () => toast.success(ACTION_DONE[next]),
+      onError: () => toast.error("Couldn't update the ticket. Try again."),
+    })
+  }
+
+  /**
+   * Clear the draft optimistically, but restore it if the send fails — this
+   * previously cleared the input without checking the mutation result, so a
+   * failed reply silently deleted what the admin had typed.
+   */
   function submit() {
     const value = text.trim()
-    if (!value) return
-    reply.mutate(value)
+    if (!value || reply.isPending) return
     setText("")
+    reply.mutate(value, {
+      onError: (err) => {
+        setText(value)
+        toast.error(err instanceof ApiError ? err.message : "Reply didn't send. Try again.")
+      },
+    })
   }
 
   return (
@@ -116,7 +162,7 @@ export default function AdminTicketScreen() {
             <KButton
               label="Take ticket"
               variant="secondary"
-              onPress={() => action.mutate("assign")}
+              onPress={() => runAction("assign")}
               loading={action.isPending}
             />
           </Box>
@@ -124,7 +170,7 @@ export default function AdminTicketScreen() {
             <Box flex={1} minWidth={120}>
               <KButton
                 label="Mark resolved"
-                onPress={() => action.mutate("resolve")}
+                onPress={() => runAction("resolve")}
                 loading={action.isPending}
               />
             </Box>
@@ -133,7 +179,7 @@ export default function AdminTicketScreen() {
               <KButton
                 label="Reopen"
                 variant="secondary"
-                onPress={() => action.mutate("reopen")}
+                onPress={() => runAction("reopen")}
                 loading={action.isPending}
               />
             </Box>
@@ -142,7 +188,7 @@ export default function AdminTicketScreen() {
             <KButton
               label="Ask for info"
               variant="secondary"
-              onPress={() => action.mutate("more_info")}
+              onPress={() => runAction("more_info")}
               loading={action.isPending}
             />
           </Box>
@@ -151,7 +197,7 @@ export default function AdminTicketScreen() {
               <KButton
                 label="Close"
                 variant="secondary"
-                onPress={() => action.mutate("close")}
+                onPress={() => runAction("close")}
                 loading={action.isPending}
               />
             </Box>
@@ -167,7 +213,7 @@ export default function AdminTicketScreen() {
                   {mine ? "You" : m.sender.name} · {timeLabel(m.createdAt)}
                 </Text>
                 <Box
-                  maxWidth="85%"
+                  maxWidth={bubbleMaxWidth}
                   padding="m"
                   borderRadius="card"
                   backgroundColor={m.isAutoReply ? "warningSoft" : mine ? "brand50" : "canvasSunk"}
@@ -207,9 +253,12 @@ export default function AdminTicketScreen() {
                 multiline
               />
             </Box>
-            <Pressable
+            <PressScale
               onPress={submit}
               disabled={!text.trim() || reply.isPending}
+              scaleTo={0.94}
+              accessibilityRole="button"
+              accessibilityLabel="Send reply"
               style={{
                 paddingHorizontal: 16,
                 height: 44,
@@ -219,10 +268,10 @@ export default function AdminTicketScreen() {
                 backgroundColor: text.trim() ? theme.colors.brand600 : theme.colors.border,
               }}
             >
-              <Text variant="button" style={{ color: "#FFFFFF" }}>
-                Send
+              <Text variant="button" style={{ color: theme.colors.white }}>
+                {reply.isPending ? "Sending…" : "Send"}
               </Text>
-            </Pressable>
+            </PressScale>
           </Box>
         ) : (
           <Box padding="l" borderTopWidth={1} borderTopColor="border">

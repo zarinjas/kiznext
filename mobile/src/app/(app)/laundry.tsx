@@ -12,23 +12,28 @@ import {
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { useEffect, useRef, useState } from "react"
-import { Modal, Pressable, ScrollView } from "react-native"
 
 import { ApiError } from "@/lib/api"
 import { absoluteUrl } from "@/lib/config"
 import { useCancelLaundry, useLaundry, useStartLaundry } from "@/lib/hooks"
 import {
+  AsyncBoundary,
   Box,
+  CardGrid,
   Icon,
   KButton,
   KEmpty,
-  LoadingScreen,
+  KPill,
+  PillRail,
+  PressScale,
   Screen,
+  Sheet,
+  Skeleton,
   StatusChip,
   Surface,
   Text,
   TextField,
-  type ChipTone,
+  useToast,
 } from "@/ui"
 
 const SELECTABLE = new Set<string>(LAUNDRY_SELECTABLE_STATES)
@@ -50,18 +55,18 @@ function outcomeLabel(r: LaundryReminderView, nowMs: number): string {
 }
 
 export default function LaundryScreen() {
-  const theme = useTheme()
-  const { data, isLoading } = useLaundry()
+  const { data, isLoading, isError, refetch } = useLaundry()
   const start = useStartLaundry()
   const cancel = useCancelLaundry()
+  const toast = useToast()
 
   const [tab, setTab] = useState<"status" | "mine">("status")
   const [selected, setSelected] = useState<LaundryMachineView | null>(null)
   const [duration, setDuration] = useState<number>(LAUNDRY_DEFAULT_DURATION)
   const [customOpen, setCustomOpen] = useState(false)
   const [customValue, setCustomValue] = useState(String(LAUNDRY_DEFAULT_DURATION))
+  const [customError, setCustomError] = useState<string | null>(null)
   const [confirmReplace, setConfirmReplace] = useState<LaundryMachineView | null>(null)
-  const [notice, setNotice] = useState<{ tone: ChipTone; msg: string } | null>(null)
 
   const offsetRef = useRef(0)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -76,25 +81,21 @@ export default function LaundryScreen() {
     return () => clearInterval(id)
   }, [])
 
-  if (isLoading || !data) return <LoadingScreen label="Loading laundry…" />
-
   function chooseMachine(m: LaundryMachineView) {
     if (!SELECTABLE.has(m.state)) return
     setSelected(m)
     setCustomOpen(false)
+    setCustomError(null)
     setDuration(LAUNDRY_DEFAULT_DURATION)
-    setNotice(null)
   }
 
   function applyCustom() {
     const n = Number(customValue)
     if (!Number.isInteger(n) || n < LAUNDRY_MIN_MINUTES || n > LAUNDRY_MAX_MINUTES) {
-      setNotice({
-        tone: "danger",
-        msg: `Enter a whole number between ${LAUNDRY_MIN_MINUTES} and ${LAUNDRY_MAX_MINUTES}.`,
-      })
+      setCustomError(`Enter a whole number between ${LAUNDRY_MIN_MINUTES} and ${LAUNDRY_MAX_MINUTES}.`)
       return
     }
+    setCustomError(null)
     setDuration(n)
     setCustomOpen(false)
   }
@@ -104,9 +105,10 @@ export default function LaundryScreen() {
     try {
       await start.mutateAsync({ machineId: m.id, durationMinutes: duration })
       setSelected(null)
-      setNotice({ tone: "success", msg: `Reminder set — we'll show the timer for ${m.name}.` })
+      // `toast.success` fires `notifySuccess()` for us (see ui/toast.tsx).
+      toast.success(`Reminder set — we'll show the timer for ${m.name}.`)
     } catch (e) {
-      setNotice({ tone: "danger", msg: e instanceof ApiError ? e.message : "Couldn't set the reminder." })
+      toast.error(e instanceof ApiError ? e.message : "Couldn't set the reminder.")
     }
   }
 
@@ -114,6 +116,10 @@ export default function LaundryScreen() {
     if (!selected) return
     if (selected.reminder && !selected.reminder.mine) {
       setConfirmReplace(selected)
+      // `toast.warning` fires `notifyWarning()` for us (see ui/toast.tsx).
+      toast.warning(
+        `${selected.name} already has a running timer — starting yours will replace it.`
+      )
       return
     }
     void doStart(selected)
@@ -122,9 +128,9 @@ export default function LaundryScreen() {
   async function cancelMine(reminderId: string) {
     try {
       await cancel.mutateAsync(reminderId)
-      setNotice({ tone: "success", msg: "Reminder cancelled." })
+      toast.success("Reminder cancelled.")
     } catch (e) {
-      setNotice({ tone: "danger", msg: e instanceof ApiError ? e.message : "Couldn't cancel." })
+      toast.error(e instanceof ApiError ? e.message : "Couldn't cancel.")
     }
   }
 
@@ -133,89 +139,87 @@ export default function LaundryScreen() {
   return (
     <Screen scroll edges={[]}>
       <Box flexDirection="row" gap="s" paddingTop="m">
-        {(["status", "mine"] as const).map((t) => {
-          const active = tab === t
-          return (
-            <Pressable key={t} onPress={() => setTab(t)} style={{ flex: 1 }}>
-              <Box
-                paddingVertical="s"
-                borderRadius="pill"
-                borderWidth={1}
-                borderColor={active ? "brand600" : "border"}
-                backgroundColor={active ? "brand50" : "surface"}
-                alignItems="center"
-              >
-                <Text
-                  variant="caption"
-                  style={{
-                    fontWeight: "600",
-                    color: active ? theme.colors.brand700 : theme.colors.ink500,
-                  }}
-                >
-                  {t === "status" ? "Machine Status" : "My Reminder"}
-                </Text>
-              </Box>
-            </Pressable>
-          )
-        })}
+        <Box flex={1}>
+          <KPill
+            label="Machine Status"
+            icon="local_laundry_service"
+            selected={tab === "status"}
+            onPress={() => setTab("status")}
+          />
+        </Box>
+        <Box flex={1}>
+          <KPill
+            label="My Reminder"
+            icon="timer"
+            selected={tab === "mine"}
+            onPress={() => setTab("mine")}
+          />
+        </Box>
       </Box>
 
-      {notice ? (
-        <Box marginTop="m">
-          <Surface>
-            <Text variant="caption" style={{ fontWeight: "600" }}>
-              {notice.msg}
-            </Text>
-          </Surface>
-        </Box>
-      ) : null}
+      <Box marginTop="m">
+        <AsyncBoundary
+          data={data}
+          isLoading={isLoading}
+          isError={isError}
+          refetch={refetch}
+          skeleton={<Skeleton.Grid count={4} />}
+          errorTitle="Couldn't load laundry"
+          errorMessage="We couldn't reach the machine list. Check your connection and try again."
+        >
+          {(snapshot) =>
+            tab === "status" ? (
+              <>
+                <Text variant="heading" marginTop="m" marginBottom="m">
+                  Select a Machine
+                </Text>
 
-      {tab === "status" ? (
-        <>
-          <Text variant="heading" marginTop="l" marginBottom="m">
-            Select a Machine
-          </Text>
+                {snapshot.machines.length === 0 ? (
+                  <KEmpty
+                    icon="local_laundry_service"
+                    title="No machines yet"
+                    message="The KIZ office hasn't added any laundry machines. Check back soon, or ask at the office."
+                  />
+                ) : (
+                  <CardGrid
+                    items={snapshot.machines}
+                    phoneColumns={2}
+                    keyExtractor={(m) => m.id}
+                    renderItem={(m) => (
+                      <MachineCard
+                        machine={m}
+                        nowMs={nowMs}
+                        selected={selected?.id === m.id}
+                        defaultImageUrl={snapshot.defaultImageUrl}
+                        onSelect={() => chooseMachine(m)}
+                      />
+                    )}
+                  />
+                )}
 
-          {data.machines.length === 0 ? (
-            <KEmpty
-              icon="local_laundry_service"
-              title="No machines yet"
-              message="The KIZ office hasn't added any laundry machines."
-            />
-          ) : (
-            <Box flexDirection="row" flexWrap="wrap" gap="m">
-              {data.machines.map((m) => (
-                <MachineCard
-                  key={m.id}
-                  machine={m}
-                  nowMs={nowMs}
-                  selected={selected?.id === m.id}
-                  defaultImageUrl={data.defaultImageUrl}
-                  onSelect={() => chooseMachine(m)}
-                />
-              ))}
-            </Box>
-          )}
-
-          <Box marginTop="l">
-            <Surface>
-              <Text variant="bodyStrong">Reminder-based status</Text>
-              <Text variant="caption" marginTop="xs">
-                Machine activity is based on reminders set by residents and may not reflect actual
-                availability.
-              </Text>
-            </Surface>
-          </Box>
-        </>
-      ) : (
-        <MyReminderTab
-          active={data.myActive}
-          history={data.myHistory}
-          nowMs={nowMs}
-          cancelling={cancel.isPending}
-          onCancel={cancelMine}
-        />
-      )}
+                <Box marginTop="l">
+                  <Surface>
+                    <Text variant="bodyStrong">Reminder-based status</Text>
+                    <Text variant="caption" marginTop="xs">
+                      Machine activity is based on reminders set by residents and may not reflect
+                      actual availability.
+                    </Text>
+                  </Surface>
+                </Box>
+              </>
+            ) : (
+              <MyReminderTab
+                active={snapshot.myActive}
+                history={snapshot.myHistory}
+                nowMs={nowMs}
+                cancelling={cancel.isPending}
+                onCancel={cancelMine}
+                onPickMachine={() => setTab("status")}
+              />
+            )
+          }
+        </AsyncBoundary>
+      </Box>
 
       <Box height={32} />
 
@@ -224,51 +228,55 @@ export default function LaundryScreen() {
         duration={duration}
         customOpen={customOpen}
         customValue={customValue}
+        customError={customError}
         endsAtMs={endsAtMs}
         submitting={start.isPending}
         onClose={() => setSelected(null)}
         onPickDuration={(d) => {
           setDuration(d)
           setCustomOpen(false)
+          setCustomError(null)
         }}
         onToggleCustom={(open) => {
           setCustomOpen(open)
           setCustomValue(String(duration))
+          setCustomError(null)
         }}
-        onChangeCustom={setCustomValue}
+        onChangeCustom={(v) => {
+          setCustomValue(v)
+          setCustomError(null)
+        }}
         onApplyCustom={applyCustom}
         onStart={onStartClick}
       />
 
-      <Modal
+      <Sheet
         visible={Boolean(confirmReplace)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmReplace(null)}
-      >
-        <Box flex={1} backgroundColor="transparent" alignItems="center" justifyContent="center" padding="l">
-          <Surface>
-            <Text variant="heading">Replace the active reminder?</Text>
-            <Text variant="body" marginTop="s">
-              {confirmReplace?.name} is currently in use by{" "}
-              {confirmReplace?.reminder?.userName ?? "another resident"}. Starting your reminder will
-              replace their timer.
-            </Text>
-            <Box flexDirection="row" gap="m" marginTop="l">
-              <Box flex={1}>
-                <KButton label="Cancel" variant="secondary" onPress={() => setConfirmReplace(null)} />
-              </Box>
-              <Box flex={1}>
-                <KButton
-                  label="Replace"
-                  onPress={() => confirmReplace && doStart(confirmReplace)}
-                  loading={start.isPending}
-                />
-              </Box>
+        onClose={() => setConfirmReplace(null)}
+        title="Replace the active reminder?"
+        subtitle={`${confirmReplace?.name ?? "This machine"} is in use by ${
+          confirmReplace?.reminder?.userName ?? "another resident"
+        }.`}
+        footer={
+          <Box flexDirection="row" gap="m">
+            <Box flex={1}>
+              <KButton label="Cancel" variant="secondary" onPress={() => setConfirmReplace(null)} />
             </Box>
-          </Surface>
-        </Box>
-      </Modal>
+            <Box flex={1}>
+              <KButton
+                label="Replace"
+                onPress={() => confirmReplace && doStart(confirmReplace)}
+                loading={start.isPending}
+              />
+            </Box>
+          </Box>
+        }
+      >
+        <Text variant="body">
+          Starting your reminder will replace their timer. Only do this if the machine is actually
+          free.
+        </Text>
+      </Sheet>
     </Screen>
   )
 }
@@ -293,7 +301,17 @@ function MachineCard({
   const remaining = machine.reminder ? new Date(machine.reminder.endsAt).getTime() - nowMs : 0
 
   return (
-    <Pressable onPress={selectable ? onSelect : undefined} style={{ width: "47%" }}>
+    <PressScale
+      onPress={selectable ? onSelect : undefined}
+      disabled={!selectable}
+      haptic={selectable}
+      accessibilityRole="button"
+      accessibilityLabel={`${machine.name}${machine.location ? `, ${machine.location}` : ""}. ${
+        meta.label
+      }${selectable ? ". Tap to set a reminder." : ""}`}
+      accessibilityState={{ selected, disabled: !selectable }}
+      style={{ minHeight: 44 }}
+    >
       <Box
         padding="m"
         borderRadius="cardLg"
@@ -341,7 +359,7 @@ function MachineCard({
           ) : null}
         </Box>
       </Box>
-    </Pressable>
+    </PressScale>
   )
 }
 
@@ -351,12 +369,14 @@ function MyReminderTab({
   nowMs,
   cancelling,
   onCancel,
+  onPickMachine,
 }: {
   active: LaundryReminderView | null
   history: LaundryReminderView[]
   nowMs: number
   cancelling: boolean
   onCancel: (id: string) => void
+  onPickMachine: () => void
 }) {
   const theme = useTheme()
   return (
@@ -383,11 +403,12 @@ function MyReminderTab({
           </Box>
         </Surface>
       ) : (
-        <Surface>
-          <Text variant="body">
-            You have no active reminder. Set one from the Machine Status tab.
-          </Text>
-        </Surface>
+        <KEmpty
+          icon="timer"
+          title="No reminder running"
+          message="Pick a machine and we'll count down your cycle, so you know exactly when to collect your laundry."
+          action={<KButton label="Pick a machine" onPress={onPickMachine} />}
+        />
       )}
 
       <Box>
@@ -397,8 +418,9 @@ function MyReminderTab({
         {history.length === 0 ? (
           <KEmpty
             icon="history"
-            title="Nothing here yet"
-            message="Your past laundry reminders will show up here."
+            title="No past reminders"
+            message="Every reminder you set shows up here once it finishes."
+            action={<KButton label="Set your first reminder" variant="secondary" onPress={onPickMachine} />}
           />
         ) : (
           <Box gap="s">
@@ -439,6 +461,7 @@ function SetReminderSheet({
   duration,
   customOpen,
   customValue,
+  customError,
   endsAtMs,
   submitting,
   onClose,
@@ -452,6 +475,7 @@ function SetReminderSheet({
   duration: number
   customOpen: boolean
   customValue: string
+  customError: string | null
   endsAtMs: number
   submitting: boolean
   onClose: () => void
@@ -461,118 +485,70 @@ function SetReminderSheet({
   onApplyCustom: () => void
   onStart: () => void
 }) {
-  const theme = useTheme()
   return (
-    <Modal visible={Boolean(machine)} animationType="slide" transparent onRequestClose={onClose}>
-      <Box flex={1} justifyContent="flex-end">
-        <Box
-          backgroundColor="surface"
-          borderTopLeftRadius="sheet"
-          borderTopRightRadius="sheet"
-          maxHeight="92%"
-        >
-          <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Box flexDirection="row" alignItems="center" justifyContent="space-between">
-              <Text variant="heading">Set Laundry Reminder</Text>
-              <Pressable onPress={onClose}>
-                <Text variant="caption">Close</Text>
-              </Pressable>
-            </Box>
+    <Sheet
+      visible={Boolean(machine)}
+      onClose={onClose}
+      title="Set Laundry Reminder"
+      subtitle={machine ? machine.name : undefined}
+      footer={<KButton label="Start Reminder" loading={submitting} onPress={onStart} />}
+    >
+      {machine ? (
+        <Box gap="l" paddingTop="s">
+          <Box>
+            <Text variant="label" marginBottom="xs">
+              SELECTED MACHINE
+            </Text>
+            <Text variant="bodyStrong">{machine.name}</Text>
+          </Box>
 
-            {machine ? (
-              <Box gap="l" marginTop="l">
-                <Box>
-                  <Text variant="label" marginBottom="xs">
-                    SELECTED MACHINE
-                  </Text>
-                  <Text variant="bodyStrong">{machine.name}</Text>
+          <Box>
+            <Text variant="label" marginBottom="s">
+              CYCLE DURATION
+            </Text>
+            <PillRail>
+              {LAUNDRY_DURATIONS.map((d) => (
+                <KPill
+                  key={d}
+                  label={`${d} min`}
+                  selected={!customOpen && duration === d}
+                  onPress={() => onPickDuration(d)}
+                />
+              ))}
+              <KPill
+                label="Custom"
+                icon="tune"
+                selected={customOpen}
+                onPress={() => onToggleCustom(!customOpen)}
+              />
+            </PillRail>
+            {customOpen ? (
+              <Box flexDirection="row" alignItems="flex-start" gap="s" marginTop="m">
+                <Box flex={1}>
+                  <TextField
+                    label={`Minutes (${LAUNDRY_MIN_MINUTES}–${LAUNDRY_MAX_MINUTES})`}
+                    value={customValue}
+                    onChangeText={onChangeCustom}
+                    keyboardType="numeric"
+                    error={customError}
+                  />
                 </Box>
-
-                <Box>
-                  <Text variant="label" marginBottom="s">
-                    CYCLE DURATION
-                  </Text>
-                  <Box flexDirection="row" flexWrap="wrap" gap="s">
-                    {LAUNDRY_DURATIONS.map((d) => {
-                      const active = !customOpen && duration === d
-                      return (
-                        <Pressable key={d} onPress={() => onPickDuration(d)}>
-                          <Box
-                            paddingHorizontal="l"
-                            paddingVertical="s"
-                            borderRadius="pill"
-                            borderWidth={1}
-                            borderColor={active ? "brand600" : "border"}
-                            backgroundColor={active ? "brand50" : "surface"}
-                          >
-                            <Text
-                              variant="caption"
-                              style={{
-                                fontWeight: "600",
-                                color: active ? theme.colors.brand700 : theme.colors.ink700,
-                              }}
-                            >
-                              {d} min
-                            </Text>
-                          </Box>
-                        </Pressable>
-                      )
-                    })}
-                    <Pressable onPress={() => onToggleCustom(!customOpen)}>
-                      <Box
-                        paddingHorizontal="l"
-                        paddingVertical="s"
-                        borderRadius="pill"
-                        borderWidth={1}
-                        borderColor={customOpen ? "brand600" : "border"}
-                        backgroundColor={customOpen ? "brand50" : "surface"}
-                      >
-                        <Text
-                          variant="caption"
-                          style={{
-                            fontWeight: "600",
-                            color: customOpen ? theme.colors.brand700 : theme.colors.ink700,
-                          }}
-                        >
-                          Custom
-                        </Text>
-                      </Box>
-                    </Pressable>
-                  </Box>
-                  {customOpen ? (
-                    <Box flexDirection="row" alignItems="flex-end" gap="s" marginTop="m">
-                      <Box flex={1}>
-                        <TextField
-                          label={`Minutes (${LAUNDRY_MIN_MINUTES}–${LAUNDRY_MAX_MINUTES})`}
-                          value={customValue}
-                          onChangeText={onChangeCustom}
-                          keyboardType="numeric"
-                        />
-                      </Box>
-                      <KButton label="Set" variant="secondary" fullWidth={false} onPress={onApplyCustom} />
-                    </Box>
-                  ) : null}
+                <Box marginTop="l">
+                  <KButton label="Set" variant="secondary" fullWidth={false} onPress={onApplyCustom} />
                 </Box>
-
-                <Box>
-                  <Text variant="label">ESTIMATED END TIME</Text>
-                  <Text variant="title" marginTop="xs">
-                    {formatClock(endsAtMs)}
-                  </Text>
-                  <Text variant="caption">Your laundry should be ready at {formatClock(endsAtMs)}.</Text>
-                </Box>
-
-                <KButton label="Start Reminder" loading={submitting} onPress={onStart} />
-                <Pressable onPress={onClose} style={{ alignSelf: "center" }}>
-                  <Text variant="caption" style={{ color: theme.colors.ink500 }}>
-                    Cancel
-                  </Text>
-                </Pressable>
               </Box>
             ) : null}
-          </ScrollView>
+          </Box>
+
+          <Box>
+            <Text variant="label">ESTIMATED END TIME</Text>
+            <Text variant="title" marginTop="xs">
+              {formatClock(endsAtMs)}
+            </Text>
+            <Text variant="caption">Your laundry should be ready at {formatClock(endsAtMs)}.</Text>
+          </Box>
         </Box>
-      </Box>
-    </Modal>
+      ) : null}
+    </Sheet>
   )
 }

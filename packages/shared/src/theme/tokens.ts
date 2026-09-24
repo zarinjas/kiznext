@@ -72,6 +72,52 @@ export const color = {
   neutral: { main: neutral[500], soft: neutral[100], ink: neutral[700] },
 } as const
 
+/**
+ * Module accent tints.
+ *
+ * Each app module (laundry, SOS, facilities, …) needs a soft background plus a
+ * readable ink for its icon tile. These were previously hardcoded per-screen in
+ * the mobile dashboard, so the "one source of truth" rule quietly did not hold
+ * for the most-seen screen in the product. Kept deliberately narrow: a tint is
+ * decoration for an icon tile, never a surface or a text colour.
+ */
+export const moduleTint = {
+  laundry: { bg: "#E8F8F4", ink: "#178D77" },
+  checkin: { bg: "#EAF0FF", ink: "#4F6FD8" },
+  room: { bg: "#FFF2E5", ink: "#D9781D" },
+  facilities: { bg: "#E8F8FA", ink: "#008FA8" },
+  guide: { bg: "#FCECF4", ink: "#C34C83" },
+  helpdesk: { bg: "#EEF2FF", ink: "#5B5BD6" },
+  lost: { bg: "#F3F0FF", ink: "#7758D6" },
+  sos: { bg: "#FFECEC", ink: "#E44747" },
+  guest: { bg: "#EFFAF3", ink: "#1E8E5A" },
+  ai: { bg: "#ECFEFF", ink: "#0E7490" },
+} as const
+
+export type ModuleTintKey = keyof typeof moduleTint
+
+/**
+ * Gradient stop sets. The web renders these as CSS `linear-gradient`, mobile as
+ * an SVG `LinearGradient` — same stops, so the two platforms cannot drift.
+ */
+export const gradientStops = {
+  hero: ["#0E5E8A", "#0891B2", "#39C2DA"],
+  lens: ["#4C3FAF", "#6F5BE0", "#A99EF5"],
+  wayfinder: ["#0E5E8A", "#0891B2", "#22D3EE"],
+  login: ["#F6F5FF", "#EFF6FF", "#FFFFFF"],
+} as const
+
+/** Elevation used by the mobile dashboard cards. */
+export const elevation = {
+  card: {
+    shadowColor: "#0F263F",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+} as const
+
 export const radius = {
   input: 10,
   button: 10,

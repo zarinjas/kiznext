@@ -1,33 +1,50 @@
+import { formatWallClockTime, nowHhmmMalaysia } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Alert, Linking, Platform, Pressable } from "react-native"
 import QRCode from "react-native-qrcode-svg"
 
 import { absoluteUrl } from "@/lib/config"
 import { useEcard, useRegisterEcard, useWalletLinks } from "@/lib/hooks"
-import { Box, Icon, LoadingScreen, Screen, SectionTitle, StatusChip, Text, type Theme } from "@/ui"
+import {
+  Box,
+  FadeInUp,
+  Icon,
+  KButton,
+  KEmpty,
+  LoadingScreen,
+  Screen,
+  SectionTitle,
+  StatusChip,
+  Text,
+  type Theme,
+} from "@/ui"
 
 function WalletButton({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme<Theme>()
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       android_ripple={{ color: "rgba(255,255,255,0.12)" }}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
+        minHeight: 44,
         paddingVertical: 14,
         paddingHorizontal: 18,
         borderRadius: theme.borderRadii.button,
+        // Apple/Google Wallet badges are brand-mandated black — not a theme colour.
         backgroundColor: "#000000",
         opacity: pressed ? 0.85 : 1,
       })}
     >
-      <Icon name="account_balance_wallet" size={18} color="#FFFFFF" />
-      <Text variant="button" style={{ color: "#FFFFFF" }}>
+      <Icon name="account_balance_wallet" size={18} color={theme.colors.white} />
+      <Text variant="button" style={{ color: theme.colors.white }}>
         {label}
       </Text>
     </Pressable>
@@ -58,12 +75,15 @@ function LogoSlot({ uri, fallback }: { uri: string | null; fallback: string }) {
 
 export default function EcardScreen() {
   const theme = useTheme()
-  const { data, isLoading } = useEcard()
+  const { data, isLoading, isError, refetch } = useEcard()
   const register = useRegisterEcard()
   const wallet = useWalletLinks()
   const appleWalletUrl = wallet.data?.appleWalletUrl ?? null
   const googleWalletUrl = wallet.data?.googleWalletUrl ?? null
   const fired = useRef(false)
+  // Live wall-clock stamp under the QR — makes a screenshot of the card
+  // visibly distinguishable from the live card for the officer checking it.
+  const [shownAt, setShownAt] = useState(() => nowHhmmMalaysia())
 
   function openWallet(url: string) {
     Linking.openURL(url).catch(() =>
@@ -79,7 +99,26 @@ export default function EcardScreen() {
     }
   }, [data, register])
 
-  if (isLoading || !data) return <LoadingScreen label="Loading your eCard…" />
+  useEffect(() => {
+    const id = setInterval(() => setShownAt(nowHhmmMalaysia()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (isLoading) return <LoadingScreen label="Loading your eCard…" />
+
+  if (isError || !data) {
+    return (
+      <Screen scroll edges={["top"]}>
+        <KEmpty
+          icon="error_outline"
+          tone="danger"
+          title="Couldn't load your eCard"
+          message="Check your connection and try again."
+          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
+        />
+      </Screen>
+    )
+  }
 
   const c = data.card
   const avatar = absoluteUrl(c.avatarUrl)
@@ -93,107 +132,113 @@ export default function EcardScreen() {
   return (
     <Screen scroll edges={["top"]}>
       <Box alignItems="center" paddingTop="l">
-        <Box
-          width="100%"
-          maxWidth={380}
-          borderRadius="cardLg"
-          borderWidth={1}
-          borderColor="border"
-          backgroundColor="surface"
-          overflow="hidden"
-        >
-          {background ? (
-            <Image
-              source={{ uri: background }}
-              style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-              contentFit="cover"
-            />
-          ) : null}
-          {background ? (
-            <Box
-              style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.86)" }}
-            />
-          ) : null}
-
-          <Box padding="l">
-            <Box flexDirection="row" alignItems="center" justifyContent="center" gap="s">
-              <LogoSlot uri={c.ukmLogoUrl} fallback="UKM" />
-              <LogoSlot uri={c.kizLogoUrl} fallback="KIZ" />
-            </Box>
-
-            <Box alignItems="center" marginTop="m">
-              <Text variant="subheading" style={{ letterSpacing: 1 }}>
-                KOLEJ IBU ZAIN
-              </Text>
-              <Text variant="caption">MYKIZ DIGITAL RESIDENT ID</Text>
-            </Box>
-
-            <Box alignItems="center" marginTop="s">
-              <StatusChip
-                label={c.roleLabel ? c.roleLabel.toUpperCase() : "ACTIVE STUDENT"}
-                tone={c.roleLabel ? "brand" : "success"}
-                icon="badge"
-                alignSelf="center"
+        {/* The wrapper carries the sizing so the animated view doesn't collapse
+            the card's percentage width; maxWidth keeps it centred on tablet. */}
+        <FadeInUp style={{ width: "100%", maxWidth: 380 }}>
+          <Box
+            width="100%"
+            borderRadius="cardLg"
+            borderWidth={1}
+            borderColor="border"
+            backgroundColor="surface"
+            overflow="hidden"
+          >
+            {background ? (
+              <Image
+                source={{ uri: background }}
+                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+                contentFit="cover"
               />
-            </Box>
-
-            <Box alignItems="center" marginTop="l">
+            ) : null}
+            {background ? (
               <Box
-                width={110}
-                height={136}
-                borderRadius="card"
-                overflow="hidden"
-                backgroundColor="brand50"
-                alignItems="center"
-                justifyContent="center"
-              >
-                {avatar ? (
-                  <Image
-                    source={{ uri: avatar }}
-                    style={{ width: 110, height: 136 }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <Text variant="title" style={{ color: theme.colors.brand600 }}>
-                    {c.name.charAt(0).toUpperCase()}
-                  </Text>
-                )}
+                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.86)" }}
+              />
+            ) : null}
+
+            <Box padding="l">
+              <Box flexDirection="row" alignItems="center" justifyContent="center" gap="s">
+                <LogoSlot uri={c.ukmLogoUrl} fallback="UKM" />
+                <LogoSlot uri={c.kizLogoUrl} fallback="KIZ" />
               </Box>
+
+              <Box alignItems="center" marginTop="m">
+                <Text variant="subheading" style={{ letterSpacing: 1 }}>
+                  KOLEJ IBU ZAIN
+                </Text>
+                <Text variant="caption">MYKIZ DIGITAL RESIDENT ID</Text>
+              </Box>
+
+              <Box alignItems="center" marginTop="s">
+                <StatusChip
+                  label={c.roleLabel ? c.roleLabel.toUpperCase() : "ACTIVE STUDENT"}
+                  tone={c.roleLabel ? "brand" : "success"}
+                  icon="badge"
+                  alignSelf="center"
+                />
+              </Box>
+
+              <Box alignItems="center" marginTop="l">
+                <Box
+                  width={110}
+                  height={136}
+                  borderRadius="card"
+                  overflow="hidden"
+                  backgroundColor="brand50"
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  {avatar ? (
+                    <Image
+                      source={{ uri: avatar }}
+                      style={{ width: 110, height: 136 }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Text variant="title" style={{ color: theme.colors.brand600 }}>
+                      {c.name.charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </Box>
+              </Box>
+
+              <Box alignItems="center" marginTop="m">
+                <Text variant="subheading" style={{ textTransform: "uppercase", textAlign: "center" }}>
+                  {c.name}
+                </Text>
+                <Text variant="caption" marginTop="xs">
+                  {c.matricId}
+                </Text>
+              </Box>
+
+              <Box height={1} backgroundColor="border" marginVertical="m" alignSelf="center" width="60%" />
+
+              {roomLine ? (
+                <Text variant="caption" textAlign="center">
+                  {roomLine}
+                </Text>
+              ) : null}
+              {c.session ? (
+                <Text variant="caption" textAlign="center" marginTop="xs">
+                  Residential Session {c.session}
+                </Text>
+              ) : null}
+
+              <Box alignItems="center" marginTop="l">
+                <QRCode value={c.matricId} size={120} />
+                <Text variant="caption" marginTop="s">
+                  Shown at {formatWallClockTime(shownAt)}
+                </Text>
+              </Box>
+
+              {c.validUntil ? (
+                <Text variant="caption" textAlign="center" marginTop="m">
+                  Valid until {c.validUntil}
+                </Text>
+              ) : null}
             </Box>
-
-            <Box alignItems="center" marginTop="m">
-              <Text variant="subheading" style={{ textTransform: "uppercase", textAlign: "center" }}>
-                {c.name}
-              </Text>
-              <Text variant="caption" marginTop="xs">
-                {c.matricId}
-              </Text>
-            </Box>
-
-            <Box height={1} backgroundColor="border" marginVertical="m" alignSelf="center" width="60%" />
-
-            {roomLine ? (
-              <Text variant="caption" textAlign="center">
-                {roomLine}
-              </Text>
-            ) : null}
-            {c.session ? (
-              <Text variant="caption" textAlign="center" marginTop="xs">
-                Residential Session {c.session}
-              </Text>
-            ) : null}
-
-            <Box alignItems="center" marginTop="l">
-              <QRCode value={c.matricId} size={120} />
-            </Box>
-
-            {c.validUntil ? (
-              <Text variant="caption" textAlign="center" marginTop="m">
-                Valid until {c.validUntil}
-              </Text>
-            ) : null}
           </Box>
-        </Box>
+        </FadeInUp>
 
         <Box
           width="100%"

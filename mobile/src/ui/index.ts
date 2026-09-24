@@ -15,6 +15,8 @@ export { AsyncBoundary, OfflineNotice } from "./async-boundary"
 export { Skeleton } from "./skeleton"
 export { AiBadge, LiveDot } from "./ai-badge"
 export { ToastProvider, useToast } from "./toast"
+export { Sheet, FullScreenModal } from "./sheet"
+export { CardGrid, PillRail } from "./grid"
 export {
   PressScale,
   FadeInUp,

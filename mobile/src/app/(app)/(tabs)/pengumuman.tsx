@@ -3,20 +3,26 @@ import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
-import { ActivityIndicator, Modal, Pressable, ScrollView } from "react-native"
+import { Pressable } from "react-native"
 
 import { useAuth } from "@/lib/auth-context"
 import { absoluteUrl } from "@/lib/config"
 import { useAnnouncements, useMarkAnnouncementRead, useToggleAnnouncementReaction } from "@/lib/hooks"
 import type { Announcement } from "@/lib/types"
 import {
+  AsyncBoundary,
   Box,
+  FadeInUp,
+  FullScreenModal,
   KButton,
   KEmpty,
   PageHeader,
+  PressScale,
   Screen,
+  Skeleton,
   StatusChip,
   Text,
+  useToast,
   type ChipTone,
   type Theme,
 } from "@/ui"
@@ -38,7 +44,6 @@ function toneForTag(tag: string): ChipTone {
 }
 
 export default function AnnouncementsScreen() {
-  const theme = useTheme()
   const { user } = useAuth()
   const { data, isLoading, isError, refetch, isRefetching } = useAnnouncements()
   const [openId, setOpenId] = useState<string | null>(null)
@@ -49,32 +54,41 @@ export default function AnnouncementsScreen() {
 
   return (
     <Screen scroll edges={["top"]} refreshing={isRefetching} onRefresh={() => refetch()}>
+      {/* Header stays mounted through load and error so the page never blanks. */}
       <PageHeader title="Announcements" subtitle="Stay updated with the latest news and notices from KIZ." />
 
-      {isLoading ? (
-        <Box paddingVertical="xxl" alignItems="center">
-          <ActivityIndicator color={theme.colors.brand600} />
-        </Box>
-      ) : isError ? (
-        <KEmpty
-          icon="error_outline"
-          title="Couldn't load announcements"
-          message="Pull down to try again."
-        />
-      ) : announcements.length === 0 ? (
-        <KEmpty title="No announcements yet" message="Check back soon." />
-      ) : (
-        <Box gap="m">
-          {announcements.map((a) => (
-            <AnnouncementCard
-              key={a.id}
-              announcement={a}
-              canInteract={canInteract}
-              onOpen={() => setOpenId(a.id)}
-            />
-          ))}
-        </Box>
-      )}
+      <AsyncBoundary
+        data={data}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={() => refetch()}
+        skeleton={<Skeleton.Feed count={3} />}
+        errorTitle="Couldn't load announcements"
+        errorMessage="Check your connection and try again."
+      >
+        {(loaded) => {
+          const list = loaded.announcements ?? []
+
+          if (list.length === 0) {
+            return <KEmpty title="No announcements yet" message="Check back soon." />
+          }
+
+          return (
+            <Box gap="m">
+              {list.map((a, i) => (
+                // Cap the stagger so the tail of a long feed isn't left waiting.
+                <FadeInUp key={a.id} index={Math.min(i, 6)}>
+                  <AnnouncementCard
+                    announcement={a}
+                    canInteract={canInteract}
+                    onOpen={() => setOpenId(a.id)}
+                  />
+                </FadeInUp>
+              ))}
+            </Box>
+          )
+        }}
+      </AsyncBoundary>
 
       <Box height={32} />
 
@@ -114,7 +128,12 @@ function AnnouncementCard({
   const accent = tagAccent(announcement.tag)
 
   return (
-    <Pressable onPress={onOpen}>
+    <PressScale
+      onPress={onOpen}
+      scaleTo={0.985}
+      accessibilityRole="button"
+      accessibilityLabel={`${meta.label}: ${announcement.title}`}
+    >
       <Box
         borderRadius="cardLg"
         borderWidth={1}
@@ -162,12 +181,13 @@ function AnnouncementCard({
           </Box>
         ) : null}
       </Box>
-    </Pressable>
+    </PressScale>
   )
 }
 
 function ReactionRow({ announcement, compact = false }: { announcement: Announcement; compact?: boolean }) {
-  const theme = useTheme()
+  const theme = useTheme<Theme>()
+  const toast = useToast()
   const toggle = useToggleAnnouncementReaction()
 
   return (
@@ -176,18 +196,29 @@ function ReactionRow({ announcement, compact = false }: { announcement: Announce
         const active = announcement.mine.includes(r.type)
         const count = announcement.reactions[r.type]
         return (
+          // The pill stays visually small; `hitSlop` lifts the touch target to
+          // 44pt+ without turning a reaction row into a row of buttons.
           <Pressable
             key={r.type}
             disabled={toggle.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={`${r.label}${count > 0 ? `, ${count}` : ""}`}
+            accessibilityState={{ selected: active, disabled: toggle.isPending }}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
             onPress={(e) => {
               e.stopPropagation?.()
-              toggle.mutate({ id: announcement.id, type: r.type })
+              toggle.mutate(
+                { id: announcement.id, type: r.type },
+                { onError: () => toast.error("Couldn't save your reaction.") }
+              )
             }}
           >
             <Box
               flexDirection="row"
               alignItems="center"
+              justifyContent="center"
               gap="xs"
+              minHeight={compact ? 28 : 32}
               paddingHorizontal="s"
               paddingVertical="xs"
               borderRadius="pill"
@@ -229,7 +260,7 @@ function AnnouncementDialog({
   canInteract: boolean
   onClose: () => void
 }) {
-  const theme = useTheme()
+  const theme = useTheme<Theme>()
   const markRead = useMarkAnnouncementRead()
   const announcementId = announcement?.id
   const unread = announcement?.unread
@@ -245,88 +276,81 @@ function AnnouncementDialog({
   const isPdf = announcement?.attachmentType === "pdf"
 
   return (
-    <Modal visible={Boolean(announcement)} animationType="slide" transparent onRequestClose={onClose}>
-      <Box flex={1} justifyContent="flex-end">
-        <Box
-          backgroundColor="surface"
-          borderTopLeftRadius="sheet"
-          borderTopRightRadius="sheet"
-          maxHeight="92%"
-        >
-          <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Box flexDirection="row" alignItems="center" justifyContent="space-between">
-              <Text variant="heading">Announcement</Text>
-              <Pressable onPress={onClose}>
-                <Text variant="caption">Close</Text>
-              </Pressable>
-            </Box>
-
-            {announcement && meta ? (
-              <Box gap="m" marginTop="l">
-                <Box flexDirection="row" alignItems="center" gap="s" flexWrap="wrap">
-                  <StatusChip label={meta.label} tone={toneForTag(announcement.tag)} icon={meta.icon} />
-                  {announcement.isPinned ? (
-                    <StatusChip label="Pinned" tone="warning" icon="push_pin" />
-                  ) : null}
-                </Box>
-
-                <Text variant="title">{announcement.title}</Text>
-                <Text variant="caption">
-                  {announcement.posterName ?? "KIZ Office"} ·{" "}
-                  {formatMalaysia(new Date(announcement.createdAt))}
-                </Text>
-
-                <Text variant="body">{announcement.content}</Text>
-
-                {attachment && isImage ? (
-                  <Image
-                    source={{ uri: attachment }}
-                    style={{ width: "100%", height: 220, borderRadius: theme.borderRadii.card }}
-                    contentFit="cover"
-                  />
-                ) : null}
-
-                {attachment && isPdf ? (
-                  <KButton
-                    label="Open PDF"
-                    variant="secondary"
-                    icon="attachment"
-                    onPress={() =>
-                      router.push({
-                        pathname: "/pdf-viewer",
-                        params: { url: attachment, title: announcement.title },
-                      })
-                    }
-                  />
-                ) : null}
-
-                {attachment && !isImage && !isPdf ? (
-                  <KButton
-                    label="Open attachment"
-                    variant="secondary"
-                    icon="open_in_new"
-                    onPress={() =>
-                      router.push({
-                        pathname: "/pdf-viewer",
-                        params: { url: attachment, title: announcement.title },
-                      })
-                    }
-                  />
-                ) : null}
-
-                {canInteract ? (
-                  <Box paddingTop="m" borderTopWidth={1} borderTopColor="border">
-                    <Text variant="label" marginBottom="s">
-                      REACTIONS
-                    </Text>
-                    <ReactionRow announcement={announcement} />
-                  </Box>
-                ) : null}
-              </Box>
+    // Full-screen rather than a sheet: announcements run long, and a 92%-tall
+    // sheet left the body scrolling in a letterbox.
+    <FullScreenModal visible={Boolean(announcement)} onClose={onClose} title="Announcement">
+      {announcement && meta ? (
+        <Box gap="m">
+          <Box flexDirection="row" alignItems="center" gap="s" flexWrap="wrap">
+            <StatusChip label={meta.label} tone={toneForTag(announcement.tag)} icon={meta.icon} />
+            {announcement.isPinned ? (
+              <StatusChip label="Pinned" tone="warning" icon="push_pin" />
             ) : null}
-          </ScrollView>
+          </Box>
+
+          <Text variant="title">{announcement.title}</Text>
+          <Text variant="caption">
+            {announcement.posterName ?? "KIZ Office"} ·{" "}
+            {formatMalaysia(new Date(announcement.createdAt))}
+          </Text>
+
+          <Text variant="body">{announcement.content}</Text>
+
+          {attachment && isImage ? (
+            // `contain` + a width cap: a full-bleed 220pt-tall crop stretched
+            // and distorted the image on an iPad.
+            <Image
+              source={{ uri: attachment }}
+              style={{
+                width: "100%",
+                maxWidth: 560,
+                alignSelf: "center",
+                height: 220,
+                borderRadius: theme.borderRadii.card,
+                backgroundColor: theme.colors.canvasSunk,
+              }}
+              contentFit="contain"
+            />
+          ) : null}
+
+          {attachment && isPdf ? (
+            <KButton
+              label="Open PDF"
+              variant="secondary"
+              icon="attachment"
+              onPress={() =>
+                router.push({
+                  pathname: "/pdf-viewer",
+                  params: { url: attachment, title: announcement.title },
+                })
+              }
+            />
+          ) : null}
+
+          {attachment && !isImage && !isPdf ? (
+            <KButton
+              label="Open attachment"
+              variant="secondary"
+              icon="open_in_new"
+              onPress={() =>
+                router.push({
+                  pathname: "/pdf-viewer",
+                  params: { url: attachment, title: announcement.title },
+                })
+              }
+            />
+          ) : null}
+
+          {canInteract ? (
+            <Box paddingTop="m" borderTopWidth={1} borderTopColor="border">
+              <Text variant="label" marginBottom="s">
+                REACTIONS
+              </Text>
+              <ReactionRow announcement={announcement} />
+            </Box>
+          ) : null}
         </Box>
-      </Box>
-    </Modal>
+      ) : null}
+    </FullScreenModal>
   )
 }

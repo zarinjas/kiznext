@@ -151,4 +151,21 @@ export const theme = createTheme({
 export type Theme = typeof theme
 
 export const Box = createBox<Theme>()
-export const Text = createText<Theme>()
+
+const BaseText = createText<Theme>()
+
+/**
+ * All app text flows through here.
+ *
+ * `maxFontSizeMultiplier` is the key prop: every size in `textVariants` is a
+ * fixed number, and several layouts use percentage widths that clip once text
+ * grows past ~1.6×. Capping the multiplier honours the OS accessibility setting
+ * (text does scale) while keeping layouts intact — an uncapped 3× setting broke
+ * chat bubbles, laundry cards and the tab bar.
+ *
+ * Individual call sites can still override with a larger cap where the layout
+ * genuinely allows it.
+ */
+export const Text = ((props: React.ComponentProps<typeof BaseText>) => (
+  <BaseText maxFontSizeMultiplier={1.6} {...props} />
+)) as typeof BaseText

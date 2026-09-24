@@ -1,18 +1,22 @@
+import { CHECKIN_NEXT_COUNTER } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import { CameraView, useCameraPermissions } from "expo-camera"
 import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useState } from "react"
+import { ActivityIndicator } from "react-native"
 
 import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { absoluteUrl } from "@/lib/config"
+import { notifySuccess, tapMedium } from "@/lib/feedback"
 import { getCheckInDirections, checkInLookup, checkInScan, checkInSubmit } from "@/lib/hooks"
 import type { CheckInLookup, CheckInScan, CheckInSubmit } from "@/lib/types"
 import {
   Box,
   KButton,
   KEmpty,
+  KIconButton,
   Screen,
   SignaturePad,
   StatusChip,
@@ -44,8 +48,12 @@ export default function ScanScreen() {
   const [directions, setDirections] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [torch, setTorch] = useState(false)
 
   async function handleScan(data: string) {
+    // Fire the moment a code is acquired, before any network work, so the
+    // user knows the camera caught it even on a slow connection.
+    tapMedium()
     const parsed = extractToken(data)
     if (!parsed) {
       setError("That QR code isn't a KIZ check-in code.")
@@ -98,6 +106,7 @@ export default function ScanScreen() {
         setError(res.error ?? "Couldn't save your signature.")
         return
       }
+      notifySuccess()
       setResult(res)
       setPhase("done")
       try {
@@ -133,7 +142,7 @@ export default function ScanScreen() {
               </Text>
             ) : null}
             <Text variant="caption" marginTop="m">
-              Next: go to Counter 2 (UKM Real Estate) to collect or return your key.
+              Next: go to {CHECKIN_NEXT_COUNTER} to collect or return your key.
             </Text>
           </Surface>
           {dirUrl ? (
@@ -141,6 +150,7 @@ export default function ScanScreen() {
               source={{ uri: dirUrl }}
               style={{ width: "100%", height: 220, borderRadius: theme.borderRadii.cardLg }}
               contentFit="contain"
+              accessibilityLabel="Directions to the key counter"
             />
           ) : null}
           <KButton label="Done" onPress={() => router.replace("/")} />
@@ -220,8 +230,19 @@ export default function ScanScreen() {
     )
   }
 
-  // Scanning phase
-  if (!permission) return <Screen edges={[]}><KEmpty title="Preparing camera…" /></Screen>
+  // Scanning phase.
+  // `permission` is null only while the hook resolves — that is a loading
+  // state, not an empty one, so it gets a spinner rather than a KEmpty.
+  if (!permission) {
+    return (
+      <Screen edges={[]}>
+        <Box flex={1} alignItems="center" justifyContent="center" gap="m">
+          <ActivityIndicator color={theme.colors.brand600} />
+          <Text variant="caption">Preparing camera…</Text>
+        </Box>
+      </Screen>
+    )
+  }
 
   if (!permission.granted) {
     return (
@@ -230,8 +251,8 @@ export default function ScanScreen() {
           icon="photo_camera"
           title="Camera access needed"
           message="Allow camera access to scan the KIZ counter QR code."
+          action={<KButton label="Allow camera" icon="photo_camera" onPress={requestPermission} />}
         />
-        <KButton label="Allow camera" onPress={requestPermission} />
       </Screen>
     )
   }
@@ -242,18 +263,61 @@ export default function ScanScreen() {
         <CameraView
           style={{ flex: 1 }}
           facing="back"
+          enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={busy ? undefined : ({ data }) => handleScan(data)}
         />
+
+        {/* Reticle — tells the user where to aim. Non-interactive so it never
+            steals a tap from the camera surface underneath. */}
+        <Box
+          pointerEvents="none"
+          alignItems="center"
+          justifyContent="center"
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          <Box
+            width="70%"
+            style={{
+              aspectRatio: 1,
+              borderWidth: 3,
+              borderColor: theme.colors.white,
+              borderRadius: theme.borderRadii.cardLg,
+              opacity: 0.9,
+            }}
+          />
+        </Box>
+
+        <Box style={{ position: "absolute", top: 16, right: 16 }}>
+          <Box backgroundColor="surface" borderRadius="pill" opacity={0.92}>
+            <KIconButton
+              icon={torch ? "flash_off" : "flash_on"}
+              label={torch ? "Turn torch off" : "Turn torch on"}
+              tone={torch ? "brand" : "neutral"}
+              onPress={() => setTorch((on) => !on)}
+            />
+          </Box>
+        </Box>
       </Box>
+
       <Box padding="l" gap="m">
         <Text variant="caption" textAlign="center">
           Point the camera at the KIZ counter QR code.
         </Text>
         {error ? (
-          <Text variant="caption" textAlign="center" style={{ color: theme.colors.dangerInk }}>
-            {error}
-          </Text>
+          <>
+            <Text variant="caption" textAlign="center" style={{ color: theme.colors.dangerInk }}>
+              {error}
+            </Text>
+            {/* `busy` clears itself but `error` persisted, leaving the camera
+                live with a stale failure and no obvious way forward. */}
+            <KButton
+              label="Scan again"
+              icon="refresh"
+              variant="secondary"
+              onPress={() => setError(null)}
+            />
+          </>
         ) : null}
       </Box>
     </Screen>

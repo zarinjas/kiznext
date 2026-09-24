@@ -1,4 +1,12 @@
-import { COLLEGE_NAME, formatWallClockTime, nowHhmmMalaysia } from "@kiz/shared"
+import {
+  COLLEGE_NAME,
+  color,
+  elevation,
+  gradientStops,
+  moduleTint,
+  formatWallClockTime,
+  nowHhmmMalaysia,
+} from "@kiz/shared"
 import { Image } from "expo-image"
 import { router, type Href } from "expo-router"
 import { useTheme } from "@shopify/restyle"
@@ -41,7 +49,7 @@ const SHOWCASE = [
     tagline: "Point at any sign — read it in your language",
     icon: "translate",
     path: "/ar-terjemah" as Href,
-    gradient: ["#4C3FAF", "#6F5BE0", "#A99EF5"],
+    gradient: gradientStops.lens,
     badge: "AI VISION",
   },
   {
@@ -50,7 +58,7 @@ const SHOWCASE = [
     tagline: "Follow a live arrow to any block",
     icon: "view_in_ar",
     path: "/direktori" as Href,
-    gradient: ["#0E5E8A", "#0891B2", "#22D3EE"],
+    gradient: gradientStops.wayfinder,
     badge: "LIVE AR",
   },
 ] as const
@@ -64,14 +72,14 @@ const QUICK_ACTIONS: {
   bg: string
   ink: string
 }[] = [
-  { key: "laundry", label: "Laundry", icon: "local_laundry_service", path: "/laundry", bg: "#E8F8F4", ink: "#178D77" },
-  { key: "checkin", label: "Check-In/Out", icon: "how_to_reg", path: "/checkin", bg: "#EAF0FF", ink: "#4F6FD8" },
-  { key: "room", label: "Room Selection", icon: "bedroom_parent", path: "/bilik", bg: "#FFF2E5", ink: "#D9781D" },
-  { key: "facilities", label: "Facilities", icon: "meeting_room", path: "/tempahan-fasiliti", bg: "#E8F8FA", ink: "#008FA8" },
-  { key: "guide", label: "Digital Guide", icon: "menu_book", path: "/panduan", bg: "#FCECF4", ink: "#C34C83" },
-  { key: "helpdesk", label: "Helpdesk", icon: "support_agent", path: "/helpdesk", bg: "#EEF2FF", ink: "#5B5BD6" },
-  { key: "lost", label: "Lost & Found", icon: "search", path: "/hilang", bg: "#F3F0FF", ink: "#7758D6" },
-  { key: "sos", label: "SOS", icon: "sos", path: "/sos", bg: "#FFECEC", ink: "#E44747" },
+  { key: "laundry", label: "Laundry", icon: "local_laundry_service", path: "/laundry", bg: moduleTint.laundry.bg, ink: moduleTint.laundry.ink },
+  { key: "checkin", label: "Check-In/Out", icon: "how_to_reg", path: "/checkin", bg: moduleTint.checkin.bg, ink: moduleTint.checkin.ink },
+  { key: "room", label: "Room Selection", icon: "bedroom_parent", path: "/bilik", bg: moduleTint.room.bg, ink: moduleTint.room.ink },
+  { key: "facilities", label: "Facilities", icon: "meeting_room", path: "/tempahan-fasiliti", bg: moduleTint.facilities.bg, ink: moduleTint.facilities.ink },
+  { key: "guide", label: "Digital Guide", icon: "menu_book", path: "/panduan", bg: moduleTint.guide.bg, ink: moduleTint.guide.ink },
+  { key: "helpdesk", label: "Helpdesk", icon: "support_agent", path: "/helpdesk", bg: moduleTint.helpdesk.bg, ink: moduleTint.helpdesk.ink },
+  { key: "lost", label: "Lost & Found", icon: "search", path: "/hilang", bg: moduleTint.lost.bg, ink: moduleTint.lost.ink },
+  { key: "sos", label: "SOS", icon: "sos", path: "/sos", bg: moduleTint.sos.bg, ink: moduleTint.sos.ink },
 ]
 
 function greeting(): string {
@@ -143,7 +151,7 @@ function Hero({ backgroundUrl, home }: { backgroundUrl: string | null; home: Res
       {background ? (
         <Image source={{ uri: background }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />
       ) : (
-        <GradientBg id="mobile-home-hero" colors={["#0E5E8A", "#0891B2", "#39C2DA"]} />
+        <GradientBg id="mobile-home-hero" colors={[...gradientStops.hero]} />
       )}
       <View style={styles.heroScrim} />
       <View style={styles.heroContent}>
@@ -280,7 +288,7 @@ function Showcase() {
           style={styles.askCard}
         >
           <View style={styles.askGlyph}>
-            <Icon name="smart_toy" size={20} color="#0E7490" />
+            <Icon name="smart_toy" size={20} color={color.brand[700]} />
           </View>
           <View style={styles.flex}>
             <Text style={styles.askTitle}>Ask KIZ-AI</Text>
@@ -335,13 +343,13 @@ function LaundryTile({ home }: { home: ResidentHome }) {
         style={styles.laundryCard}
       >
         <View style={styles.laundryGlyph}>
-          <Icon name="local_laundry_service" size={22} color="#178D77" />
+          <Icon name="local_laundry_service" size={22} color={moduleTint.laundry.ink} />
         </View>
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{home.laundry.machineName} is running</Text>
           <Text style={styles.meta}>Reminder ends {formatWallClockTime(home.laundry.endsAt.slice(11, 16))}</Text>
         </View>
-        <Icon name="chevron_right" size={20} color="#A1A1AA" />
+        <Icon name="chevron_right" size={20} color={color.ink[300]} />
       </PressScale>
     </FadeInUp>
   )
@@ -370,12 +378,12 @@ function Announcement({ home }: { home: ResidentHome }) {
             {thumbnail ? (
               <Image source={{ uri: thumbnail }} style={styles.thumbnail} contentFit="cover" transition={150} />
             ) : (
-              <View style={styles.thumbnailFallback}><Icon name="campaign" size={28} color="#0891B2" /></View>
+              <View style={styles.thumbnailFallback}><Icon name="campaign" size={28} color={color.brand[600]} /></View>
             )}
           </>
         ) : (
           <View style={styles.emptyRow}>
-            <View style={styles.emptyIcon}><Icon name="campaign" size={22} color="#0891B2" /></View>
+            <View style={styles.emptyIcon}><Icon name="campaign" size={22} color={color.brand[600]} /></View>
             <View style={styles.flex}>
               <Text style={styles.rowTitle}>You&rsquo;re up to date</Text>
               <Text style={styles.summary}>New college announcements will appear here.</Text>
@@ -396,7 +404,7 @@ function ThingsToDo({ home }: { home: ResidentHome }) {
   return (
     <View style={[styles.card, styles.dashboardCard]}>
       <View style={styles.cardHeading}>
-        <Icon name="task_alt" size={20} color="#0891B2" />
+        <Icon name="task_alt" size={20} color={color.brand[600]} />
         <Text style={styles.cardTitle}>Things To Do</Text>
       </View>
       <View style={styles.progressLabels}>
@@ -409,7 +417,7 @@ function ThingsToDo({ home }: { home: ResidentHome }) {
 
       {pending.length === 0 ? (
         <View style={styles.allDone}>
-          <Icon name="check_circle" size={18} color="#15803D" />
+          <Icon name="check_circle" size={18} color={color.success.ink} />
           <Text style={styles.allDoneText}>You&rsquo;re all caught up.</Text>
         </View>
       ) : (
@@ -423,13 +431,13 @@ function ThingsToDo({ home }: { home: ResidentHome }) {
             style={styles.taskRow}
           >
             <View style={styles.smallIcon}>
-              <Icon name="arrow_forward" size={18} color="#0891B2" />
+              <Icon name="arrow_forward" size={18} color={color.brand[600]} />
             </View>
             <View style={styles.flex}>
               <Text numberOfLines={1} style={styles.rowTitle}>{task.title}</Text>
               <Text numberOfLines={1} style={styles.meta}>{task.dueLabel ?? task.ctaLabel}</Text>
             </View>
-            <Icon name="chevron_right" size={20} color="#A1A1AA" />
+            <Icon name="chevron_right" size={20} color={color.ink[300]} />
           </PressScale>
         ))
       )}
@@ -441,12 +449,12 @@ function Helpdesk({ home }: { home: ResidentHome }) {
   return (
     <View style={[styles.card, styles.dashboardCard]}>
       <View style={styles.cardHeading}>
-        <Icon name="support_agent" size={20} color="#0891B2" />
+        <Icon name="support_agent" size={20} color={color.brand[600]} />
         <Text style={styles.cardTitle}>My Helpdesk</Text>
         {home.officeOpen ? <LiveDot label="OPEN" /> : null}
       </View>
       <View style={styles.helpdeskRow}>
-        <View style={styles.ticketIcon}><Icon name="assignment" size={20} color="#0891B2" /></View>
+        <View style={styles.ticketIcon}><Icon name="assignment" size={20} color={color.brand[600]} /></View>
         <View style={styles.flex}>
           <Text numberOfLines={1} style={styles.rowTitle}>
             {home.helpdesk?.subject ?? "No active tickets"}
@@ -480,7 +488,7 @@ function Emergency({ home }: { home: ResidentHome }) {
 
   return (
     <View style={styles.emergencyCard}>
-      <View style={styles.shield}><Icon name="security" size={25} color="#D93443" /></View>
+      <View style={styles.shield}><Icon name="security" size={25} color={color.danger.main} /></View>
       <View style={styles.flex}>
         <Text style={styles.emergencyTitle}>Emergency Contact</Text>
         <Text numberOfLines={2} style={styles.summary}>
@@ -558,16 +566,10 @@ export default function DashboardScreen() {
   )
 }
 
-const shadow = {
-  shadowColor: "#0F263F",
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.07,
-  shadowRadius: 18,
-  elevation: 3,
-}
+const shadow = elevation.card
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#F7F9FC", paddingHorizontal: 16, paddingTop: 10, paddingBottom: 36, minHeight: "100%" },
+  page: { backgroundColor: color.canvasSunk, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 36, minHeight: "100%" },
   pageWide: { paddingHorizontal: 24 },
   // Centres and caps the dashboard on iPad instead of stretching to 1024pt.
   column: { width: "100%" },
@@ -602,8 +604,8 @@ const styles = StyleSheet.create({
 
   sectionHeader: { marginTop: 26, marginBottom: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 },
-  sectionTitle: { color: "#101827", fontSize: 18, lineHeight: 23, fontWeight: "700", letterSpacing: -0.35 },
-  sectionAction: { color: "#0891B2", fontSize: 12.5, lineHeight: 18, fontWeight: "700" },
+  sectionTitle: { color: color.ink[900], fontSize: 18, lineHeight: 23, fontWeight: "700", letterSpacing: -0.35 },
+  sectionAction: { color: color.brand[600], fontSize: 12.5, lineHeight: 18, fontWeight: "700" },
   sectionActionHit: { minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
 
   showcaseRow: { flexDirection: "row", gap: 12 },
@@ -618,56 +620,56 @@ const styles = StyleSheet.create({
   showcaseTitle: { color: "#FFFFFF", fontSize: 17, lineHeight: 21, fontWeight: "800", letterSpacing: -0.3 },
   showcaseTagline: { color: "rgba(255,255,255,.88)", fontSize: 11.5, lineHeight: 15, marginTop: 3 },
 
-  askCard: { marginTop: 12, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#CFFAFE", padding: 12, flexDirection: "row", alignItems: "center", gap: 11, ...shadow },
-  askGlyph: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
-  askTitle: { color: "#101827", fontSize: 14.5, lineHeight: 19, fontWeight: "700" },
-  askHint: { color: "#71717A", fontSize: 12, lineHeight: 16, marginTop: 1, fontStyle: "italic" },
-  askSend: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#0891B2", alignItems: "center", justifyContent: "center" },
+  askCard: { marginTop: 12, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: color.brand[100], padding: 12, flexDirection: "row", alignItems: "center", gap: 11, ...shadow },
+  askGlyph: { width: 40, height: 40, borderRadius: 13, backgroundColor: color.brand[50], alignItems: "center", justifyContent: "center" },
+  askTitle: { color: color.ink[900], fontSize: 14.5, lineHeight: 19, fontWeight: "700" },
+  askHint: { color: color.ink[500], fontSize: 12, lineHeight: 16, marginTop: 1, fontStyle: "italic" },
+  askSend: { width: 34, height: 34, borderRadius: 17, backgroundColor: color.brand[600], alignItems: "center", justifyContent: "center" },
 
   actionGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 18 },
   quickAction: { width: "25%", alignItems: "center", paddingHorizontal: 3 },
   actionIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  actionLabel: { color: "#273343", fontSize: 11.5, lineHeight: 14, fontWeight: "600", textAlign: "center", marginTop: 8 },
+  actionLabel: { color: color.ink[700], fontSize: 11.5, lineHeight: 14, fontWeight: "600", textAlign: "center", marginTop: 8 },
 
   card: { borderRadius: 22, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "rgba(15,23,42,.055)", ...shadow },
   announcementCard: { minHeight: 130, padding: 10, flexDirection: "row", gap: 12, overflow: "hidden" },
   announcementCopy: { flex: 1, minWidth: 0, padding: 7, justifyContent: "center" },
-  date: { color: "#0891B2", fontSize: 11.5, lineHeight: 15, fontWeight: "700" },
-  announcementTitle: { color: "#111827", fontSize: 16, lineHeight: 20, fontWeight: "700", marginTop: 4 },
-  summary: { color: "#667085", fontSize: 12.5, lineHeight: 17, marginTop: 4 },
-  thumbnail: { width: 104, borderRadius: 16, backgroundColor: "#EEF3F6" },
-  thumbnailFallback: { width: 86, borderRadius: 16, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
+  date: { color: color.brand[600], fontSize: 11.5, lineHeight: 15, fontWeight: "700" },
+  announcementTitle: { color: color.ink[900], fontSize: 16, lineHeight: 20, fontWeight: "700", marginTop: 4 },
+  summary: { color: color.ink[500], fontSize: 12.5, lineHeight: 17, marginTop: 4 },
+  thumbnail: { width: 104, borderRadius: 16, backgroundColor: color.canvasSunk },
+  thumbnailFallback: { width: 86, borderRadius: 16, backgroundColor: color.brand[50], alignItems: "center", justifyContent: "center" },
   emptyRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, padding: 8 },
-  emptyIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
+  emptyIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: color.brand[50], alignItems: "center", justifyContent: "center" },
 
   cardGrid: { gap: 14, marginTop: 16 },
   cardGridWide: { flexDirection: "row", alignItems: "flex-start" },
   dashboardCard: { padding: 18 },
   cardHeading: { flexDirection: "row", alignItems: "center", gap: 7 },
-  cardTitle: { color: "#111827", fontSize: 16, lineHeight: 21, fontWeight: "700", letterSpacing: -0.2 },
+  cardTitle: { color: color.ink[900], fontSize: 16, lineHeight: 21, fontWeight: "700", letterSpacing: -0.2 },
   progressLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 17, marginBottom: 8 },
-  meta: { color: "#667085", fontSize: 11.5, lineHeight: 16 },
-  progressCount: { color: "#0891B2", fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  progressTrack: { height: 7, borderRadius: 4, backgroundColor: "#EAF1F5", overflow: "hidden" },
-  progressBar: { height: 7, borderRadius: 4, backgroundColor: "#0891B2" },
+  meta: { color: color.ink[500], fontSize: 11.5, lineHeight: 16 },
+  progressCount: { color: color.brand[600], fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  progressTrack: { height: 7, borderRadius: 4, backgroundColor: color.border, overflow: "hidden" },
+  progressBar: { height: 7, borderRadius: 4, backgroundColor: color.brand[600] },
   taskRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 15, minHeight: 44 },
-  smallIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
-  rowTitle: { color: "#192230", fontSize: 13.5, lineHeight: 18, fontWeight: "700" },
+  smallIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: color.brand[50], alignItems: "center", justifyContent: "center" },
+  rowTitle: { color: color.ink[900], fontSize: 13.5, lineHeight: 18, fontWeight: "700" },
   allDone: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 16 },
-  allDoneText: { color: "#15803D", fontSize: 13, lineHeight: 18, fontWeight: "600" },
+  allDoneText: { color: color.success.ink, fontSize: 13, lineHeight: 18, fontWeight: "600" },
 
   laundryCard: { marginTop: 16, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#CCF0E7", padding: 13, flexDirection: "row", alignItems: "center", gap: 11, ...shadow },
-  laundryGlyph: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#E8F8F4", alignItems: "center", justifyContent: "center" },
+  laundryGlyph: { width: 42, height: 42, borderRadius: 14, backgroundColor: moduleTint.laundry.bg, alignItems: "center", justifyContent: "center" },
 
   helpdeskRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 17 },
-  ticketIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
-  openButton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: "#A5F3FC", alignItems: "center", justifyContent: "center" },
-  openText: { color: "#0E7490", fontSize: 12.5, fontWeight: "700" },
+  ticketIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: color.brand[50], alignItems: "center", justifyContent: "center" },
+  openButton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: color.brand[200], alignItems: "center", justifyContent: "center" },
+  openText: { color: color.brand[700], fontSize: 12.5, fontWeight: "700" },
 
   emergencyCard: { marginTop: 16, borderRadius: 22, backgroundColor: "#FFF0F1", borderWidth: 1, borderColor: "#FFDADD", padding: 17, flexDirection: "row", alignItems: "center", gap: 12 },
   shield: { width: 48, height: 48, borderRadius: 16, backgroundColor: "#FFDDE0", alignItems: "center", justifyContent: "center" },
-  emergencyTitle: { color: "#171C26", fontSize: 15.5, lineHeight: 20, fontWeight: "700" },
-  callButton: { minHeight: 44, borderRadius: 13, paddingHorizontal: 14, backgroundColor: "#D93443", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  emergencyTitle: { color: color.ink[900], fontSize: 15.5, lineHeight: 20, fontWeight: "700" },
+  callButton: { minHeight: 44, borderRadius: 13, paddingHorizontal: 14, backgroundColor: color.danger.main, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   callText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "700" },
 
   skeletonWrap: { marginTop: 8 },

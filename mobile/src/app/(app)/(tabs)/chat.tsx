@@ -7,13 +7,10 @@ import { router } from "expo-router"
 import { useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
 } from "react-native"
@@ -30,12 +27,17 @@ import {
 } from "@/lib/hooks"
 import type { ChatMessage } from "@/lib/types"
 import {
+  AsyncBoundary,
   Box,
   KButton,
-  LoadingScreen,
+  KIconButton,
+  PressScale,
   Screen,
+  Sheet,
+  Skeleton,
   Text,
   TextField,
+  useToast,
   type Theme,
 } from "@/ui"
 import { Icon } from "@/ui/icon"
@@ -119,9 +121,11 @@ function Bubble({
 }) {
   const theme = useTheme<Theme>()
   // Percentage-only max width became an ~800pt line on an iPad.
-  const { bubbleMaxWidth } = useLayout()
+  const { bubbleMaxWidth, width } = useLayout()
   const avatar = absoluteUrl(message.sender.avatarUrl)
   const attachment = absoluteUrl(message.attachmentUrl)
+  // A fixed 210pt thumbnail was a stamp inside a 460pt iPad bubble.
+  const imageWidth = Math.min(260, width * 0.5)
 
   const textColor = theme.colors.ink900
   const subColor = theme.colors.ink700
@@ -180,7 +184,12 @@ function Bubble({
             {attachment && message.attachmentType === "image" ? (
               <Image
                 source={{ uri: attachment }}
-                style={{ width: 210, height: 190, borderRadius: theme.borderRadii.card, marginTop: 6 }}
+                style={{
+                  width: imageWidth,
+                  height: imageWidth * 0.9,
+                  borderRadius: theme.borderRadii.card,
+                  marginTop: 6,
+                }}
                 contentFit="cover"
               />
             ) : null}
@@ -256,11 +265,20 @@ function Bubble({
         {message.reactions.length > 0 ? (
           <Box flexDirection="row" gap="xs" flexWrap="wrap" marginTop="xs">
             {message.reactions.map((r) => (
-              <Pressable key={r.emoji} onPress={onLongPress}>
+              <Pressable
+                key={r.emoji}
+                onPress={onLongPress}
+                accessibilityRole="button"
+                accessibilityLabel={`${r.emoji} ${r.count}. Open message actions.`}
+                accessibilityState={{ selected: r.mine }}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              >
                 <Box
                   flexDirection="row"
                   alignItems="center"
+                  justifyContent="center"
                   gap="xs"
+                  minHeight={36}
                   paddingHorizontal="s"
                   paddingVertical="xs"
                   borderRadius="pill"
@@ -283,7 +301,8 @@ function Bubble({
 export default function ChatScreen() {
   const theme = useTheme<Theme>()
   const { user } = useAuth()
-  const { data, isLoading } = useChat()
+  const toast = useToast()
+  const { data, isLoading, isError, refetch } = useChat()
   const send = useSendChat()
   const react = useToggleReaction()
   const report = useReportChatMessage()
@@ -299,12 +318,10 @@ export default function ChatScreen() {
   const chat = data?.chat
   const messages = useMemo(() => [...(chat?.messages ?? [])].reverse(), [chat?.messages])
 
-  if (isLoading || !chat) return <LoadingScreen label="Loading the room…" />
-
   async function pickImage() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert("Permission needed", "Photo library access is needed to attach a photo.")
+      toast.warning("Photo library access is needed to attach a photo.")
       return
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 })
@@ -348,7 +365,7 @@ export default function ChatScreen() {
       setText((current) => current || value)
       setAttachment((current) => current ?? submittedAttachment)
       setReplyTo((current) => current ?? submittedReply)
-      Alert.alert("Couldn't send", e instanceof Error ? e.message : "Try again.")
+      toast.error(e instanceof Error ? e.message : "Couldn't send. Try again.")
     } finally {
       setUploading(false)
     }
@@ -367,82 +384,119 @@ export default function ChatScreen() {
             </Box>
             <Box flex={1}>
               <Text variant="heading">KIZ Community</Text>
-              <Box flexDirection="row" alignItems="center" gap="xs">
-                <Box width={7} height={7} borderRadius="pill" backgroundColor="success" />
-                <Text variant="caption">{chat.memberCount} members · {chat.onlineCount} online</Text>
-              </Box>
+              {chat ? (
+                <Box flexDirection="row" alignItems="center" gap="xs">
+                  <Box width={7} height={7} borderRadius="pill" backgroundColor="success" />
+                  <Text variant="caption">{chat.memberCount} members · {chat.onlineCount} online</Text>
+                </Box>
+              ) : (
+                <Text variant="caption">Loading the room…</Text>
+              )}
             </Box>
           </Box>
         </Box>
 
-        <FlatList
-          ref={listRef}
-          data={messages}
-          inverted
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Bubble
-              message={item}
-              mine={item.sender.id === user?.id}
-              onLongPress={() => setPickerFor(item)}
-            />
-          )}
-          contentContainerStyle={{ paddingVertical: 12, flexGrow: 1, justifyContent: messages.length ? "flex-start" : "center" }}
-          style={styles.messageList}
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={<Box alignItems="center" padding="xl"><Icon name="forum" size={36} color={theme.colors.ink300} /><Text variant="bodyStrong" marginTop="m">Start the conversation</Text><Text variant="caption" textAlign="center" marginTop="xs">Say hello to your KIZ community.</Text></Box>}
-        />
+        {/*
+          Only the list area swaps to a skeleton — the header and composer stay
+          mounted so a draft survives a background refetch. `useChat` keeps
+          polling every 3s underneath.
+        */}
+        <Box style={styles.messageList}>
+          <AsyncBoundary
+            data={data}
+            isLoading={isLoading}
+            isError={isError}
+            refetch={() => refetch()}
+            skeleton={<Skeleton.Bubbles count={6} />}
+            errorTitle="Couldn't load the room"
+            errorMessage="Check your connection and try again."
+          >
+            {() => (
+              <FlatList
+                ref={listRef}
+                data={messages}
+                inverted
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <Bubble
+                    message={item}
+                    mine={item.sender.id === user?.id}
+                    onLongPress={() => setPickerFor(item)}
+                  />
+                )}
+                contentContainerStyle={{ paddingVertical: 12, flexGrow: 1, justifyContent: messages.length ? "flex-start" : "center" }}
+                style={styles.messageList}
+                keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={<Box alignItems="center" padding="xl"><Icon name="forum" size={36} color={theme.colors.ink300} /><Text variant="bodyStrong" marginTop="m">Start the conversation</Text><Text variant="caption" textAlign="center" marginTop="xs">Say hello to your KIZ community.</Text></Box>}
+              />
+            )}
+          </AsyncBoundary>
+        </Box>
 
         {pickerFor ? (
           <Box
-            flexDirection="row"
-            alignItems="center"
-            gap="s"
+            gap="xs"
             paddingHorizontal="l"
             paddingVertical="s"
             borderTopWidth={1}
             borderTopColor="border"
             backgroundColor="canvasSunk"
           >
-            <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
-              Message actions
-            </Text>
-            {CHAT_REACTION_EMOJIS.map((emoji) => (
-              <Pressable
-                key={emoji}
+            {/*
+              Two rows, because six 44pt emoji plus three 44pt buttons cannot
+              share one line on a phone. Every control is a full 44pt target;
+              the emoji glyph itself is unchanged — only the hit area grew.
+              The header names the message being acted on instead of the old
+              placeholder "Message actions".
+            */}
+            <Box flexDirection="row" alignItems="center" gap="s">
+              <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
+                {pickerFor.sender.name}: {pickerFor.message || "📎 Attachment"}
+              </Text>
+              <KIconButton icon="close" label="Close message actions" onPress={() => setPickerFor(null)} />
+            </Box>
+
+            <Box flexDirection="row" alignItems="center" flexWrap="wrap">
+              {CHAT_REACTION_EMOJIS.map((emoji) => (
+                <PressScale
+                  key={emoji}
+                  scaleTo={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel={`React with ${emoji}`}
+                  style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+                  onPress={() => {
+                    react.mutate({ messageId: pickerFor.id, emoji })
+                    setPickerFor(null)
+                  }}
+                >
+                  <Text variant="subheading">{emoji}</Text>
+                </PressScale>
+              ))}
+
+              <Box flex={1} />
+
+              {pickerFor.sender.id !== user?.id ? (
+                <KIconButton
+                  icon="error_outline"
+                  label="Report message"
+                  tone="danger"
+                  onPress={() => {
+                    setReportFor(pickerFor)
+                    setPickerFor(null)
+                  }}
+                />
+              ) : null}
+              <KIconButton
+                icon="reply"
+                label="Reply"
+                tone="brand"
                 onPress={() => {
-                  react.mutate({ messageId: pickerFor.id, emoji })
+                  setReplyTo(pickerFor)
                   setPickerFor(null)
                 }}
-              >
-                <Text variant="subheading">{emoji}</Text>
-              </Pressable>
-            ))}
-            {pickerFor.sender.id !== user?.id ? (
-              <Pressable
-                onPress={() => {
-                  setReportFor(pickerFor)
-                  setPickerFor(null)
-                }}
-              >
-                <Icon name="error_outline" size={18} color={theme.colors.dangerInk} />
-              </Pressable>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Reply"
-              hitSlop={8}
-              onPress={() => {
-                setReplyTo(pickerFor)
-                setPickerFor(null)
-              }}
-            >
-              <Icon name="reply" size={20} color={theme.colors.brand700} />
-            </Pressable>
-            <Pressable onPress={() => setPickerFor(null)}>
-              <Icon name="close" size={18} color={theme.colors.ink300} />
-            </Pressable>
+              />
+            </Box>
           </Box>
         ) : null}
 
@@ -460,9 +514,7 @@ export default function ChatScreen() {
             <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
               Replying to {replyTo.sender.name}
             </Text>
-            <Pressable onPress={() => setReplyTo(null)}>
-              <Icon name="close" size={18} color={theme.colors.brand700} />
-            </Pressable>
+            <KIconButton icon="close" label="Cancel reply" tone="brand" onPress={() => setReplyTo(null)} />
           </Box>
         ) : null}
 
@@ -480,9 +532,7 @@ export default function ChatScreen() {
             <Text variant="caption" style={{ flex: 1 }} numberOfLines={1}>
               {attachment.name}
             </Text>
-            <Pressable onPress={() => setAttachment(null)}>
-              <Icon name="close" size={16} color={theme.colors.ink500} />
-            </Pressable>
+            <KIconButton icon="close" label="Remove attachment" onPress={() => setAttachment(null)} />
           </Box>
         ) : null}
 
@@ -497,12 +547,28 @@ export default function ChatScreen() {
           backgroundColor="surface"
           style={styles.composer}
         >
-          <Pressable accessibilityRole="button" accessibilityLabel="Attach photo" hitSlop={9} onPress={pickImage} disabled={busy}>
+          <PressScale
+            accessibilityRole="button"
+            accessibilityLabel="Attach photo"
+            accessibilityState={{ disabled: busy }}
+            scaleTo={0.9}
+            disabled={busy}
+            onPress={pickImage}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
             <Icon name="photo_camera" size={22} color={theme.colors.ink500} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Attach document" hitSlop={9} onPress={pickDocument} disabled={busy}>
+          </PressScale>
+          <PressScale
+            accessibilityRole="button"
+            accessibilityLabel="Attach document"
+            accessibilityState={{ disabled: busy }}
+            scaleTo={0.9}
+            disabled={busy}
+            onPress={pickDocument}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          >
             <Icon name="attachment" size={22} color={theme.colors.ink500} />
-          </Pressable>
+          </PressScale>
 
           <Box flex={1} borderWidth={1} borderColor="borderStrong" borderRadius="sheet" paddingHorizontal="m" backgroundColor="canvasSunk">
             <TextInput
@@ -519,24 +585,32 @@ export default function ChatScreen() {
               onSubmitEditing={() => void submit()}
             />
           </Box>
-          <Pressable
+          <PressScale
             onPress={submit}
             disabled={!canSend || busy}
+            scaleTo={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: !canSend || busy, busy }}
             style={{
               width: 44,
               height: 44,
-              borderRadius: 22,
+              borderRadius: theme.borderRadii.pill,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: canSend && !busy ? theme.colors.brand600 : theme.colors.border,
             }}
           >
-            {busy ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
-          </Pressable>
+            {busy ? (
+              <ActivityIndicator size="small" color={theme.colors.white} />
+            ) : (
+              <Icon name="send" size={20} color={theme.colors.white} />
+            )}
+          </PressScale>
         </Box>
       </KeyboardAvoidingView>
 
-      <ReportModal message={reportFor} onClose={() => setReportFor(null)} report={report} />
+      <ReportSheet message={reportFor} onClose={() => setReportFor(null)} report={report} />
     </Screen>
   )
 }
@@ -555,7 +629,7 @@ const styles = StyleSheet.create({
   },
 })
 
-function ReportModal({
+function ReportSheet({
   message,
   onClose,
   report,
@@ -565,6 +639,7 @@ function ReportModal({
   report: ReturnType<typeof useReportChatMessage>
 }) {
   const theme = useTheme<Theme>()
+  const toast = useToast()
   const [reason, setReason] = useState<string | null>(null)
   const [note, setNote] = useState("")
 
@@ -577,80 +652,85 @@ function ReportModal({
           setReason(null)
           setNote("")
           onClose()
-          Alert.alert("Report sent", "Thanks — the KIZ team will review this message.")
+          toast.success("Report sent — the KIZ team will review this message.")
         },
-        onError: (e) => Alert.alert("Couldn't report", e instanceof Error ? e.message : "Try again."),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't report. Try again."),
       }
     )
   }
 
   return (
-    <Modal visible={Boolean(message)} animationType="slide" transparent onRequestClose={onClose}>
-      <Box flex={1} justifyContent="flex-end">
-        <Box backgroundColor="surface" borderTopLeftRadius="sheet" borderTopRightRadius="sheet" maxHeight="92%">
-          <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Box flexDirection="row" alignItems="center" justifyContent="space-between">
-              <Text variant="heading">Report message</Text>
-              <Pressable onPress={onClose}>
-                <Text variant="caption">Close</Text>
-              </Pressable>
-            </Box>
+    <Sheet
+      visible={Boolean(message)}
+      onClose={onClose}
+      title="Report message"
+      subtitle="Only the KIZ team sees this report."
+      footer={
+        <KButton
+          label="Submit report"
+          onPress={submit}
+          disabled={!reason}
+          loading={report.isPending}
+        />
+      }
+    >
+      {message ? (
+        <Box gap="m" paddingBottom="m">
+          <Box padding="m" borderRadius="input" backgroundColor="canvasSunk">
+            <Text variant="caption" numberOfLines={3}>
+              {message.sender.name}: {message.message || "[attachment]"}
+            </Text>
+          </Box>
 
-            {message ? (
-              <Box gap="m" marginTop="l">
-                <Box padding="m" borderRadius="input" backgroundColor="canvasSunk">
-                  <Text variant="caption" numberOfLines={3}>
-                    {message.sender.name}: {message.message || "[attachment]"}
-                  </Text>
-                </Box>
+          <Text variant="label">WHY ARE YOU REPORTING THIS?</Text>
+          {/*
+            Kept as full-width rows rather than pills — the labels are long
+            sentences. Each row is now a 44pt target with a radio role.
+          */}
+          <Box gap="s">
+            {CHAT_REPORT_REASONS.map((r) => {
+              const active = reason === r.value
+              return (
+                <PressScale
+                  key={r.value}
+                  onPress={() => setReason(r.value)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={r.label}
+                  accessibilityState={{ selected: active, checked: active }}
+                  scaleTo={0.98}
+                >
+                  <Box
+                    flexDirection="row"
+                    alignItems="center"
+                    gap="s"
+                    minHeight={44}
+                    paddingHorizontal="m"
+                    paddingVertical="m"
+                    borderRadius="input"
+                    borderWidth={1}
+                    borderColor={active ? "brand600" : "border"}
+                    backgroundColor={active ? "brand50" : "surface"}
+                  >
+                    <Icon
+                      name={active ? "check_circle" : "radio_button_unchecked"}
+                      size={18}
+                      color={active ? theme.colors.brand600 : theme.colors.ink300}
+                    />
+                    <Text variant="body">{r.label}</Text>
+                  </Box>
+                </PressScale>
+              )
+            })}
+          </Box>
 
-                <Text variant="label">WHY ARE YOU REPORTING THIS?</Text>
-                <Box gap="s">
-                  {CHAT_REPORT_REASONS.map((r) => {
-                    const active = reason === r.value
-                    return (
-                      <Pressable key={r.value} onPress={() => setReason(r.value)}>
-                        <Box
-                          flexDirection="row"
-                          alignItems="center"
-                          gap="s"
-                          paddingHorizontal="m"
-                          paddingVertical="m"
-                          borderRadius="input"
-                          borderWidth={1}
-                          borderColor={active ? "brand600" : "border"}
-                          backgroundColor={active ? "brand50" : "surface"}
-                        >
-                          <Icon
-                            name={active ? "check_circle" : "radio_button_unchecked"}
-                            size={18}
-                            color={active ? theme.colors.brand600 : theme.colors.ink300}
-                          />
-                          <Text variant="body">{r.label}</Text>
-                        </Box>
-                      </Pressable>
-                    )
-                  })}
-                </Box>
-
-                <TextField
-                  label="Add a note (optional)"
-                  value={note}
-                  onChangeText={setNote}
-                  autoCapitalize="sentences"
-                />
-
-                <KButton
-                  label="Submit report"
-                  onPress={submit}
-                  disabled={!reason}
-                  loading={report.isPending}
-                />
-              </Box>
-            ) : null}
-          </ScrollView>
+          <TextField
+            label="Add a note (optional)"
+            value={note}
+            onChangeText={setNote}
+            autoCapitalize="sentences"
+          />
         </Box>
-      </Box>
-    </Modal>
+      ) : null}
+    </Sheet>
   )
 }

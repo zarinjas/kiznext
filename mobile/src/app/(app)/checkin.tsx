@@ -1,17 +1,21 @@
+import { CHECKIN_NEXT_COUNTER } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import { router } from "expo-router"
 import { useState } from "react"
+import { Linking } from "react-native"
 
 import { ApiError } from "@/lib/api"
-import { useCheckIn, useSubmitOwnCheckIn } from "@/lib/hooks"
-import type { CheckInSubmit } from "@/lib/types"
+import { notifySuccess } from "@/lib/feedback"
+import { useCheckIn, useHome, useSubmitOwnCheckIn } from "@/lib/hooks"
+import type { CheckInOverview, CheckInSubmit } from "@/lib/types"
 import {
+  AsyncBoundary,
   Box,
   KButton,
   KEmpty,
-  LoadingScreen,
   Screen,
   SignaturePad,
+  Skeleton,
   StatusChip,
   Surface,
   Text,
@@ -19,14 +23,17 @@ import {
 
 export default function CheckInScreen() {
   const theme = useTheme()
-  const { data, isLoading } = useCheckIn()
+  const { data, isLoading, isError, refetch } = useCheckIn()
   const submit = useSubmitOwnCheckIn()
+  // Already-cached on the home tab; reused only to surface a callable contact
+  // so "check at the KIZ office" isn't a dead end. No new endpoint.
+  const { data: home } = useHome()
 
   const [signature, setSignature] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CheckInSubmit | null>(null)
 
-  if (isLoading || !data) return <LoadingScreen label="Loading check-in…" />
+  const contact = home?.home?.emergencyContacts?.find((c) => c.phone) ?? null
 
   function send() {
     setError(null)
@@ -36,12 +43,23 @@ export default function CheckInScreen() {
     }
     submit.mutate(signature, {
       onSuccess: (res) => {
-        if (res.ok) setResult(res)
-        else setError(res.error ?? "Couldn't save your signature.")
+        if (res.ok) {
+          notifySuccess()
+          setResult(res)
+        } else setError(res.error ?? "Couldn't save your signature.")
       },
       onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't save your signature."),
     })
   }
+
+  function callContact() {
+    if (!contact?.phone) return
+    Linking.openURL(`tel:${contact.phone.replace(/[^+\d]/g, "")}`).catch(() => {})
+  }
+
+  const askOffice = (
+    <KButton label="Ask the KIZ office" icon="support_agent" onPress={() => router.push("/helpdesk")} />
+  )
 
   if (result?.ok) {
     return (
@@ -62,7 +80,7 @@ export default function CheckInScreen() {
               </Text>
             ) : null}
             <Text variant="caption" marginTop="m">
-              Next: go to Counter 2 (UKM Real Estate) to collect or return your key.
+              Next: go to {CHECKIN_NEXT_COUNTER} to collect or return your key.
             </Text>
           </Surface>
           <KButton label="Back to home" onPress={() => router.replace("/")} />
@@ -71,65 +89,77 @@ export default function CheckInScreen() {
     )
   }
 
-  if (!data.isStudent) {
-    return (
-      <Screen scroll edges={[]}>
+  function renderBody(loaded: CheckInOverview) {
+    if (!loaded.isStudent) {
+      return (
         <KEmpty
           icon="how_to_reg"
           title="Students only"
           message="Check-in from the app is for students. Scan the counter QR code instead."
+          action={<KButton label="Open QR scanner" icon="qr_code_2" onPress={() => router.push("/scan")} />}
         />
-        <KButton label="Open QR scanner" icon="qr_code_2" onPress={() => router.push("/scan")} />
-      </Screen>
-    )
-  }
+      )
+    }
 
-  if (!data.session) {
-    return (
-      <Screen scroll edges={[]}>
+    if (!loaded.session) {
+      return (
         <KEmpty
           icon="how_to_reg"
           title="No check-in open right now"
           message="The KIZ office hasn't opened a session. Check back during move-in or move-out."
+          action={askOffice}
         />
-      </Screen>
-    )
-  }
+      )
+    }
 
-  if (data.alreadySigned) {
-    return (
-      <Screen scroll edges={[]}>
-        <Surface>
-          <StatusChip label="Already signed" tone="success" icon="check_circle" />
-          <Text variant="body" marginTop="s">
-            You&apos;ve already signed for {data.session.name}.
-          </Text>
-          {data.roomLabel ? (
-            <Text variant="caption" marginTop="xs">
-              {data.roomLabel}
+    if (loaded.alreadySigned) {
+      return (
+        <Box paddingTop="m" gap="l">
+          <Surface>
+            <StatusChip label="Already signed" tone="success" icon="check_circle" />
+            <Text variant="body" marginTop="s">
+              You&apos;ve already signed for {loaded.session.name}.
             </Text>
-          ) : null}
-        </Surface>
-      </Screen>
-    )
-  }
+            {loaded.roomLabel ? (
+              <Text variant="caption" marginTop="xs">
+                {loaded.roomLabel}
+              </Text>
+            ) : null}
+            <Text variant="caption" marginTop="m">
+              Next: go to {CHECKIN_NEXT_COUNTER} to collect or return your key.
+            </Text>
+          </Surface>
+          <KButton label="Back to home" variant="secondary" onPress={() => router.push("/")} />
+        </Box>
+      )
+    }
 
-  if (!data.roomLabel) {
-    return (
-      <Screen scroll edges={[]}>
+    if (!loaded.roomLabel) {
+      return (
         <KEmpty
           icon="bedroom_parent"
           title="No room assigned yet"
-          message="Check at the KIZ office before checking in."
+          message="Check at the KIZ office before checking in — they can assign your room."
+          action={
+            <>
+              {contact?.phone ? (
+                <KButton
+                  label={`Call ${contact.title}`}
+                  icon="call"
+                  variant="secondary"
+                  onPress={callContact}
+                />
+              ) : null}
+              {askOffice}
+            </>
+          }
         />
-      </Screen>
-    )
-  }
+      )
+    }
 
-  const isCheckOut = data.session.type === "check_out"
+    const isCheckOut = loaded.session.type === "check_out"
 
-  return (
-    <Screen scroll edges={[]}>
+    return (
       <Box paddingTop="m" gap="l">
         <Surface>
           <StatusChip
@@ -138,13 +168,13 @@ export default function CheckInScreen() {
             icon="how_to_reg"
           />
           <Text variant="heading" marginTop="s">
-            {data.session.name}
+            {loaded.session.name}
           </Text>
           <Text variant="body" marginTop="xs">
-            {data.name} · {data.matricId}
+            {loaded.name} · {loaded.matricId}
           </Text>
           <Text variant="caption" marginTop="xs">
-            {data.roomLabel}
+            {loaded.roomLabel}
           </Text>
         </Surface>
 
@@ -169,6 +199,21 @@ export default function CheckInScreen() {
           loading={submit.isPending}
         />
       </Box>
+    )
+  }
+
+  return (
+    <Screen scroll edges={[]}>
+      <AsyncBoundary
+        data={data}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={() => refetch()}
+        skeleton={<Skeleton.CardList count={2} />}
+        errorTitle="Couldn't load check-in"
+      >
+        {(loaded) => renderBody(loaded)}
+      </AsyncBoundary>
       <Box height={32} />
     </Screen>
   )
