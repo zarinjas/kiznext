@@ -103,7 +103,7 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "Stay Connected", icon: "link", path: null, admin: true, roles: ADMIN_ROLES },
         { label: "Facilities", icon: "apartment", path: null, admin: true, roles: ADMIN_ROLES },
         { label: "Offices", icon: "domain", path: null, admin: true, roles: ADMIN_ROLES },
-        { label: "AR Directory", icon: "view_in_ar", path: null, admin: true, roles: ADMIN_ROLES },
+        { label: "AR Wayfinder", icon: "view_in_ar", path: null, admin: true, roles: ADMIN_ROLES },
       ],
     },
     {

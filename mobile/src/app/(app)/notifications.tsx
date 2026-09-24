@@ -1,5 +1,5 @@
 import { router } from "expo-router"
-import { Linking, Pressable } from "react-native"
+import { Linking } from "react-native"
 import { useTheme } from "@shopify/restyle"
 
 import {
@@ -9,7 +9,19 @@ import {
 } from "@/lib/hooks"
 import { notificationLinkTarget } from "@/lib/notifications"
 import type { NotificationItem } from "@/lib/types"
-import { Box, Icon, KEmpty, LoadingScreen, PageHeader, Screen, Surface, Text, type Theme } from "@/ui"
+import {
+  AsyncBoundary,
+  Box,
+  Icon,
+  KEmpty,
+  PageHeader,
+  PressScale,
+  Screen,
+  Skeleton,
+  Surface,
+  Text,
+  type Theme,
+} from "@/ui"
 
 /**
  * In-app notification inbox. Mirrors the web notification bell — each row is a
@@ -29,15 +41,12 @@ export default function NotificationsScreen() {
   const markRead = useMarkNotificationRead()
   const markAll = useMarkAllNotificationsRead()
 
-  const items = data?.notifications ?? []
   const unread = data?.unreadCount ?? 0
 
   function open(item: NotificationItem) {
     if (!item.read) markRead.mutate(item.id)
     if (item.link) openLink(item.link)
   }
-
-  if (isLoading) return <LoadingScreen label="Loading notifications…" />
 
   return (
     <Screen scroll edges={[]} refreshing={isRefetching} onRefresh={() => refetch()}>
@@ -46,30 +55,47 @@ export default function NotificationsScreen() {
         subtitle={unread > 0 ? `${unread} unread` : "You're all caught up"}
         action={
           unread > 0 ? (
-            <Pressable onPress={() => markAll.mutate()} disabled={markAll.isPending}>
-              <Text variant="button" color="brand700">
-                Mark all read
-              </Text>
-            </Pressable>
+            <PressScale
+              onPress={() => markAll.mutate()}
+              disabled={markAll.isPending}
+              scaleTo={0.94}
+              accessibilityRole="button"
+              accessibilityLabel="Mark all notifications as read"
+            >
+              <Box minHeight={44} justifyContent="center" paddingHorizontal="xs">
+                <Text variant="button" color="brand700">
+                  Mark all read
+                </Text>
+              </Box>
+            </PressScale>
           ) : undefined
         }
       />
 
-      {isError ? (
-        <KEmpty icon="error_outline" title="Couldn't load notifications" message="Pull down to try again." />
-      ) : items.length === 0 ? (
-        <KEmpty
-          icon="notifications_none"
-          title="Nothing here yet"
-          message="Messages from the KIZ office will appear here."
-        />
-      ) : (
-        <Box gap="m">
-          {items.map((item) => (
-            <Pressable
+      <AsyncBoundary
+        data={data}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={refetch}
+        skeleton={<Skeleton.Rows count={5} />}
+        errorTitle="Couldn't load notifications"
+      >
+        {(loaded) =>
+          (loaded.notifications ?? []).length === 0 ? (
+            <KEmpty
+              icon="notifications_none"
+              title="Nothing here yet"
+              message="Messages from the KIZ office will appear here."
+            />
+          ) : (
+            <Box gap="m">
+              {(loaded.notifications ?? []).map((item) => (
+            <PressScale
               key={item.id}
               onPress={() => open(item)}
-              android_ripple={{ color: t.colors.canvasSunk }}
+              scaleTo={0.99}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.read ? "" : "Unread. "}${item.title}. ${item.body}`}
             >
               <Surface>
                 <Box flexDirection="row" alignItems="flex-start" gap="s">
@@ -101,10 +127,12 @@ export default function NotificationsScreen() {
                   ) : null}
                 </Box>
               </Surface>
-            </Pressable>
-          ))}
-        </Box>
-      )}
+            </PressScale>
+              ))}
+            </Box>
+          )
+        }
+      </AsyncBoundary>
       <Box height={32} />
     </Screen>
   )

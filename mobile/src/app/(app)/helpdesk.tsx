@@ -2,23 +2,28 @@ import { HELPDESK_CATEGORIES, helpdeskCategoryMeta, ticketRef } from "@kiz/share
 import { useTheme } from "@shopify/restyle"
 import { router } from "expo-router"
 import { useState } from "react"
-import { Linking, Pressable, ScrollView } from "react-native"
+import { Linking } from "react-native"
 
 import { useCreateTicket, useHelpdesk } from "@/lib/hooks"
 import {
+  AsyncBoundary,
   Box,
   KButton,
   KEmpty,
+  KPill,
   ListGroup,
   ListRow,
-  LoadingScreen,
+  PillRail,
+  PressScale,
   Screen,
+  Skeleton,
   StatusChip,
   Surface,
   Text,
   TextField,
   type ChipTone,
 } from "@/ui"
+import { Icon } from "@/ui/icon"
 
 function statusTone(status: string): ChipTone {
   switch (status) {
@@ -46,7 +51,7 @@ function statusLabel(status: string): string {
 
 export default function HelpdeskScreen() {
   const theme = useTheme()
-  const { data, isLoading, isError } = useHelpdesk()
+  const { data, isLoading, isError, refetch } = useHelpdesk()
   const create = useCreateTicket()
 
   const [channel, setChannel] = useState<"live" | "ticket">("ticket")
@@ -55,8 +60,6 @@ export default function HelpdeskScreen() {
   const [message, setMessage] = useState("")
   const [location, setLocation] = useState("")
   const [error, setError] = useState<string | null>(null)
-
-  if (isLoading) return <LoadingScreen label="Loading helpdesk…" />
 
   function submit() {
     setError(null)
@@ -126,17 +129,39 @@ export default function HelpdeskScreen() {
             <Text variant="caption" marginTop="xs">
               For fires, injuries or security, call immediately:
             </Text>
+            {/*
+              These were bare ~18px text links — far below the 44px minimum, on
+              the one control a panicked user needs to hit first time. Now full
+              44px rows with an explicit call button.
+            */}
             <Box marginTop="s" gap="xs">
               {data.emergencyContacts.map((c) => (
-                <Pressable
+                <PressScale
                   key={c.id}
-                  onPress={() => c.phone && Linking.openURL(`tel:${c.phone}`)}
+                  onPress={() =>
+                    c.phone && Linking.openURL(`tel:${c.phone.replace(/[^+\d]/g, "")}`).catch(() => {})
+                  }
+                  disabled={!c.phone}
+                  scaleTo={0.98}
+                  accessibilityRole="button"
+                  accessibilityLabel={c.phone ? `Call ${c.title} at ${c.phone}` : c.title}
                 >
-                  <Text variant="caption" style={{ color: theme.colors.dangerInk }}>
-                    {c.title}
-                    {c.phone ? ` · ${c.phone}` : ""}
-                  </Text>
-                </Pressable>
+                  <Box
+                    flexDirection="row"
+                    alignItems="center"
+                    gap="s"
+                    minHeight={44}
+                    paddingHorizontal="s"
+                    borderRadius="input"
+                    style={{ backgroundColor: "rgba(220,38,38,0.08)" }}
+                  >
+                    <Icon name="call" size={16} color={theme.colors.dangerInk} />
+                    <Text variant="caption" style={{ flex: 1, color: theme.colors.dangerInk }}>
+                      {c.title}
+                      {c.phone ? ` · ${c.phone}` : ""}
+                    </Text>
+                  </Box>
+                </PressScale>
               ))}
             </Box>
           </Box>
@@ -176,32 +201,17 @@ export default function HelpdeskScreen() {
                   <Text variant="label" marginBottom="s" marginLeft="xs">
                     CATEGORY
                   </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <Box flexDirection="row" gap="s">
-                      {HELPDESK_CATEGORIES.map((c) => {
-                        const active = c.value === category
-                        return (
-                          <Pressable key={c.value} onPress={() => setCategory(c.value)}>
-                            <Box
-                              paddingHorizontal="m"
-                              paddingVertical="s"
-                              borderRadius="pill"
-                              borderWidth={1}
-                              borderColor={active ? "brand600" : "border"}
-                              backgroundColor={active ? "brand50" : "surface"}
-                            >
-                              <Text
-                                variant="caption"
-                                style={{ color: active ? theme.colors.brand700 : theme.colors.ink500 }}
-                              >
-                                {c.label}
-                              </Text>
-                            </Box>
-                          </Pressable>
-                        )
-                      })}
-                    </Box>
-                  </ScrollView>
+                  <PillRail>
+                    {HELPDESK_CATEGORIES.map((c) => (
+                      <KPill
+                        key={c.value}
+                        label={c.label}
+                        icon={helpdeskCategoryMeta(c.value).icon}
+                        selected={c.value === category}
+                        onPress={() => setCategory(c.value)}
+                      />
+                    ))}
+                  </PillRail>
                   <Text variant="caption" marginTop="s">
                     {helpdeskCategoryMeta(category).hint}
                   </Text>
@@ -252,26 +262,44 @@ export default function HelpdeskScreen() {
             ) : null}
           </Box>
 
-          {isError ? (
-            <KEmpty icon="error_outline" title="Couldn't load your requests" />
-          ) : !data || data.tickets.length === 0 ? (
-            <KEmpty icon="support_agent" title="No requests yet" message="Your tickets and chats will show here." />
-          ) : (
-            <ListGroup>
-              {data.tickets.map((t) => (
-                <ListRow
-                  key={t.id}
-                  icon={t.channel === "live" ? "forum" : "assignment"}
-                  title={`${ticketRef(t.displayId)} · ${t.subject}`}
-                  subtitle={t.lastMessage?.message ?? undefined}
-                  onPress={() => router.push(`/helpdesk/${t.id}`)}
-                  trailing={
-                    <StatusChip label={statusLabel(t.status)} tone={statusTone(t.status)} />
-                  }
+          {/*
+            Only the request list is data-dependent — the ask form above must
+            stay usable even if the list fails to load, so the boundary wraps
+            this section alone rather than the whole screen.
+          */}
+          <AsyncBoundary
+            data={data}
+            isLoading={isLoading}
+            isError={isError}
+            refetch={refetch}
+            skeleton={<Skeleton.Rows count={3} />}
+            errorTitle="Couldn't load your requests"
+          >
+            {(loaded) =>
+              loaded.tickets.length === 0 ? (
+                <KEmpty
+                  icon="support_agent"
+                  title="No requests yet"
+                  message="Your tickets and chats will show here."
                 />
-              ))}
-            </ListGroup>
-          )}
+              ) : (
+                <ListGroup>
+                  {loaded.tickets.map((t) => (
+                    <ListRow
+                      key={t.id}
+                      icon={t.channel === "live" ? "forum" : "assignment"}
+                      title={`${ticketRef(t.displayId)} · ${t.subject}`}
+                      subtitle={t.lastMessage?.message ?? undefined}
+                      onPress={() => router.push(`/helpdesk/${t.id}`)}
+                      trailing={
+                        <StatusChip label={statusLabel(t.status)} tone={statusTone(t.status)} />
+                      }
+                    />
+                  ))}
+                </ListGroup>
+              )
+            }
+          </AsyncBoundary>
         </Box>
 
         <Box height={32} />
