@@ -61,6 +61,9 @@ npx eas-cli@latest submit --profile production --platform all
 
 ## Build & release
 
+Shortcuts live in `package.json`: `npm run build:ios`, `build:android`,
+`build:preview` (APK), `build:dev`, `submit:ios`, `submit:android`, `doctor`.
+
 Everything below is run from `mobile/`. `eas.json` already defines the
 `development` / `preview` / `production` profiles, and all three set
 `EXPO_PUBLIC_API_URL=https://mykiz.my` so a store build always points at the
@@ -88,6 +91,22 @@ For iOS, EAS can create the App Store Connect app record for you on first submit
 For Android, create the Play Console app (package `my.kiz.app`) and download a
 service-account JSON, then either reference it in `eas.json` under
 `submit.production.android.serviceAccountKeyPath` or let `eas submit` prompt.
+
+### Push notifications (extra setup)
+
+In-app notifications work out of the box. **Remote push** additionally needs:
+
+- **`extra.eas.projectId`** — written by `eas init` (step 1). Without it the app
+  logs `[push] No EAS projectId — run \`eas init\`` and skips registration
+  entirely, so no device ever receives a push.
+- **iOS** — EAS generates the APNs key during your first iOS build; inspect or
+  replace it with `npx eas-cli@latest credentials --platform ios`.
+- **Android** — Expo push uses **Firebase Cloud Messaging (FCM) v1**. Create a
+  Firebase project, add an Android app with package `my.kiz.app`, download the
+  service-account JSON, then upload it:
+  `npx eas-cli@latest credentials --platform android` → *Google Service Account*.
+- Expo Go cannot receive remote push on Android (SDK 53+). Test with a
+  development build.
 
 ### 3. Development build (for testing on a device)
 
@@ -121,7 +140,7 @@ build profile, and run `eas update`. Native changes still need a new build.
 
 ### Release checklist
 
-- [ ] `npx expo-doctor` → 21/21 (already green)
+- [ ] `npm run doctor` → 21/21 (already green)
 - [ ] `npm run typecheck && npm run lint` clean
 - [ ] `npx expo export --platform ios` bundles
 - [ ] Replace `assets/images/icon.png` + `splash-icon.png` with the official KIZ logo (current ones are a teal "K" placeholder)
