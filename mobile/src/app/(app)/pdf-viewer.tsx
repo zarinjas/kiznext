@@ -1,10 +1,10 @@
-import Constants from "expo-constants"
 import { useTheme } from "@shopify/restyle"
 import { Stack, useLocalSearchParams } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, Dimensions, Pressable } from "react-native"
+import { ActivityIndicator, Pressable } from "react-native"
 
+import { PdfWebViewer } from "@/components/pdf-web-viewer"
 import { tapMedium } from "@/lib/feedback"
 import { Box, KButton, KEmpty, Text, useToast, type Theme } from "@/ui"
 
@@ -12,43 +12,14 @@ import { Box, KButton, KEmpty, Text, useToast, type Theme } from "@/ui"
  * In-app PDF reader used by the Digital Guide, announcement attachments and
  * chat attachments.
  *
- * `react-native-pdf` is a native module. That makes it unavailable in Expo Go,
- * and on React Native 0.86 (New Architecture by default) a third-party native
- * view can fail to render even in a real build. Relying on it alone meant PDFs
- * sometimes could not be opened at all, with no way out.
- *
- * So the reader is layered:
- *   1. Render with `react-native-pdf` when the module is present.
- *   2. If it is missing (Expo Go) or errors, offer the system PDF viewer via
- *      `expo-web-browser` — SFSafariViewController on iOS and Chrome Custom Tabs
- *      on Android both render PDFs natively and work everywhere.
- *   3. Keep an "Open in browser" action in the header at all times, so a
- *      poorly-rendered document is never a dead end.
+ * Rendering happens in a WebView via pdf.js (`PdfWebViewer`), which works in
+ * Expo Go, every native build, and on both platforms — unlike `react-native-pdf`,
+ * a native module that is absent from Expo Go and can fail under RN 0.86's New
+ * Architecture. A browser hand-off stays available as the last resort, because
+ * a document must never be a dead end.
  */
-const inExpoGo = Constants.executionEnvironment === "storeClient"
 
-/**
- * Load the native reader defensively.
- *
- * A bare `require` at module scope throws if the module is missing or its
- * native side failed to link, which crashes the whole route before the fallback
- * can render. Catching it here degrades to the browser viewer instead.
- */
-function loadPdfView(): React.ComponentType<Record<string, unknown>> | null {
-  if (inExpoGo) return null
-  try {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    return require("react-native-pdf").default as React.ComponentType<Record<string, unknown>>
-    /* eslint-enable @typescript-eslint/no-require-imports */
-  } catch (err) {
-    console.warn("[pdf-viewer] react-native-pdf unavailable — using the browser viewer", err)
-    return null
-  }
-}
-
-const PdfView = loadPdfView()
-
-/** Show a "taking a while?" hint if the native reader hasn't loaded by then. */
+/** Show a "taking a while?" hint if the document hasn't parsed by then. */
 const SLOW_LOAD_MS = 9000
 
 export default function PdfViewerScreen() {
@@ -62,6 +33,8 @@ export default function PdfViewerScreen() {
   const [page, setPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [slow, setSlow] = useState(false)
+  /** Bumped on retry to force a clean WebView remount. */
+  const [attempt, setAttempt] = useState(0)
   const loaded = useRef(false)
 
   /** Open the document with the platform's native PDF viewer. */
@@ -75,10 +48,9 @@ export default function PdfViewerScreen() {
     }
   }, [url, toast])
 
-  // Nudge toward the browser if the native view is slow — a blank screen with a
-  // spinner and no explanation is the worst possible state.
+  // Never leave the user staring at a spinner with no explanation.
   useEffect(() => {
-    if (!PdfView || error || loaded.current) return
+    if (error || loaded.current) return
     const id = setTimeout(() => setSlow(true), SLOW_LOAD_MS)
     return () => clearTimeout(id)
   }, [error])
@@ -112,24 +84,6 @@ export default function PdfViewerScreen() {
     )
   }
 
-  // ── Fallback: no native reader available (Expo Go) ─────────────────────────
-  if (!PdfView) {
-    return (
-      <Box flex={1} backgroundColor="canvas" padding="l">
-        <Stack.Screen options={{ title }} />
-        <KEmpty
-          icon="menu_book"
-          title="Open this document"
-          message="The built-in reader needs the installed app. Open the PDF in your browser to read it now."
-          action={
-            <KButton label="Open in browser" icon="open_in_new" onPress={() => void openInBrowser()} />
-          }
-        />
-      </Box>
-    )
-  }
-
-  // ── Fallback: native reader failed ─────────────────────────────────────────
   if (error) {
     return (
       <Box flex={1} backgroundColor="canvas" padding="l">
@@ -153,7 +107,9 @@ export default function PdfViewerScreen() {
                 onPress={() => {
                   loaded.current = false
                   setSlow(false)
+                  setPages(0)
                   setError(null)
+                  setAttempt((a) => a + 1)
                 }}
               />
             </>
@@ -167,31 +123,45 @@ export default function PdfViewerScreen() {
     <Box flex={1} backgroundColor="canvas">
       <Stack.Screen options={{ title, headerRight }} />
 
-      <PdfView
-        source={{ uri: url, cache: true }}
-        trustAllCerts={false}
-        enablePaging
-        style={{ flex: 1, width: Dimensions.get("window").width, backgroundColor: theme.colors.canvas }}
-        onLoadComplete={(numberOfPages: number) => {
+      <PdfWebViewer
+        // Remount on retry so the WebView reloads the document cleanly.
+        key={`${url}-${attempt}`}
+        url={url}
+        onLoaded={(count) => {
           loaded.current = true
           setSlow(false)
-          setPages(numberOfPages)
+          setPages(count)
         }}
-        onPageChanged={(pageNumber: number) => setPage(pageNumber)}
-        onError={(err: unknown) => {
-          // Surface the real reason in the dev log — the on-screen copy stays
-          // human-friendly.
-          console.warn("[pdf-viewer] react-native-pdf failed", err)
+        onPage={setPage}
+        onError={(message) => {
+          console.warn("[pdf-viewer] pdf.js failed", message)
           setError(
-            "The built-in reader couldn't display this file. It may be a scanned or password-protected PDF — opening it in your browser usually works."
+            `${message} Opening it in your browser usually works — some scanned or password-protected PDFs can only be read there.`
           )
         }}
-        renderActivityIndicator={() => (
-          <ActivityIndicator color={theme.colors.brand600} size="large" />
-        )}
       />
 
-      {/* Slow-load hint: never leave the user staring at a spinner. */}
+      {/* Spinner over the blank WebView until the first page count arrives. */}
+      {pages === 0 ? (
+        <Box
+          position="absolute"
+          top={0}
+          left={0}
+          right={0}
+          bottom={0}
+          alignItems="center"
+          justifyContent="center"
+          backgroundColor="canvasSunk"
+          pointerEvents="none"
+        >
+          <ActivityIndicator color={theme.colors.brand600} size="large" />
+          <Text variant="caption" marginTop="m">
+            Loading document…
+          </Text>
+        </Box>
+      ) : null}
+
+      {/* Slow-load hint: never leave the user without a way forward. */}
       {slow && pages === 0 ? (
         <Box position="absolute" bottom={72} left={16} right={16} alignItems="center" gap="s">
           <Box

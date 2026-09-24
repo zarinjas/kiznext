@@ -57,13 +57,13 @@ function WalletButton({ label, onPress }: { label: string; onPress: () => void }
 function LogoSlot({ uri, fallback }: { uri: string | null; fallback: string }) {
   const resolved = absoluteUrl(uri)
   return (
-    <Box width={44} height={44} alignItems="center" justifyContent="center">
+    <Box width={70} height={70} alignItems="center" justifyContent="center">
       {resolved ? (
-        <Image source={{ uri: resolved }} style={{ width: 44, height: 44 }} contentFit="contain" />
+        <Image source={{ uri: resolved }} style={{ width: 70, height: 70 }} contentFit="contain" />
       ) : (
         <Box
-          width={40}
-          height={40}
+          width={70}
+          height={70}
           borderRadius="input"
           backgroundColor="canvasSunk"
           alignItems="center"
@@ -83,6 +83,9 @@ export default function EcardScreen() {
   const wallet = useWalletLinks()
   const appleWalletUrl = wallet.data?.appleWalletUrl ?? null
   const googleWalletUrl = wallet.data?.googleWalletUrl ?? null
+  // In dev the buttons show even without server credentials so the design is
+  // visible; in production they only appear once a provider is configured.
+  const showWallet = Boolean(appleWalletUrl || googleWalletUrl) || __DEV__
   const fired = useRef(false)
   // Live wall-clock stamp under the QR — makes a screenshot of the card
   // visibly distinguishable from the live card for the officer checking it.
@@ -265,22 +268,28 @@ export default function EcardScreen() {
           </Text>
         </Box>
 
-        {appleWalletUrl || googleWalletUrl ? (
+        {showWallet ? (
           <Box width="100%" maxWidth={380} marginTop="l">
             <SectionTitle>Add to Wallet</SectionTitle>
             <Box gap="s">
-              {Platform.OS === "ios" && appleWalletUrl ? (
+              {Platform.OS === "ios" ? (
                 <WalletButton
                   label="Add to Apple Wallet"
-                  onPress={() => openWallet(appleWalletUrl)}
+                  onPress={() =>
+                    appleWalletUrl
+                      ? openWallet(appleWalletUrl)
+                      : toast.show("Apple Wallet isn't configured on the server yet.", "info")
+                  }
                 />
               ) : null}
-              {googleWalletUrl ? (
-                <WalletButton
-                  label="Add to Google Wallet"
-                  onPress={() => openWallet(googleWalletUrl)}
-                />
-              ) : null}
+              <WalletButton
+                label="Add to Google Wallet"
+                onPress={() =>
+                  googleWalletUrl
+                    ? openWallet(googleWalletUrl)
+                    : toast.show("Google Wallet isn't configured on the server yet.", "info")
+                }
+              />
             </Box>
           </Box>
         ) : null}
