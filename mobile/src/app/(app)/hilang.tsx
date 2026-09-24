@@ -4,12 +4,13 @@ import {
   OTHER_LOCATION,
   lostFoundTypeMeta,
   lostFoundWhenLabel,
+  todayMalaysiaDate,
 } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { useState } from "react"
-import { Modal, Pressable, ScrollView } from "react-native"
+import { Alert, Modal, Pressable, ScrollView } from "react-native"
 
 import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
@@ -28,6 +29,7 @@ import {
   Text,
   TextField,
   TimeField,
+  useToast,
   type ChipTone,
 } from "@/ui"
 
@@ -40,12 +42,27 @@ function statusTone(status: string): ChipTone {
 export default function LostFoundScreen() {
   const theme = useTheme()
   const { user } = useAuth()
-  const { data, isLoading } = useLostFound()
+  const { data, isLoading, refetch } = useLostFound()
   const claim = useClaimItem()
+  const toast = useToast()
 
   const [open, setOpen] = useState(false)
 
-  if (isLoading || !data) return <LoadingScreen label="Loading Lost & Found…" />
+  if (isLoading) return <LoadingScreen label="Loading Lost & Found…" />
+
+  if (!data) {
+    return (
+      <Screen scroll edges={[]}>
+        <KEmpty
+          tone="danger"
+          icon="error_outline"
+          title="Couldn't load Lost & Found"
+          message="Check your connection and try again."
+          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
+        />
+      </Screen>
+    )
+  }
 
   return (
     <Screen scroll edges={[]}>
@@ -66,7 +83,19 @@ export default function LostFoundScreen() {
               key={item.id}
               item={item}
               mine={item.reportedBy === user?.id}
-              onClaim={() => claim.mutate(item.id)}
+              onClaim={() =>
+                Alert.alert("Mark as claimed?", "This removes the item from the active list.", [
+                  { text: "Not yet", style: "cancel" },
+                  {
+                    text: "Mark claimed",
+                    onPress: () =>
+                      claim.mutate(item.id, {
+                        onSuccess: () => toast.success("Marked as claimed."),
+                        onError: () => toast.error("Couldn't update the item. Try again."),
+                      }),
+                  },
+                ])
+              }
               claiming={claim.isPending}
               theme={theme}
             />
@@ -310,7 +339,7 @@ function ReportModal({ visible, onClose }: { visible: boolean; onClose: () => vo
                   label={lostFoundTypeMeta(type).whenLabel}
                   value={happenedDate}
                   onChange={setHappenedDate}
-                  maximumDate={new Date()}
+                  maximumDate={todayMalaysiaDate()}
                 />
                 <TimeField label="Approx. time (optional)" value={happenedTime} onChange={setHappenedTime} />
 

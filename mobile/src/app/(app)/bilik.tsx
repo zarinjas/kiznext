@@ -1,5 +1,7 @@
 import { useTheme } from "@shopify/restyle"
+import { router } from "expo-router"
 import { useState } from "react"
+import { Alert } from "react-native"
 
 import { ApiError } from "@/lib/api"
 import {
@@ -19,6 +21,7 @@ import {
   Surface,
   Text,
   TextField,
+  useToast,
   type ChipTone,
 } from "@/ui"
 
@@ -73,23 +76,50 @@ function feeLabel(value: number | null): string {
 
 export default function BilikScreen() {
   const theme = useTheme()
-  const { data, isLoading } = useBilik()
+  const { data, isLoading, refetch } = useBilik()
   const submit = useSubmitApplication()
   const withdraw = useWithdrawApplication()
   const respond = useRespondRoommate()
+  const toast = useToast()
 
   const [selected, setSelected] = useState<"single" | "double" | "flexible" | null>(null)
   const [roommateMatric, setRoommateMatric] = useState("")
   const [error, setError] = useState<string | null>(null)
 
-  if (isLoading || !data) return <LoadingScreen label="Loading room selection…" />
+  if (isLoading) return <LoadingScreen label="Loading room selection…" />
+
+  if (!data) {
+    return (
+      <Screen scroll edges={[]}>
+        <KEmpty
+          tone="danger"
+          icon="error_outline"
+          title="Couldn't load room selection"
+          message="Check your connection and try again."
+          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
+        />
+      </Screen>
+    )
+  }
 
   const state = data.state
 
   if (!state.eligible) {
     return (
       <Screen scroll edges={[]}>
-        <KEmpty icon="bedroom_parent" title="No accommodation offer" message={state.reason} />
+        <KEmpty
+          icon="bedroom_parent"
+          title="No accommodation offer"
+          message={state.reason}
+          action={
+            <KButton
+              label="Ask the KIZ office"
+              icon="support_agent"
+              variant="secondary"
+              onPress={() => router.push("/helpdesk")}
+            />
+          }
+        />
       </Screen>
     )
   }
@@ -190,7 +220,23 @@ export default function BilikScreen() {
               <Box flex={1}>
                 <KButton
                   label="Accept"
-                  onPress={() => respond.mutate("approved")}
+                  onPress={() =>
+                    Alert.alert(
+                      "Confirm roommate pairing?",
+                      "Once you accept, this pairing is final and can't be changed.",
+                      [
+                        { text: "Not now", style: "cancel" },
+                        {
+                          text: "Accept",
+                          onPress: () =>
+                            respond.mutate("approved", {
+                              onSuccess: () => toast.success("Roommate confirmed."),
+                              onError: () => toast.error("Couldn't respond. Try again."),
+                            }),
+                        },
+                      ]
+                    )
+                  }
                   loading={respond.isPending}
                 />
               </Box>
@@ -198,7 +244,20 @@ export default function BilikScreen() {
                 <KButton
                   label="Decline"
                   variant="secondary"
-                  onPress={() => respond.mutate("rejected")}
+                  onPress={() =>
+                    Alert.alert("Decline this request?", "They'll be told you declined.", [
+                      { text: "Not now", style: "cancel" },
+                      {
+                        text: "Decline",
+                        style: "destructive",
+                        onPress: () =>
+                          respond.mutate("rejected", {
+                            onSuccess: () => toast.success("Request declined."),
+                            onError: () => toast.error("Couldn't respond. Try again."),
+                          }),
+                      },
+                    ])
+                  }
                   loading={respond.isPending}
                 />
               </Box>

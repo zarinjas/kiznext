@@ -11,6 +11,7 @@ import { CommandPalette } from "./command-palette"
 import { NotificationDrawer } from "./notification-drawer"
 import { KizAi } from "@/components/shared/concierge/kiz-ai"
 import type { Role } from "@/lib/rbac"
+import type { NotificationView } from "@/lib/notification-meta"
 import type { ConciergeFrames } from "@/lib/ai/config"
 
 /** AppShell — one shell for every role: desktop rail + mobile drawer/bottom nav. */
@@ -20,6 +21,7 @@ export function AppShell({
   logoUrl,
   title,
   notificationCount = 0,
+  notifications = [],
   bilikOpen = false,
   aiEnabled = false,
   conciergeName = "KIZ-AI",
@@ -32,6 +34,7 @@ export function AppShell({
   logoUrl: string | null
   title?: string
   notificationCount?: number
+  notifications?: NotificationView[]
   /** True while the room-selection window is open — drives nav badges + dashboard hints. */
   bilikOpen?: boolean
   /** Show the KIZ-AI concierge (true when a Gemini key is configured). */
@@ -94,7 +97,7 @@ export function AppShell({
       <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} role={role} bilikOpen={bilikOpen} />
       <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} role={role} userName={userName} logoUrl={logoUrl} bilikOpen={bilikOpen} />
       <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} role={role} aiEnabled={aiEnabled} />
-      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} items={notifications} />
       <KizAi role={role} name={conciergeName} avatarUrl={conciergeAvatarUrl} frames={conciergeFrames ?? { idle: [], thinking: [], happy: [] }} enabled={aiEnabled} />
     </Box>
   )

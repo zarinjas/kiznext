@@ -27,6 +27,7 @@ import type {
   LaundrySnapshot,
   LostFoundItem,
   MyBookings,
+  NotificationsData,
   Office,
   OnboardingSlide,
   Panorama,
@@ -79,6 +80,30 @@ export function useHome() {
   return useQuery({
     queryKey: ["home"],
     queryFn: () => apiGet<{ home: ResidentHome | null; heroBackgroundUrl: string | null }>("/home"),
+  })
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+export function useNotifications() {
+  return useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiGet<NotificationsData>("/notifications"),
+  })
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiPost("/notifications", { id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  })
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost("/notifications", { all: true }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   })
 }
 

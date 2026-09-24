@@ -4,13 +4,26 @@ import { useTheme } from "@shopify/restyle"
 import { CameraView, useCameraPermissions, type CameraCapturedPicture } from "expo-camera"
 import { Image } from "expo-image"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, Pressable, ScrollView } from "react-native"
+import { ActivityIndicator, ScrollView } from "react-native"
 
 import { ApiError } from "@/lib/api"
+import { demoLensResult, useDemo } from "@/lib/demo"
+import { tapMedium, notifyError, notifySuccess } from "@/lib/feedback"
 import { arTranslateScan, useArTranslateMeta } from "@/lib/hooks"
 import { speak, stopSpeaking } from "@/lib/speech"
 import type { ArTranslateResult } from "@/lib/types"
-import { Box, Icon, KButton, KEmpty, Screen, Text, type Theme } from "@/ui"
+import {
+  AiBadge,
+  Box,
+  Icon,
+  KButton,
+  KEmpty,
+  KPill,
+  PressScale,
+  Screen,
+  Text,
+  type Theme,
+} from "@/ui"
 
 interface Frozen {
   uri: string
@@ -42,6 +55,7 @@ export default function ArTerjemahScreen() {
   const theme = useTheme<Theme>()
   const [permission, requestPermission] = useCameraPermissions()
   const { data: meta } = useArTranslateMeta()
+  const { demo } = useDemo()
 
   const languages = AR_LANGUAGES
   const [targetLang, setTargetLang] = useState<string | null>(null)
@@ -66,22 +80,45 @@ export default function ArTerjemahScreen() {
     [frozen, stage]
   )
 
-  const runScan = useCallback(async (frame: Frozen, lang: string) => {
-    setScanning(true)
-    setError(null)
-    try {
-      const res = await arTranslateScan({ image: frame.base64, targetLang: lang, mimeType: "image/jpeg" })
-      setResult(res)
-    } catch (e) {
-      setResult(null)
-      setError(e instanceof ApiError ? e.message : "Couldn't translate that. Please try again.")
-    } finally {
-      setScanning(false)
-    }
-  }, [])
+  const runScan = useCallback(
+    async (frame: Frozen, lang: string) => {
+      setScanning(true)
+      setError(null)
+
+      // Demo Mode: return a canned result for the captured frame so the feature
+      // can be shown with no backend reachable. Kept on the same code path as
+      // the live call (same shape, same overlay renderer, same short delay) so
+      // what a judge sees is the real UI, not a mock screen.
+      if (demo) {
+        await new Promise((r) => setTimeout(r, 900))
+        setResult(demoLensResult(lang) as ArTranslateResult)
+        setScanning(false)
+        notifySuccess()
+        return
+      }
+
+      try {
+        const res = await arTranslateScan({
+          image: frame.base64,
+          targetLang: lang,
+          mimeType: "image/jpeg",
+        })
+        setResult(res)
+        if (res.blocks.length > 0) notifySuccess()
+      } catch (e) {
+        setResult(null)
+        notifyError()
+        setError(e instanceof ApiError ? e.message : "Couldn't translate that. Please try again.")
+      } finally {
+        setScanning(false)
+      }
+    },
+    [demo]
+  )
 
   const handleScan = useCallback(async () => {
     if (!cameraRef.current || scanning) return
+    tapMedium()
     try {
       const photo: CameraCapturedPicture = await cameraRef.current.takePictureAsync({
         base64: true,
@@ -241,22 +278,29 @@ export default function ArTerjemahScreen() {
             >
               <Icon name="translate" size={18} color={theme.colors.brand300} />
               <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>KIZ Lens</Text>
+              <AiBadge label="AI VISION" tone="onDark" />
             </Box>
             {frozen ? (
-              <Pressable onPress={resetScan} style={{ marginLeft: "auto" }}>
+              <PressScale
+                onPress={resetScan}
+                style={{ marginLeft: "auto" }}
+                accessibilityRole="button"
+                accessibilityLabel="Scan again"
+              >
                 <Box
                   flexDirection="row"
                   alignItems="center"
                   gap="s"
                   paddingHorizontal="m"
-                  paddingVertical="s"
+                  minHeight={44}
+                  justifyContent="center"
                   borderRadius="pill"
                   style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
                 >
                   <Icon name="photo_camera" size={16} color="#fff" />
                   <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>Scan again</Text>
                 </Box>
-              </Pressable>
+              </PressScale>
             ) : null}
           </Box>
 
@@ -327,25 +371,26 @@ export default function ArTerjemahScreen() {
                       </Text>
                     </Box>
                   ) : null}
-                  <Pressable
+                  <PressScale
                     onPress={() => speak(result.blocks.map((b) => b.translation).join(". "), activeLang)}
                     style={{ marginLeft: "auto" }}
-                    hitSlop={8}
-                    accessibilityLabel="Listen to the translation"
+                    accessibilityRole="button"
+                    accessibilityLabel="Listen to the whole translation"
                   >
                     <Box
                       flexDirection="row"
                       alignItems="center"
                       gap="xs"
-                      paddingHorizontal="s"
-                      paddingVertical="xs"
+                      paddingHorizontal="m"
+                      minHeight={40}
+                      justifyContent="center"
                       borderRadius="pill"
                       backgroundColor="brand50"
                     >
-                      <Icon name="volume_up" size={14} color={theme.colors.brand700} />
-                      <Text style={{ color: theme.colors.brand700, fontSize: 11, fontWeight: "700" }}>Listen</Text>
+                      <Icon name="volume_up" size={15} color={theme.colors.brand700} />
+                      <Text style={{ color: theme.colors.brand700, fontSize: 11.5, fontWeight: "700" }}>Listen</Text>
                     </Box>
-                  </Pressable>
+                  </PressScale>
                 </Box>
                 {result.blocks.map((block, i) => (
                   <Box
@@ -362,13 +407,16 @@ export default function ArTerjemahScreen() {
                         {block.translation}
                       </Text>
                     </Box>
-                    <Pressable
+                    <PressScale
                       onPress={() => speak(block.translation, activeLang)}
-                      hitSlop={8}
-                      accessibilityLabel="Listen to this line"
+                      scaleTo={0.88}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Listen: ${block.translation}`}
                     >
-                      <Icon name="volume_up" size={18} color={theme.colors.brand600} />
-                    </Pressable>
+                      <Box width={44} height={44} alignItems="center" justifyContent="center">
+                        <Icon name="volume_up" size={20} color={theme.colors.brand600} />
+                      </Box>
+                    </PressScale>
                   </Box>
                 ))}
               </ScrollView>
@@ -383,25 +431,14 @@ export default function ArTerjemahScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 8 }}
           >
-            {languages.map((l) => {
-              const on = l.code === activeLang
-              return (
-                <Pressable key={l.code} onPress={() => chooseLang(l.code)}>
-                  <Box
-                    paddingHorizontal="m"
-                    paddingVertical="s"
-                    borderRadius="pill"
-                    borderWidth={1}
-                    borderColor={on ? "brand600" : "border"}
-                    backgroundColor={on ? "brand50" : "surface"}
-                  >
-                    <Text style={{ color: on ? theme.colors.brand700 : theme.colors.ink500, fontSize: 13, fontWeight: on ? "700" : "500" }}>
-                      {l.native}
-                    </Text>
-                  </Box>
-                </Pressable>
-              )
-            })}
+            {languages.map((l) => (
+              <KPill
+                key={l.code}
+                label={l.native}
+                selected={l.code === activeLang}
+                onPress={() => chooseLang(l.code)}
+              />
+            ))}
           </ScrollView>
 
           <Box flexDirection="row" alignItems="center" gap="m" paddingHorizontal="l">

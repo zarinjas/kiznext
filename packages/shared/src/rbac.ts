@@ -23,6 +23,13 @@ export const GUEST_HOUSE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 export const RESIDENCE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "staf"]
 export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", "pengetua"]
 
+/**
+ * Broadcast push notifications — admins plus the principal. The deputy
+ * principal shares the `pengetua` role (only `position` differs), so this
+ * covers both offices.
+ */
+export const NOTIFICATION_SEND_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
+
 /** Self-service registration lifecycle. */
 export type AccountStatus = "unverified" | "pending" | "active"
 

@@ -1,59 +1,46 @@
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker"
 import { useTheme } from "@shopify/restyle"
+import {
+  formatWallClockDate,
+  formatWallClockTime,
+  todayMalaysiaDate,
+  wallClockDate,
+  wallClockHhmm,
+  wallClockIso,
+  wallClockTime,
+} from "@kiz/shared"
 import { useState } from "react"
-import { Modal, Platform, Pressable } from "react-native"
+import { Modal, Platform } from "react-native"
 
 import { KButton } from "./controls"
+import { PressScale } from "./motion"
 import { Box, Text, type Theme } from "./theme"
+import { Icon } from "./icon"
 
-function pad(n: number): string {
-  return String(n).padStart(2, "0")
-}
-
-function parseDate(value: string): Date | null {
-  if (!value) return null
-  const d = new Date(`${value}T00:00:00`)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-
-function parseTime(value: string): Date | null {
-  if (!/^\d{1,2}:\d{2}$/.test(value)) return null
-  const [h, m] = value.split(":").map(Number)
-  const d = new Date()
-  d.setHours(h, m, 0, 0)
-  return d
-}
-
-function toIsoDate(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function toHhmm(d: Date): string {
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function prettyDate(value: string): string {
-  const d = parseDate(value)
-  if (!d) return ""
-  return new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(d)
-}
-
-function prettyTime(value: string): string {
-  const d = parseTime(value)
-  if (!d) return ""
-  return new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(d)
-}
+/**
+ * Date / time inputs.
+ *
+ * All parsing, serialising and formatting goes through the `wallClock*` helpers
+ * in `@kiz/shared`, which resolve in `Asia/Kuala_Lumpur`. These previously used
+ * raw `getFullYear()`/`new Date()`, so a phone on a non-MYT clock could submit a
+ * shifted calendar day — a real hazard given KIZ's international residents, and
+ * worst on facility slots where the booking time is a hard MYT concept.
+ */
 
 function FieldShell({
   label,
   display,
   placeholder,
   onPress,
+  icon,
+  error,
 }: {
   label: string
   display: string
   placeholder: string
   onPress: () => void
+  icon: string
+  error?: string | null
 }) {
   const theme = useTheme<Theme>()
   return (
@@ -61,22 +48,73 @@ function FieldShell({
       <Text variant="label" marginBottom="xs" marginLeft="xs">
         {label}
       </Text>
-      <Pressable onPress={onPress}>
+      <PressScale
+        onPress={onPress}
+        scaleTo={0.99}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}. ${display || placeholder}`}
+      >
         <Box
+          flexDirection="row"
+          alignItems="center"
+          gap="s"
           borderWidth={1}
-          borderColor="borderStrong"
+          borderColor={error ? "danger" : "borderStrong"}
           borderRadius="input"
           backgroundColor="surface"
           paddingHorizontal="m"
-          height={48}
-          justifyContent="center"
+          minHeight={48}
         >
-          <Text variant={display ? "body" : "caption"} style={!display ? { color: theme.colors.ink300 } : undefined}>
+          <Icon name={icon} size={18} color={theme.colors.ink300} />
+          <Text
+            variant={display ? "body" : "caption"}
+            style={[{ flex: 1 }, !display ? { color: theme.colors.ink300 } : null]}
+          >
             {display || placeholder}
           </Text>
         </Box>
-      </Pressable>
+      </PressScale>
+      {error ? (
+        <Text variant="caption" marginTop="xs" marginLeft="xs" style={{ color: theme.colors.dangerInk }}>
+          {error}
+        </Text>
+      ) : null}
     </Box>
+  )
+}
+
+/** iOS spinner sheet wrapper — shared by both fields. */
+function PickerSheet({
+  visible,
+  label,
+  onClose,
+  children,
+}: {
+  visible: boolean
+  label: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Box flex={1} justifyContent="flex-end" style={{ backgroundColor: "rgba(0,0,0,0.35)" }}>
+        <Box
+          backgroundColor="surface"
+          borderTopLeftRadius="sheet"
+          borderTopRightRadius="sheet"
+          padding="l"
+          paddingBottom="xl"
+        >
+          <Text variant="subheading" marginBottom="s">
+            {label}
+          </Text>
+          {children}
+          <Box marginTop="m">
+            <KButton label="Done" onPress={onClose} />
+          </Box>
+        </Box>
+      </Box>
+    </Modal>
   )
 }
 
@@ -87,29 +125,34 @@ export function DateField({
   minimumDate,
   maximumDate,
   placeholder = "Pick a date",
+  error,
 }: {
   label: string
+  /** `YYYY-MM-DD` wall-clock date. */
   value: string
   onChange: (isoDate: string) => void
   minimumDate?: Date
   maximumDate?: Date
   placeholder?: string
+  error?: string | null
 }) {
   const [show, setShow] = useState(false)
-  const current = parseDate(value) ?? new Date()
+  const current = wallClockDate(value) ?? todayMalaysiaDate()
 
   function handle(event: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === "android") setShow(false)
-    if (event.type === "set" && date) onChange(toIsoDate(date))
+    if (event.type === "set" && date) onChange(wallClockIso(date))
   }
 
   return (
     <Box>
       <FieldShell
         label={label}
-        display={prettyDate(value)}
+        icon="calendar_month"
+        display={formatWallClockDate(value)}
         placeholder={placeholder}
         onPress={() => setShow(true)}
+        error={error}
       />
 
       {show && Platform.OS === "android" ? (
@@ -123,26 +166,16 @@ export function DateField({
       ) : null}
 
       {Platform.OS === "ios" ? (
-        <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
-          <Box flex={1} justifyContent="flex-end" backgroundColor="transparent">
-            <Box backgroundColor="surface" borderTopLeftRadius="sheet" borderTopRightRadius="sheet" padding="l">
-              <Text variant="subheading" marginBottom="s">
-                {label}
-              </Text>
-              <DateTimePicker
-                value={current}
-                mode="date"
-                display="spinner"
-                minimumDate={minimumDate}
-                maximumDate={maximumDate}
-                onChange={handle}
-              />
-              <Box marginTop="m">
-                <KButton label="Done" onPress={() => setShow(false)} />
-              </Box>
-            </Box>
-          </Box>
-        </Modal>
+        <PickerSheet visible={show} label={label} onClose={() => setShow(false)}>
+          <DateTimePicker
+            value={current}
+            mode="date"
+            display="spinner"
+            minimumDate={minimumDate}
+            maximumDate={maximumDate}
+            onChange={handle}
+          />
+        </PickerSheet>
       ) : null}
     </Box>
   )
@@ -153,27 +186,32 @@ export function TimeField({
   value,
   onChange,
   placeholder = "Pick a time",
+  error,
 }: {
   label: string
+  /** 24h `HH:MM` wall-clock time. */
   value: string
   onChange: (hhmm: string) => void
   placeholder?: string
+  error?: string | null
 }) {
   const [show, setShow] = useState(false)
-  const current = parseTime(value) ?? new Date()
+  const current = wallClockTime(value) ?? wallClockTime("09:00")!
 
   function handle(event: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === "android") setShow(false)
-    if (event.type === "set" && date) onChange(toHhmm(date))
+    if (event.type === "set" && date) onChange(wallClockHhmm(date))
   }
 
   return (
     <Box>
       <FieldShell
         label={label}
-        display={prettyTime(value)}
+        icon="timer"
+        display={formatWallClockTime(value)}
         placeholder={placeholder}
         onPress={() => setShow(true)}
+        error={error}
       />
 
       {show && Platform.OS === "android" ? (
@@ -181,25 +219,15 @@ export function TimeField({
       ) : null}
 
       {Platform.OS === "ios" ? (
-        <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
-          <Box flex={1} justifyContent="flex-end" backgroundColor="transparent">
-            <Box backgroundColor="surface" borderTopLeftRadius="sheet" borderTopRightRadius="sheet" padding="l">
-              <Text variant="subheading" marginBottom="s">
-                {label}
-              </Text>
-              <DateTimePicker
-                value={current}
-                mode="time"
-                display="spinner"
-                minuteInterval={5}
-                onChange={handle}
-              />
-              <Box marginTop="m">
-                <KButton label="Done" onPress={() => setShow(false)} />
-              </Box>
-            </Box>
-          </Box>
-        </Modal>
+        <PickerSheet visible={show} label={label} onClose={() => setShow(false)}>
+          <DateTimePicker
+            value={current}
+            mode="time"
+            display="spinner"
+            minuteInterval={5}
+            onChange={handle}
+          />
+        </PickerSheet>
       ) : null}
     </Box>
   )

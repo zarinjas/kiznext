@@ -4,10 +4,23 @@ export { Icon } from "./icon"
 export { Screen, LoadingScreen } from "./screen"
 export { Surface, HeroPanel, Divider, SectionTitle } from "./surface"
 export { ListGroup, ListRow } from "./list-group"
-export { KButton, TextField } from "./controls"
+export { KButton, KPill, KIconButton, TextField } from "./controls"
 export { DateField, TimeField } from "./date-time-field"
 export { StatusChip } from "./status-chip"
 export type { ChipTone } from "./status-chip"
 export { KEmpty } from "./empty-state"
 export { PageHeader } from "./page-header"
 export { SignaturePad } from "./signature-pad"
+export { AsyncBoundary, OfflineNotice } from "./async-boundary"
+export { Skeleton } from "./skeleton"
+export { AiBadge, LiveDot } from "./ai-badge"
+export { ToastProvider, useToast } from "./toast"
+export {
+  PressScale,
+  FadeInUp,
+  Shimmer,
+  Pulse,
+  SPRING,
+  SPRING_SENSOR,
+  TIMING,
+} from "./motion"

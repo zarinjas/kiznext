@@ -3,6 +3,7 @@ import {
   ADMIN_ROLES,
   GUEST_HOUSE_ROLES,
   LAUNDRY_VIEW_ROLES,
+  NOTIFICATION_SEND_ROLES,
   REPORT_ROLES,
   RESIDENCE_VIEW_ROLES,
   SUPPORT_ROLES,
@@ -104,6 +105,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Content",
       items: [
         { label: "Announcements", href: `/${role}/urus-pengumuman`, icon: "campaign", admin: true, roles: ADMIN_ROLES },
+        { label: "Notifications", href: `/${role}/urus-notifikasi`, icon: "notifications_active", admin: true, roles: NOTIFICATION_SEND_ROLES },
         { label: "Digital Guides", href: `/${role}/urus-panduan`, icon: "menu_book", admin: true, roles: ADMIN_ROLES },
         { label: "Activities", href: `/${role}/urus-aktiviti`, icon: "event", admin: true, roles: ADMIN_ROLES },
         { label: "Dashboard Content", href: `/${role}/urus-kandungan`, icon: "widgets", admin: true, roles: ADMIN_ROLES },

@@ -27,6 +27,7 @@ export default function AppLayout() {
       <Stack.Screen name="pdf-viewer" options={{ headerShown: true, title: "Document" }} />
       <Stack.Screen name="helpdesk" options={{ headerShown: true, title: "Help & Support" }} />
       <Stack.Screen name="sos" options={{ headerShown: true, title: "SOS" }} />
+      <Stack.Screen name="notifications" options={{ headerShown: true, title: "Notifications" }} />
       <Stack.Screen name="kiz-ai" options={{ headerShown: true, title: "KIZ-AI" }} />
       <Stack.Screen
         name="helpdesk/[ticketId]"

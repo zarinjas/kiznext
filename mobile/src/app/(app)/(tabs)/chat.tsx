@@ -1,4 +1,4 @@
-import { CHAT_REACTION_EMOJIS, CHAT_REPORT_REASONS } from "@kiz/shared"
+import { CHAT_REACTION_EMOJIS, CHAT_REPORT_REASONS, color } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import * as DocumentPicker from "expo-document-picker"
 import { Image } from "expo-image"
@@ -20,6 +20,7 @@ import {
 
 import { absoluteUrl } from "@/lib/config"
 import { useAuth } from "@/lib/auth-context"
+import { useLayout } from "@/lib/responsive"
 import {
   uploadChatAttachment,
   useChat,
@@ -85,7 +86,21 @@ function Avatar({ name, avatar }: { name: string; avatar: string | null }) {
   )
 }
 
-const SENDER_COLORS = ["#007E85", "#7B61B5", "#C65B3A", "#2F6EB5", "#A33E76", "#55832A"]
+/**
+ * Sender name tints.
+ *
+ * Derived from the design-token ramps rather than the raw WhatsApp-ish hexes
+ * that were here before. Names still need to be visually distinguishable in a
+ * busy room, but the palette now belongs to the app.
+ */
+const SENDER_COLORS = [
+  color.brand[700],
+  color.accent[600],
+  color.info.ink,
+  color.success.ink,
+  color.warning.ink,
+  color.danger.ink,
+]
 
 function senderColor(id: string) {
   let hash = 0
@@ -103,6 +118,8 @@ function Bubble({
   onLongPress: () => void
 }) {
   const theme = useTheme<Theme>()
+  // Percentage-only max width became an ~800pt line on an iPad.
+  const { bubbleMaxWidth } = useLayout()
   const avatar = absoluteUrl(message.sender.avatarUrl)
   const attachment = absoluteUrl(message.attachmentUrl)
 
@@ -120,19 +137,21 @@ function Bubble({
     >
       {!mine ? <Avatar name={message.sender.name} avatar={avatar} /> : null}
 
-      <Box maxWidth="78%" minWidth={0} alignItems={mine ? "flex-end" : "flex-start"}>
+      <Box maxWidth={bubbleMaxWidth} minWidth={0} alignItems={mine ? "flex-end" : "flex-start"}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Message from ${mine ? "you" : message.sender.name}. Hold for actions.`} onLongPress={onLongPress} delayLongPress={250}>
           <Box
             paddingHorizontal="m"
             paddingVertical="s"
             borderRadius="cardLg"
             style={{
-              backgroundColor: mine ? "#D9FDD3" : "#FFFFFF",
+              // Own messages use the brand tint; others sit on pure white —
+              // consistent with the rest of the app's surfaces.
+              backgroundColor: mine ? theme.colors.brand50 : theme.colors.surface,
               borderTopRightRadius: mine ? 4 : theme.borderRadii.cardLg,
               borderTopLeftRadius: mine ? theme.borderRadii.cardLg : 4,
             }}
             borderWidth={1}
-            borderColor="border"
+            borderColor={mine ? "brand100" : "border"}
           >
             {!mine ? (
               <Text variant="caption" numberOfLines={1} style={{ color: senderColor(message.sender.id), fontWeight: "700", marginBottom: 2 }}>
@@ -221,11 +240,15 @@ function Bubble({
               </Box>
             ) : null}
 
+            {/*
+              No delivery tick. `ChatMessage` carries no delivery/read state, so
+              the checkmark that used to render here was decorative — a UI
+              element asserting something the app cannot know.
+            */}
             <Box flexDirection="row" justifyContent="flex-end" alignItems="center" marginTop="xs" gap="xs">
               <Text variant="caption" style={{ color: theme.colors.ink300, fontSize: 10 }}>
                 {timeLabel(message.createdAt)}
               </Text>
-              {mine ? <Icon name="check" size={13} color={theme.colors.brand700} /> : null}
             </Box>
           </Box>
         </Pressable>
@@ -519,10 +542,12 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#EFEAE2" },
-  messageList: { flex: 1, backgroundColor: "#EFEAE2" },
+  // Was a WhatsApp beige (#EFEAE2). The design system specifies pure-white
+  // surfaces with a faint sunk canvas — this screen was the only one breaking it.
+  screen: { flex: 1, backgroundColor: color.canvasSunk },
+  messageList: { flex: 1, backgroundColor: color.canvasSunk },
   composer: {
-    shadowColor: "#000000",
+    shadowColor: color.ink[900],
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,

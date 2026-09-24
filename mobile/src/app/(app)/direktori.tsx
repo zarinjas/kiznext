@@ -15,12 +15,29 @@ import { useTheme } from "@shopify/restyle"
 import { CameraView, useCameraPermissions } from "expo-camera"
 import * as Location from "expo-location"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Linking, Modal, Pressable, ScrollView } from "react-native"
+import { Linking, Modal, ScrollView } from "react-native"
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 
 import { ArFullMap, ArRadar } from "@/components/ar-minimap"
+import { DEMO_DESTINATION, DEMO_TRACK, demoHeadingAt, useDemo } from "@/lib/demo"
 import { useDestinations } from "@/lib/hooks"
 import type { Destination } from "@/lib/types"
-import { Box, KButton, KEmpty, LoadingScreen, Screen, StatusChip, Text } from "@/ui"
+import {
+  AiBadge,
+  Box,
+  KButton,
+  KEmpty,
+  KPill,
+  LiveDot,
+  LoadingScreen,
+  PressScale,
+  Pulse,
+  Screen,
+  SPRING_SENSOR,
+  StatusChip,
+  Text,
+  type Theme,
+} from "@/ui"
 import { Icon } from "@/ui/icon"
 
 const INTRO_KEY = "kiz-ar-intro-seen"
@@ -40,9 +57,64 @@ function mapsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
 }
 
+/**
+ * The AR arrow.
+ *
+ * Rotation is a Reanimated shared value on the UI thread, so the arrow stays
+ * smooth while the camera preview, a location watcher and a route fetch are all
+ * live — and React never re-renders for a heading change.
+ *
+ * `unwrap` is the important detail: heading is modular, so springing directly
+ * from 359° to 1° would rotate 358° the long way round. We accumulate an
+ * unwrapped angle instead, always taking the shorter arc.
+ */
+function ArArrow({ turn, arrived }: { turn: number; arrived: boolean }) {
+  const theme = useTheme<Theme>()
+  const rotation = useSharedValue(turn)
+  const unwrapped = useRef(turn)
+
+  useEffect(() => {
+    const delta = ((turn - unwrapped.current + 540) % 360) - 180
+    unwrapped.current += delta
+    rotation.value = withSpring(unwrapped.current, SPRING_SENSOR)
+  }, [turn, rotation])
+
+  const arrowStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }))
+
+  return (
+    <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center" pointerEvents="none">
+      <Pulse enabled={!arrived}>
+        <Box
+          width={140}
+          height={140}
+          borderRadius="pill"
+          borderWidth={2}
+          borderColor={arrived ? "success" : "brand500"}
+          alignItems="center"
+          justifyContent="center"
+          style={{
+            backgroundColor: arrived ? "rgba(22,163,74,0.16)" : "rgba(8,145,178,0.14)",
+          }}
+        >
+          {arrived ? (
+            <Icon name="check_circle" size={76} color={theme.colors.success} />
+          ) : (
+            <Animated.View style={arrowStyle}>
+              <Icon name="navigation" size={76} color={theme.colors.brand500} />
+            </Animated.View>
+          )}
+        </Box>
+      </Pulse>
+    </Box>
+  )
+}
+
 export default function DirectoryScreen() {
-  const theme = useTheme()
+  const theme = useTheme<Theme>()
   const { data, isLoading } = useDestinations()
+  const { demo } = useDemo()
   const [cameraPermission, requestCameraPermission] = useCameraPermissions()
 
   const [introSeen, setIntroSeen] = useState<boolean | null>(null)
@@ -63,9 +135,38 @@ export default function DirectoryScreen() {
 
   const ready = introSeen === true
 
+  /**
+   * Demo Mode: replay a scripted walk instead of reading the sensors.
+   *
+   * A judging room has poor GPS and many tablets report no compass at all, so
+   * without this the flagship AR feature cannot be demonstrated where it is
+   * actually being judged. The track advances every 1.1s and loops.
+   */
+  useEffect(() => {
+    if (!ready || !demo) return
+    let step = 0
+    const tick = () => {
+      const point = DEMO_TRACK[step % DEMO_TRACK.length]
+      setPosition({ ...point, accuracy: 4 })
+      setHeading(demoHeadingAt(step))
+      // Clearing the denial flag belongs with the first scripted fix, not as a
+      // synchronous effect-body setState (which would cascade a render).
+      setLocationDenied(false)
+      step += 1
+    }
+    const id = setInterval(tick, 1100)
+    // Prime the first point on the next tick so the effect body stays free of
+    // synchronous state updates.
+    const priming = setTimeout(tick, 0)
+    return () => {
+      clearInterval(id)
+      clearTimeout(priming)
+    }
+  }, [ready, demo])
+
   // Location + compass, only after the intro is dismissed.
   useEffect(() => {
-    if (!ready) return
+    if (!ready || demo) return
     let positionSub: Location.LocationSubscription | null = null
     let headingSub: Location.LocationSubscription | null = null
     let active = true
@@ -106,7 +207,7 @@ export default function DirectoryScreen() {
       positionSub?.remove()
       headingSub?.remove()
     }
-  }, [ready])
+  }, [ready, demo])
 
   const destinations = useMemo(() => data?.destinations ?? [], [data?.destinations])
 
@@ -122,11 +223,29 @@ export default function DirectoryScreen() {
     return list
   }, [destinations, group, nearestFirst, position])
 
-  const target = selected ?? destinations[0] ?? null
-  const targetPoint = useMemo(
-    () => (target ? { latitude: target.latitude, longitude: target.longitude } : null),
-    [target]
-  )
+  /**
+   * Auto-target the *nearest* destination, not an arbitrary `destinations[0]`.
+   * Previously the arrow silently pointed at whatever the API happened to return
+   * first, which looked like a bug to anyone standing next to a different block.
+   */
+  const nearest = useMemo(() => {
+    if (!position || destinations.length === 0) return null
+    return [...destinations].sort(
+      (a, b) =>
+        haversineMeters(position, { latitude: a.latitude, longitude: a.longitude }) -
+        haversineMeters(position, { latitude: b.latitude, longitude: b.longitude })
+    )[0]
+  }, [destinations, position])
+
+  const target = selected ?? nearest ?? destinations[0] ?? null
+  const autoTargeted = !selected && target != null
+
+  const targetPoint = useMemo(() => {
+    // In Demo Mode the scripted track walks towards a fixed point, so the arrow,
+    // distance and route all stay coherent with the replayed GPS.
+    if (demo) return DEMO_DESTINATION
+    return target ? { latitude: target.latitude, longitude: target.longitude } : null
+  }, [target, demo])
   const straightMeters = position && targetPoint ? haversineMeters(position, targetPoint) : null
   const routingApplicable = Boolean(
     target && !target.indoor && position && straightMeters != null && straightMeters > ROUTING_MIN_M
@@ -175,17 +294,78 @@ export default function DirectoryScreen() {
   if (isLoading || introSeen === null) return <LoadingScreen label="Loading the directory…" />
 
   if (!ready) {
+    /**
+     * Intro. Rebuilt from a wall of plain text into a visual explainer that
+     * (a) shows what the feature does, and (b) explains all three permissions
+     * in one place before requesting any of them — previously camera was
+     * requested by a button while location auto-requested on mount, so a user
+     * met unexplained system dialogs back to back.
+     */
     return (
-      <Screen scroll edges={[]}>
+      <Screen scroll edges={["top"]}>
         <Box paddingTop="l" gap="l">
-          <Text variant="heading">AR Directory</Text>
+          <Box flexDirection="row" alignItems="center" gap="s">
+            <Box
+              width={52}
+              height={52}
+              borderRadius="card"
+              backgroundColor="brand50"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <Icon name="view_in_ar" size={28} color={theme.colors.brand600} />
+            </Box>
+            <Box flex={1}>
+              <Text variant="title">AR Wayfinder</Text>
+              <Box flexDirection="row" marginTop="xs">
+                <AiBadge label="LIVE AR" />
+              </Box>
+            </Box>
+          </Box>
+
           <Text variant="body">
-            Point your phone at the world and follow an arrow to any KIZ destination. The app uses
-            your camera, location and compass — nothing leaves your device.
+            Hold up your phone and follow a live arrow to any block, office or facility at KIZ —
+            with real walking distance and turn-by-turn hints.
           </Text>
+
+          <Box gap="s">
+            {[
+              { icon: "photo_camera", title: "Camera", body: "Shows the world behind the arrow." },
+              { icon: "my_location", title: "Location", body: "Measures how far you still have to walk." },
+              { icon: "explore", title: "Compass", body: "Points the arrow as you turn." },
+            ].map((row) => (
+              <Box
+                key={row.title}
+                flexDirection="row"
+                alignItems="center"
+                gap="m"
+                padding="m"
+                borderRadius="card"
+                borderWidth={1}
+                borderColor="border"
+                backgroundColor="surface"
+              >
+                <Icon name={row.icon} size={20} color={theme.colors.brand600} />
+                <Box flex={1}>
+                  <Text variant="bodyStrong">{row.title}</Text>
+                  <Text variant="caption">{row.body}</Text>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+
+          <Text variant="caption">
+            Your location is used on-device for the arrow and distance only — it is never stored or
+            shared.
+          </Text>
+
           <KButton
-            label="Get started"
+            label="Start AR Wayfinder"
+            icon="view_in_ar"
             onPress={() => {
+              // Request camera up front so the user faces one grouped prompt
+              // sequence rather than a surprise dialog mid-navigation.
+              void requestCameraPermission()
               AsyncStorage.setItem(INTRO_KEY, "1")
               setIntroSeen(true)
             }}
@@ -216,15 +396,27 @@ export default function DirectoryScreen() {
           {/* Top info card */}
           {target ? (
             <Box position="absolute" top={12} left={12} right={12}>
-              <Box backgroundColor="surface" borderRadius="cardLg" padding="m">
+              <Box
+                backgroundColor="surface"
+                borderRadius="cardLg"
+                padding="m"
+                style={{
+                  shadowColor: "#000",
+                  shadowOpacity: 0.18,
+                  shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 5,
+                }}
+              >
                 <Box flexDirection="row" alignItems="center" gap="s">
                   <StatusChip label={typeLabel(target.type)} tone="brand" icon={typeIcon(target.type)} />
-                  <Text variant="caption" style={{ marginLeft: "auto" }}>
+                  {heading != null && position ? <LiveDot label="TRACKING" /> : null}
+                  <Text variant="caption" style={{ marginLeft: "auto", fontWeight: "700" }}>
                     {meters != null ? formatDistanceMeters(meters) : "Locating…"}
                   </Text>
                 </Box>
                 <Text variant="subheading" marginTop="s" numberOfLines={1}>
-                  {target.name}
+                  {autoTargeted ? `Nearest: ${target.name}` : target.name}
                 </Text>
                 {arrived ? (
                   <Text variant="caption" marginTop="xs" style={{ color: theme.colors.successInk }}>
@@ -244,24 +436,7 @@ export default function DirectoryScreen() {
           ) : null}
 
           {/* Arrow */}
-          {turn != null ? (
-            <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-              <Box
-                width={132}
-                height={132}
-                borderRadius="pill"
-                borderWidth={2}
-                borderColor="brand500"
-                alignItems="center"
-                justifyContent="center"
-                style={{ opacity: 0.9 }}
-              >
-                <Box style={{ transform: [{ rotate: `${turn}deg` }] }}>
-                  <Icon name="navigation" size={72} color={theme.colors.brand600} />
-                </Box>
-              </Box>
-            </Box>
-          ) : null}
+          {turn != null ? <ArArrow turn={turn} arrived={arrived} /> : null}
 
           {/* Minimap radar */}
           <Box position="absolute" bottom={16} right={16}>
@@ -274,26 +449,46 @@ export default function DirectoryScreen() {
             />
           </Box>
 
-          {/* Fallback / permission row */}
-          {!cameraOn || heading == null || locationDenied ? (
+          {/*
+            One consolidated status card instead of up to three stacked warning
+            boxes, which could overflow the strip on a small phone. Highest
+            priority message wins.
+          */}
+          {!cameraOn || locationDenied || heading == null ? (
             <Box position="absolute" bottom={16} left={12} right={148} gap="s">
               {!cameraOn ? (
-                <KButton label="Enable camera view" icon="photo_camera" onPress={requestCameraPermission} />
-              ) : null}
-              {locationDenied ? (
-                <Box backgroundColor="warningSoft" borderRadius="input" padding="m">
-                  <Text variant="caption" style={{ color: theme.colors.warningInk }}>
-                    Location is off — allow it in Settings for live distance and direction.
+                <KButton
+                  label="Turn on camera view"
+                  icon="photo_camera"
+                  onPress={() => void requestCameraPermission()}
+                />
+              ) : locationDenied ? (
+                <Box backgroundColor="warningSoft" borderRadius="card" padding="m" gap="s">
+                  <Text variant="caption" style={{ color: theme.colors.warningInk, fontWeight: "600" }}>
+                    Location is off — allow it in Settings for live distance.
+                  </Text>
+                  <KButton
+                    label="Open Settings"
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => void Linking.openSettings().catch(() => {})}
+                  />
+                </Box>
+              ) : (
+                <Box
+                  flexDirection="row"
+                  alignItems="center"
+                  gap="s"
+                  backgroundColor="surface"
+                  borderRadius="card"
+                  padding="m"
+                >
+                  <Icon name="compass_calibration" size={18} color={theme.colors.brand600} />
+                  <Text variant="caption" style={{ flex: 1 }}>
+                    Calibrating compass — move the phone in a figure-eight.
                   </Text>
                 </Box>
-              ) : null}
-              {heading == null && !locationDenied ? (
-                <Box backgroundColor="surface" borderRadius="input" padding="m">
-                  <Text variant="caption">
-                    Waiting for the compass… wave the phone in a figure-eight to calibrate.
-                  </Text>
-                </Box>
-              ) : null}
+              )}
             </Box>
           ) : null}
         </Box>
@@ -305,52 +500,37 @@ export default function DirectoryScreen() {
               DESTINATION
             </Text>
             {target ? (
-              <Pressable onPress={() => Linking.openURL(mapsUrl(target.latitude, target.longitude))}>
-                <Text variant="caption" style={{ color: theme.colors.brand700 }}>
-                  Google Maps
-                </Text>
-              </Pressable>
+              <PressScale
+                onPress={() => Linking.openURL(mapsUrl(target.latitude, target.longitude)).catch(() => {})}
+                haptic={false}
+                accessibilityRole="button"
+                accessibilityLabel="Open in Google Maps"
+              >
+                <Box minHeight={44} justifyContent="center" paddingHorizontal="xs">
+                  <Text variant="caption" style={{ color: theme.colors.brand700, fontWeight: "600" }}>
+                    Google Maps
+                  </Text>
+                </Box>
+              </PressScale>
             ) : null}
           </Box>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <Box flexDirection="row" gap="s">
-              {(["all", "blocks", "facilities", "places"] as Group[]).map((g) => {
-                const active = g === group
-                return (
-                  <Pressable key={g} onPress={() => setGroup(g)}>
-                    <Box
-                      paddingHorizontal="m"
-                      paddingVertical="s"
-                      borderRadius="pill"
-                      borderWidth={1}
-                      borderColor={active ? "brand600" : "border"}
-                      backgroundColor={active ? "brand50" : "surface"}
-                    >
-                      <Text
-                        variant="caption"
-                        style={{ color: active ? theme.colors.brand700 : theme.colors.ink500, textTransform: "capitalize" }}
-                      >
-                        {g}
-                      </Text>
-                    </Box>
-                  </Pressable>
-                )
-              })}
-              <Pressable onPress={() => setNearestFirst((v) => !v)}>
-                <Box
-                  paddingHorizontal="m"
-                  paddingVertical="s"
-                  borderRadius="pill"
-                  borderWidth={1}
-                  borderColor={nearestFirst ? "brand600" : "border"}
-                  backgroundColor={nearestFirst ? "brand50" : "surface"}
-                >
-                  <Text variant="caption" style={{ color: nearestFirst ? theme.colors.brand700 : theme.colors.ink500 }}>
-                    Nearest first
-                  </Text>
-                </Box>
-              </Pressable>
+              {(["all", "blocks", "facilities", "places"] as Group[]).map((g) => (
+                <KPill
+                  key={g}
+                  label={g.charAt(0).toUpperCase() + g.slice(1)}
+                  selected={g === group}
+                  onPress={() => setGroup(g)}
+                />
+              ))}
+              <KPill
+                label="Nearest first"
+                icon="near_me"
+                selected={nearestFirst}
+                onPress={() => setNearestFirst((v) => !v)}
+              />
             </Box>
           </ScrollView>
 
@@ -365,7 +545,14 @@ export default function DirectoryScreen() {
                     ? formatDistanceMeters(haversineMeters(position, { latitude: d.latitude, longitude: d.longitude }))
                     : null
                   return (
-                    <Pressable key={d.id} onPress={() => setSelected(d)}>
+                    <PressScale
+                      key={d.id}
+                      onPress={() => setSelected(d)}
+                      scaleTo={0.95}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Navigate to ${d.name}${dist ? `, ${dist} away` : ""}`}
+                      accessibilityState={{ selected: active }}
+                    >
                       <Box
                         width={160}
                         borderRadius="card"
@@ -382,7 +569,7 @@ export default function DirectoryScreen() {
                           {dist ?? typeLabel(d.type)}
                         </Text>
                       </Box>
-                    </Pressable>
+                    </PressScale>
                   )
                 })}
               </Box>
@@ -414,13 +601,16 @@ export default function DirectoryScreen() {
               {target?.name ?? "Map"}
             </Text>
             {target ? (
-              <Pressable onPress={() => Linking.openURL(mapsUrl(target.latitude, target.longitude))}>
-                <Text variant="caption" style={{ color: theme.colors.brand700 }}>
-                  Directions
-                </Text>
-              </Pressable>
+              <KButton
+                label="Directions"
+                icon="directions"
+                variant="secondary"
+                size="sm"
+                fullWidth={false}
+                onPress={() => Linking.openURL(mapsUrl(target.latitude, target.longitude)).catch(() => {})}
+              />
             ) : null}
-            <KButton label="Close" variant="secondary" onPress={() => setMapOpen(false)} fullWidth={false} />
+            <KButton label="Close" variant="secondary" size="sm" onPress={() => setMapOpen(false)} fullWidth={false} />
           </Box>
         </Box>
       </Modal>

@@ -506,6 +506,21 @@ export interface AdminGHBooking {
   createdAt: string
 }
 
+export interface NotificationItem {
+  id: string
+  title: string
+  body: string
+  link: string | null
+  /** KL-formatted label from the server, e.g. "24 Sep 2026, 3:12 PM". */
+  createdAt: string
+  read: boolean
+}
+
+export interface NotificationsData {
+  notifications: NotificationItem[]
+  unreadCount: number
+}
+
 export interface AdminCheckInData {
   sessions: {
     id: string

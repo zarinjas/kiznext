@@ -102,6 +102,31 @@ const GLYPHS: Record<string, Glyph> = {
   fingerprint: "fingerprint",
   volume_up: "volume-up",
   account_balance_wallet: "account-balance-wallet",
+  notifications_none: "notifications-none",
+  notifications_active: "notifications-active",
+  auto_awesome_motion: "auto-awesome-motion",
+  bolt: "bolt",
+  wifi_off: "wifi-off",
+  location_on: "location-on",
+  visibility: "visibility",
+  brightness_high: "brightness-6",
+  flash_on: "flash-on",
+  flash_off: "flash-off",
+  center_focus_strong: "center-focus-strong",
+  delete: "delete",
+  warning: "warning",
+  schedule: "schedule",
+  today: "today",
+  groups: "groups",
+  local_cafe: "local-cafe",
+  fitness_center: "fitness-center",
+  print: "print",
+  download: "download",
+  share: "share",
+  more_vert: "more-vert",
+  arrow_back: "arrow-back",
+  expand_more: "expand-more",
+  expand_less: "expand-less",
 }
 
 export interface IconProps {
@@ -110,7 +135,21 @@ export interface IconProps {
   color?: ColorValue
 }
 
+const warned = new Set<string>()
+
 export function Icon({ name, size = 22, color }: IconProps) {
-  const glyph = GLYPHS[name] ?? "circle"
+  const glyph = GLYPHS[name]
+
+  if (!glyph) {
+    // An unmapped name silently rendered a neutral circle, so typos and new
+    // glyphs shipped unnoticed. Warn once per name in development; production
+    // still degrades gracefully rather than crashing.
+    if (__DEV__ && !warned.has(name)) {
+      warned.add(name)
+      console.warn(`[Icon] "${name}" is not in the Material Symbols → MaterialIcons map (ui/icon.tsx).`)
+    }
+    return <MaterialIcons name="help-outline" size={size} color={color} />
+  }
+
   return <MaterialIcons name={glyph} size={size} color={color} />
 }

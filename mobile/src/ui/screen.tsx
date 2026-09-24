@@ -1,8 +1,19 @@
 import { ActivityIndicator, ScrollView, RefreshControl, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { Edge } from "react-native-safe-area-context"
-import { Box, Text } from "./theme"
 
+import { useLayout } from "@/lib/responsive"
+import { Box, Text, theme } from "./theme"
+
+/**
+ * The standard page wrapper.
+ *
+ * On tablets, padded content is centred and capped at a comfortable measure
+ * (`useLayout().contentMaxWidth`) rather than stretching across 1024pt — this
+ * single change is what makes the whole app look designed for iPad. Screens
+ * that own the full viewport (camera, maps, chat) opt out with `padded={false}`
+ * and handle their own layout.
+ */
 export function Screen({
   children,
   scroll = false,
@@ -10,6 +21,8 @@ export function Screen({
   onRefresh,
   padded = true,
   edges = ["top"],
+  /** Set false to keep padded content full-bleed on tablet (e.g. wide grids). */
+  constrain = true,
 }: {
   children: React.ReactNode
   scroll?: boolean
@@ -17,8 +30,18 @@ export function Screen({
   onRefresh?: () => void
   padded?: boolean
   edges?: Edge[]
+  constrain?: boolean
 }) {
-  const content = padded ? <Box paddingHorizontal="l">{children}</Box> : children
+  const { contentMaxWidth, gutter } = useLayout()
+  const maxWidth = constrain ? contentMaxWidth : undefined
+
+  const content = padded ? (
+    <Box paddingHorizontal={undefined} style={{ paddingHorizontal: gutter, width: "100%", maxWidth, alignSelf: "center" }}>
+      {children}
+    </Box>
+  ) : (
+    children
+  )
 
   return (
     <SafeAreaView style={styles.flex} edges={edges}>
@@ -28,7 +51,12 @@ export function Screen({
           keyboardShouldPersistTaps="handled"
           refreshControl={
             onRefresh ? (
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0891B2" />
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.brand600}
+                colors={[theme.colors.brand600]}
+              />
             ) : undefined
           }
         >
@@ -44,7 +72,7 @@ export function Screen({
 export function LoadingScreen({ label = "Loading…" }: { label?: string }) {
   return (
     <Box flex={1} alignItems="center" justifyContent="center" backgroundColor="canvas">
-      <ActivityIndicator color="#0891B2" />
+      <ActivityIndicator color={theme.colors.brand600} />
       <Box height={12} />
       <Text variant="caption">{label}</Text>
     </Box>
@@ -52,6 +80,6 @@ export function LoadingScreen({ label = "Loading…" }: { label?: string }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#FFFFFF" },
+  flex: { flex: 1, backgroundColor: theme.colors.canvas },
   scrollContent: { paddingBottom: 40 },
 })

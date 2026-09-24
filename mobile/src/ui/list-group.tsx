@@ -1,8 +1,8 @@
 import { useTheme } from "@shopify/restyle"
 import { Children } from "react"
-import { Pressable } from "react-native"
 import { Box, Text, type Theme } from "./theme"
 import { Icon } from "./icon"
+import { PressScale } from "./motion"
 
 /**
  * ListGroup / ListRow — the single row language for the whole app, mirroring the
@@ -12,18 +12,22 @@ import { Icon } from "./icon"
 
 export function ListGroup({
   title,
+  titleAccessory,
   children,
 }: {
   title?: string
+  /** Rendered beside the group title — e.g. an `AiBadge` on the AI & AR group. */
+  titleAccessory?: React.ReactNode
   children: React.ReactNode
 }) {
   const items = Children.toArray(children)
   return (
     <Box>
       {title ? (
-        <Text variant="label" marginBottom="s" marginLeft="xs">
-          {title.toUpperCase()}
-        </Text>
+        <Box flexDirection="row" alignItems="center" gap="s" marginBottom="s" marginLeft="xs">
+          <Text variant="label">{title.toUpperCase()}</Text>
+          {titleAccessory}
+        </Box>
       ) : null}
       <Box
         borderRadius="cardLg"
@@ -107,12 +111,13 @@ export function ListRow({
   if (!onPress) return body
 
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
-      android_ripple={{ color: theme.colors.canvasSunk }}
-      style={({ pressed }) => (pressed ? { backgroundColor: theme.colors.canvasSunk } : undefined)}
+      scaleTo={0.99}
+      accessibilityRole="button"
+      accessibilityLabel={typeof title === "string" ? title : undefined}
     >
       {body}
-    </Pressable>
+    </PressScale>
   )
 }

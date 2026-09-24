@@ -7,6 +7,7 @@ import { getAppLogoUrl } from "@/lib/settings"
 import { getAiConfig } from "@/lib/ai/config"
 import { getBilikWindowState } from "@/lib/bilik"
 import { autoUpgradePendingUser } from "@/lib/registration"
+import { listNotificationsForUser, unreadCountForUser } from "@/lib/notifications"
 import type { AccountStatus, Role } from "@/lib/rbac"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const [logoUrl, bilikState, ai] = await Promise.all([getAppLogoUrl(), getBilikWindowState(), getAiConfig()])
   const bilikOpen = bilikState === "open" || bilikState === "closing_soon"
 
+  const [notifications, notificationCount] = await Promise.all([
+    listNotificationsForUser(session.user.id, 15),
+    unreadCountForUser(session.user.id),
+  ])
+
   return (
     <>
       <AppShell
@@ -40,6 +46,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         userName={name}
         logoUrl={logoUrl}
         bilikOpen={bilikOpen}
+        notifications={notifications}
+        notificationCount={notificationCount}
         aiEnabled={ai.enabled}
         conciergeName={ai.conciergeName}
         conciergeAvatarUrl={ai.avatarUrl}

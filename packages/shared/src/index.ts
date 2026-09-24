@@ -5,6 +5,7 @@
  */
 
 export * from "./timezone"
+export * from "./institution"
 export * from "./rbac"
 export * from "./matric"
 export * from "./announcement-meta"

@@ -30,6 +30,13 @@ export const LAUNDRY_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"
 /** Analytics / reports — admins and the principal (read-only). */
 export const REPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
+/**
+ * Broadcast push notifications — admins plus the principal. The deputy
+ * principal shares the `pengetua` role (only `position` differs), so this
+ * covers both offices.
+ */
+export const NOTIFICATION_SEND_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
+
 /** Self-service registration lifecycle. See `prisma/schema.prisma` `AccountStatus`. */
 export type AccountStatus = "unverified" | "pending" | "active";
 

@@ -1,32 +1,108 @@
+import { COLLEGE_NAME, formatWallClockTime, nowHhmmMalaysia } from "@kiz/shared"
 import { Image } from "expo-image"
 import { router, type Href } from "expo-router"
 import { useTheme } from "@shopify/restyle"
-import { Linking, Pressable, StyleSheet, View } from "react-native"
+import { Linking, StyleSheet, View } from "react-native"
 
 import { GradientBg } from "@/components/gradient"
 import { useAuth } from "@/lib/auth-context"
-import { API_BASE_URL, absoluteUrl } from "@/lib/config"
+import { absoluteUrl } from "@/lib/config"
+import { useDemo } from "@/lib/demo"
 import { useHome } from "@/lib/hooks"
+import { useLayout } from "@/lib/responsive"
 import type { HomeTodo, ResidentHome } from "@/lib/types"
-import { LoadingScreen, Screen, Text, type Theme } from "@/ui"
+import {
+  AiBadge,
+  FadeInUp,
+  LiveDot,
+  PressScale,
+  Pulse,
+  Screen,
+  Skeleton,
+  Text,
+  type Theme,
+} from "@/ui"
 import { Icon } from "@/ui/icon"
 
-const LOGO_URL = `${API_BASE_URL}/api/app-icon?size=192`
+const LOGO = require("../../../../assets/images/logo-mark.png")
 
-const QUICK_ACTIONS: { label: string; icon: string; path: Href; bg: string; ink: string }[] = [
-  { label: "AR Directory", icon: "view_in_ar", path: "/direktori", bg: "#E7F5FF", ink: "#1684B8" },
-  { label: "SOS", icon: "sos", path: "/sos", bg: "#FFECEC", ink: "#E44747" },
-  { label: "Translate", icon: "translate", path: "/ar-terjemah", bg: "#F0EBFF", ink: "#7758D6" },
-  { label: "Laundry", icon: "local_laundry_service", path: "/laundry", bg: "#E8F8F4", ink: "#178D77" },
-  { label: "Room Selection", icon: "bedroom_parent", path: "/bilik", bg: "#FFF2E5", ink: "#D9781D" },
-  { label: "Check-In/Out", icon: "how_to_reg", path: "/checkin", bg: "#EAF0FF", ink: "#4F6FD8" },
-  { label: "Facilities", icon: "meeting_room", path: "/tempahan-fasiliti", bg: "#E8F8FA", ink: "#008FA8" },
-  { label: "Digital Guide", icon: "menu_book", path: "/panduan", bg: "#FCECF4", ink: "#C34C83" },
+/**
+ * The three flagship AI/AR surfaces, promoted out of the utility grid.
+ *
+ * These were previously three of eight identical 56px circles, indistinguishable
+ * from "Laundry" — which meant the work most worth showing was the work least
+ * likely to be found. They now get their own titled section above Quick Access,
+ * with large cards, gradient treatment and an explicit AI/AR badge.
+ */
+const SHOWCASE = [
+  {
+    key: "lens",
+    label: "KIZ Lens",
+    tagline: "Point at any sign — read it in your language",
+    icon: "translate",
+    path: "/ar-terjemah" as Href,
+    gradient: ["#4C3FAF", "#6F5BE0", "#A99EF5"],
+    badge: "AI VISION",
+  },
+  {
+    key: "wayfinder",
+    label: "AR Wayfinder",
+    tagline: "Follow a live arrow to any block",
+    icon: "view_in_ar",
+    path: "/direktori" as Href,
+    gradient: ["#0E5E8A", "#0891B2", "#22D3EE"],
+    badge: "LIVE AR",
+  },
+] as const
+
+/** Secondary utilities. Ordered adaptively — see `orderedActions`. */
+const QUICK_ACTIONS: {
+  key: string
+  label: string
+  icon: string
+  path: Href
+  bg: string
+  ink: string
+}[] = [
+  { key: "laundry", label: "Laundry", icon: "local_laundry_service", path: "/laundry", bg: "#E8F8F4", ink: "#178D77" },
+  { key: "checkin", label: "Check-In/Out", icon: "how_to_reg", path: "/checkin", bg: "#EAF0FF", ink: "#4F6FD8" },
+  { key: "room", label: "Room Selection", icon: "bedroom_parent", path: "/bilik", bg: "#FFF2E5", ink: "#D9781D" },
+  { key: "facilities", label: "Facilities", icon: "meeting_room", path: "/tempahan-fasiliti", bg: "#E8F8FA", ink: "#008FA8" },
+  { key: "guide", label: "Digital Guide", icon: "menu_book", path: "/panduan", bg: "#FCECF4", ink: "#C34C83" },
+  { key: "helpdesk", label: "Helpdesk", icon: "support_agent", path: "/helpdesk", bg: "#EEF2FF", ink: "#5B5BD6" },
+  { key: "lost", label: "Lost & Found", icon: "search", path: "/hilang", bg: "#F3F0FF", ink: "#7758D6" },
+  { key: "sos", label: "SOS", icon: "sos", path: "/sos", bg: "#FFECEC", ink: "#E44747" },
 ]
 
-function greeting() {
-  const hour = new Date().getHours()
+function greeting(): string {
+  // Greeting follows Malaysia time, not the device clock — an international
+  // resident on a home timezone was being told "good evening" at 9am in KL.
+  const hour = Number(nowHhmmMalaysia().slice(0, 2))
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+}
+
+/**
+ * Reorder the utility grid by what actually matters right now.
+ *
+ * Rule-based rather than model-based, and deliberately so: it is honest,
+ * instant, and needs no network. A dashboard that visibly reacts to a running
+ * laundry timer or an open room-selection window reads as attentive, where a
+ * static hardcoded array reads as a feature list.
+ */
+function orderedActions(home: ResidentHome | null): typeof QUICK_ACTIONS {
+  if (!home) return QUICK_ACTIONS
+
+  const weight = (key: string): number => {
+    if (key === "laundry" && home.laundry) return -100
+    if (key === "room" && home.todos.some((t) => t.id === "room" && !t.done)) return -90
+    if (key === "checkin" && !home.checkInStatus) return -80
+    if (key === "helpdesk" && home.helpdesk) return -70
+    // After 10pm local, put SOS within immediate reach.
+    if (key === "sos" && Number(nowHhmmMalaysia().slice(0, 2)) >= 22) return -60
+    return 0
+  }
+
+  return [...QUICK_ACTIONS].sort((a, b) => weight(a.key) - weight(b.key))
 }
 
 function todoHref(id: HomeTodo["id"]): Href {
@@ -37,45 +113,54 @@ function todoHref(id: HomeTodo["id"]): Href {
 
 function HeaderButton({ icon, label, path }: { icon: string; label: string; path: Href }) {
   return (
-    <Pressable
+    <PressScale
+      onPress={() => router.push(path)}
+      scaleTo={0.9}
       accessibilityRole="button"
       accessibilityLabel={label}
-      onPress={() => router.push(path)}
-      style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+      style={styles.headerButton}
     >
       <Icon name={icon} size={20} color="#FFFFFF" />
-    </Pressable>
+    </PressScale>
   )
 }
 
-function Hero({ backgroundUrl }: { backgroundUrl: string | null }) {
+function Hero({ backgroundUrl, home }: { backgroundUrl: string | null; home: ResidentHome | null }) {
   const { user } = useAuth()
+  const { demo } = useDemo()
   if (!user) return null
   const avatar = absoluteUrl(user.avatarUrl)
   const background = absoluteUrl(backgroundUrl)
+
+  // Surface actionable state instead of the email the user already knows.
+  const room = home?.room
+  const roomLine = room
+    ? `Block ${room.blockName} · Room ${room.roomNumber}${room.bed ? ` · ${room.bed}` : ""}`
+    : null
 
   return (
     <View style={styles.hero}>
       {background ? (
         <Image source={{ uri: background }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />
       ) : (
-        <GradientBg id="mobile-home-hero" colors={["#006D91", "#0097C9", "#5BD1E2"]} />
+        <GradientBg id="mobile-home-hero" colors={["#0E5E8A", "#0891B2", "#39C2DA"]} />
       )}
       <View style={styles.heroScrim} />
       <View style={styles.heroContent}>
         <View style={styles.heroTop}>
           <View style={styles.brandRow}>
             <View style={styles.logoWrap}>
-              <Image source={{ uri: LOGO_URL }} style={styles.logo} contentFit="contain" />
+              <Image source={LOGO} style={styles.logo} contentFit="contain" />
             </View>
             <View style={styles.brandCopy}>
-              <Text style={styles.brandName}>myKIZ</Text>
-              <Text numberOfLines={1} style={styles.collegeName}>Kolej Ibrahim Yaakub</Text>
+              <Text style={styles.brandName}>MyKIZ</Text>
+              <Text numberOfLines={1} style={styles.collegeName}>{COLLEGE_NAME}</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
+            {demo ? <LiveDot label="DEMO" tone="onDark" /> : null}
             <HeaderButton icon="notifications" label="Notifications" path="/pengumuman" />
-            <HeaderButton icon="settings" label="Settings" path="/profile" />
+            <HeaderButton icon="settings" label="Profile and settings" path="/profile" />
           </View>
         </View>
 
@@ -83,50 +168,182 @@ function Hero({ backgroundUrl }: { backgroundUrl: string | null }) {
           <View style={styles.identityCopy}>
             <Text style={styles.greeting}>{greeting()},</Text>
             <Text numberOfLines={2} style={styles.userName}>{user.name.trim()}</Text>
-            <Text style={styles.matric}>{user.matricId}</Text>
-            {user.email ? <Text numberOfLines={1} style={styles.email}>{user.email}</Text> : null}
+            <View style={styles.heroMetaRow}>
+              <Text style={styles.matric}>{user.matricId}</Text>
+              {home?.checkInStatus ? (
+                <View style={styles.heroChip}>
+                  <Icon name="how_to_reg" size={11} color="#FFFFFF" />
+                  <Text style={styles.heroChipText}>{home.checkInStatus}</Text>
+                </View>
+              ) : null}
+            </View>
+            {roomLine ? (
+              <Text numberOfLines={1} style={styles.roomLine}>{roomLine}</Text>
+            ) : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => router.push("/profile")} style={({ pressed }) => [styles.avatarRing, pressed && styles.pressed]}>
+          <PressScale
+            onPress={() => router.push("/profile")}
+            scaleTo={0.93}
+            accessibilityRole="button"
+            accessibilityLabel="Open profile"
+            style={styles.avatarRing}
+          >
             {avatar ? (
               <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" transition={150} />
             ) : (
-              <View style={styles.avatarFallback}><Text style={styles.avatarInitial}>{user.name.charAt(0).toUpperCase()}</Text></View>
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitial}>{user.name.charAt(0).toUpperCase()}</Text>
+              </View>
             )}
-          </Pressable>
+          </PressScale>
         </View>
       </View>
     </View>
   )
 }
 
-function SectionHeader({ title, action, onPress }: { title: string; action?: string; onPress?: () => void }) {
+function SectionHeader({
+  title,
+  action,
+  onPress,
+  badge,
+}: {
+  title: string
+  action?: string
+  onPress?: () => void
+  badge?: React.ReactNode
+}) {
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {action && onPress ? <Pressable accessibilityRole="button" onPress={onPress} hitSlop={10}><Text style={styles.sectionAction}>{action}</Text></Pressable> : null}
+      <View style={styles.sectionTitleRow}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {badge}
+      </View>
+      {action && onPress ? (
+        <PressScale onPress={onPress} haptic={false} scaleTo={0.94}>
+          <View style={styles.sectionActionHit}>
+            <Text style={styles.sectionAction}>{action}</Text>
+          </View>
+        </PressScale>
+      ) : null}
     </View>
   )
 }
 
-function QuickAccess() {
+/** The promoted AI/AR block. */
+function Showcase() {
+  const { isTablet } = useLayout()
+
+  return (
+    <>
+      <SectionHeader title="AI & AR at KIZ" badge={<AiBadge label="POWERED" />} />
+      <View style={[styles.showcaseRow, isTablet && styles.showcaseRowWide]}>
+        {SHOWCASE.map((item, i) => (
+          <FadeInUp key={item.key} index={i} style={styles.showcaseFlex}>
+            <Pulse enabled={i === 0}>
+              <PressScale
+                onPress={() => router.push(item.path)}
+                scaleTo={0.96}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label}. ${item.tagline}`}
+                style={styles.showcaseCard}
+              >
+                <GradientBg id={`sc-${item.key}`} colors={[...item.gradient]} direction="br" />
+                <View style={styles.showcaseInner}>
+                  <View style={styles.showcaseTop}>
+                    <View style={styles.showcaseGlyph}>
+                      <Icon name={item.icon} size={24} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.showcaseBadge}>
+                      <Icon name="auto_awesome" size={10} color="#FFFFFF" />
+                      <Text style={styles.showcaseBadgeText}>{item.badge}</Text>
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.showcaseTitle}>{item.label}</Text>
+                    <Text numberOfLines={2} style={styles.showcaseTagline}>{item.tagline}</Text>
+                  </View>
+                </View>
+              </PressScale>
+            </Pulse>
+          </FadeInUp>
+        ))}
+      </View>
+
+      {/* KIZ-AI gets an input-shaped affordance, not a link — it invites typing. */}
+      <FadeInUp index={2}>
+        <PressScale
+          onPress={() => router.push("/kiz-ai")}
+          scaleTo={0.98}
+          accessibilityRole="button"
+          accessibilityLabel="Ask KIZ-AI a question"
+          style={styles.askCard}
+        >
+          <View style={styles.askGlyph}>
+            <Icon name="smart_toy" size={20} color="#0E7490" />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.askTitle}>Ask KIZ-AI</Text>
+            <Text numberOfLines={1} style={styles.askHint}>&ldquo;How do I pay my room fee?&rdquo;</Text>
+          </View>
+          <View style={styles.askSend}>
+            <Icon name="send" size={16} color="#FFFFFF" />
+          </View>
+        </PressScale>
+      </FadeInUp>
+    </>
+  )
+}
+
+function QuickAccess({ home }: { home: ResidentHome | null }) {
+  const actions = orderedActions(home)
+
   return (
     <>
       <SectionHeader title="Quick Access" action="See all" onPress={() => router.push("/lagi")} />
       <View style={styles.actionGrid}>
-        {QUICK_ACTIONS.map((action) => (
-          <Pressable
-            key={action.label}
+        {actions.map((action) => (
+          <PressScale
+            key={action.key}
+            onPress={() => router.push(action.path)}
+            scaleTo={0.92}
             accessibilityRole="button"
             accessibilityLabel={action.label}
-            onPress={() => router.push(action.path)}
-            style={({ pressed }) => [styles.quickAction, pressed && styles.quickPressed]}
+            style={styles.quickAction}
           >
-            <View style={[styles.actionIcon, { backgroundColor: action.bg }]}><Icon name={action.icon} size={25} color={action.ink} /></View>
+            <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
+              <Icon name={action.icon} size={25} color={action.ink} />
+            </View>
             <Text numberOfLines={2} style={styles.actionLabel}>{action.label}</Text>
-          </Pressable>
+          </PressScale>
         ))}
       </View>
     </>
+  )
+}
+
+/** Running laundry timer — only rendered when one exists. */
+function LaundryTile({ home }: { home: ResidentHome }) {
+  if (!home.laundry) return null
+  return (
+    <FadeInUp>
+      <PressScale
+        onPress={() => router.push("/laundry")}
+        scaleTo={0.98}
+        accessibilityRole="button"
+        accessibilityLabel={`Laundry running on ${home.laundry.machineName}`}
+        style={styles.laundryCard}
+      >
+        <View style={styles.laundryGlyph}>
+          <Icon name="local_laundry_service" size={22} color="#178D77" />
+        </View>
+        <View style={styles.flex}>
+          <Text style={styles.rowTitle}>{home.laundry.machineName} is running</Text>
+          <Text style={styles.meta}>Reminder ends {formatWallClockTime(home.laundry.endsAt.slice(11, 16))}</Text>
+        </View>
+        <Icon name="chevron_right" size={20} color="#A1A1AA" />
+      </PressScale>
+    </FadeInUp>
   )
 }
 
@@ -136,7 +353,13 @@ function Announcement({ home }: { home: ResidentHome }) {
   return (
     <>
       <SectionHeader title="Announcement" action="View all" onPress={() => router.push("/pengumuman")} />
-      <Pressable accessibilityRole="button" onPress={() => router.push("/pengumuman")} style={({ pressed }) => [styles.card, styles.announcementCard, pressed && styles.pressed]}>
+      <PressScale
+        onPress={() => router.push("/pengumuman")}
+        scaleTo={0.98}
+        accessibilityRole="button"
+        accessibilityLabel={item ? `Announcement: ${item.title}` : "Announcements"}
+        style={StyleSheet.flatten([styles.card, styles.announcementCard])}
+      >
         {item ? (
           <>
             <View style={styles.announcementCopy}>
@@ -144,31 +367,72 @@ function Announcement({ home }: { home: ResidentHome }) {
               <Text numberOfLines={2} style={styles.announcementTitle}>{item.title}</Text>
               <Text numberOfLines={2} style={styles.summary}>{item.content}</Text>
             </View>
-            {thumbnail ? <Image source={{ uri: thumbnail }} style={styles.thumbnail} contentFit="cover" transition={150} /> : <View style={styles.thumbnailFallback}><Icon name="campaign" size={28} color="#0097C9" /></View>}
+            {thumbnail ? (
+              <Image source={{ uri: thumbnail }} style={styles.thumbnail} contentFit="cover" transition={150} />
+            ) : (
+              <View style={styles.thumbnailFallback}><Icon name="campaign" size={28} color="#0891B2" /></View>
+            )}
           </>
         ) : (
-          <View style={styles.emptyRow}><View style={styles.emptyIcon}><Icon name="campaign" size={22} color="#0097C9" /></View><View style={styles.flex}><Text style={styles.rowTitle}>You’re up to date</Text><Text style={styles.summary}>New college announcements will appear here.</Text></View></View>
+          <View style={styles.emptyRow}>
+            <View style={styles.emptyIcon}><Icon name="campaign" size={22} color="#0891B2" /></View>
+            <View style={styles.flex}>
+              <Text style={styles.rowTitle}>You&rsquo;re up to date</Text>
+              <Text style={styles.summary}>New college announcements will appear here.</Text>
+            </View>
+          </View>
         )}
-      </Pressable>
+      </PressScale>
     </>
   )
 }
 
 function ThingsToDo({ home }: { home: ResidentHome }) {
-  const task = home.todos.find((item) => !item.done) ?? home.todos[0]
+  // Show every outstanding task, not just the first — the progress bar was
+  // previously counting tasks the user had no way to see.
+  const pending = home.todos.filter((t) => !t.done)
   const progress = home.todos.length ? home.doneCount / home.todos.length : 1
+
   return (
     <View style={[styles.card, styles.dashboardCard]}>
-      <View style={styles.cardHeading}><Icon name="task_alt" size={20} color="#0097C9" /><Text style={styles.cardTitle}>Things To Do</Text></View>
-      <View style={styles.progressLabels}><Text style={styles.meta}>Your progress</Text><Text style={styles.progressCount}>{home.doneCount}/{home.todos.length}</Text></View>
-      <View style={styles.progressTrack}><View style={[styles.progressBar, { width: `${progress * 100}%` }]} /></View>
-      {task ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push(todoHref(task.id))} style={({ pressed }) => [styles.taskRow, pressed && styles.pressed]}>
-          <View style={[styles.smallIcon, task.done && styles.doneIcon]}><Icon name={task.done ? "check" : "arrow_forward"} size={18} color={task.done ? "#16A34A" : "#0097C9"} /></View>
-          <View style={styles.flex}><Text numberOfLines={1} style={styles.rowTitle}>{task.title}</Text><Text numberOfLines={1} style={styles.meta}>{task.done ? "Completed" : task.dueLabel ?? task.ctaLabel}</Text></View>
-          <Icon name="chevron_right" size={20} color="#A1A1AA" />
-        </Pressable>
-      ) : <Text style={[styles.summary, styles.cardEmpty]}>You’re all caught up.</Text>}
+      <View style={styles.cardHeading}>
+        <Icon name="task_alt" size={20} color="#0891B2" />
+        <Text style={styles.cardTitle}>Things To Do</Text>
+      </View>
+      <View style={styles.progressLabels}>
+        <Text style={styles.meta}>Your progress</Text>
+        <Text style={styles.progressCount}>{home.doneCount}/{home.todos.length}</Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressBar, { width: `${Math.round(progress * 100)}%` }]} />
+      </View>
+
+      {pending.length === 0 ? (
+        <View style={styles.allDone}>
+          <Icon name="check_circle" size={18} color="#15803D" />
+          <Text style={styles.allDoneText}>You&rsquo;re all caught up.</Text>
+        </View>
+      ) : (
+        pending.map((task) => (
+          <PressScale
+            key={task.id}
+            onPress={() => router.push(todoHref(task.id))}
+            scaleTo={0.98}
+            accessibilityRole="button"
+            accessibilityLabel={task.title}
+            style={styles.taskRow}
+          >
+            <View style={styles.smallIcon}>
+              <Icon name="arrow_forward" size={18} color="#0891B2" />
+            </View>
+            <View style={styles.flex}>
+              <Text numberOfLines={1} style={styles.rowTitle}>{task.title}</Text>
+              <Text numberOfLines={1} style={styles.meta}>{task.dueLabel ?? task.ctaLabel}</Text>
+            </View>
+            <Icon name="chevron_right" size={20} color="#A1A1AA" />
+          </PressScale>
+        ))
+      )}
     </View>
   )
 }
@@ -176,14 +440,32 @@ function ThingsToDo({ home }: { home: ResidentHome }) {
 function Helpdesk({ home }: { home: ResidentHome }) {
   return (
     <View style={[styles.card, styles.dashboardCard]}>
-      <View style={styles.cardHeading}><Icon name="support_agent" size={20} color="#0097C9" /><Text style={styles.cardTitle}>My Helpdesk</Text></View>
+      <View style={styles.cardHeading}>
+        <Icon name="support_agent" size={20} color="#0891B2" />
+        <Text style={styles.cardTitle}>My Helpdesk</Text>
+        {home.officeOpen ? <LiveDot label="OPEN" /> : null}
+      </View>
       <View style={styles.helpdeskRow}>
-        <View style={styles.ticketIcon}><Icon name="assignment" size={20} color="#0097C9" /></View>
+        <View style={styles.ticketIcon}><Icon name="assignment" size={20} color="#0891B2" /></View>
         <View style={styles.flex}>
-          <Text numberOfLines={1} style={styles.rowTitle}>{home.helpdesk?.subject ?? "No active tickets"}</Text>
-          <Text numberOfLines={1} style={styles.meta}>{home.helpdesk ? `#${home.helpdesk.displayId} · ${home.helpdesk.updatedWhen}` : "Need assistance? We’re here."}</Text>
+          <Text numberOfLines={1} style={styles.rowTitle}>
+            {home.helpdesk?.subject ?? "No active tickets"}
+          </Text>
+          <Text numberOfLines={1} style={styles.meta}>
+            {home.helpdesk
+              ? `#${home.helpdesk.displayId} · ${home.helpdesk.updatedWhen}`
+              : "Need assistance? We&rsquo;re here."}
+          </Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={() => router.push("/helpdesk")} style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}><Text style={styles.openText}>Open</Text></Pressable>
+        <PressScale
+          onPress={() => router.push("/helpdesk")}
+          scaleTo={0.94}
+          accessibilityRole="button"
+          accessibilityLabel="Open helpdesk"
+          style={styles.openButton}
+        >
+          <Text style={styles.openText}>Open</Text>
+        </PressScale>
       </View>
     </View>
   )
@@ -191,12 +473,30 @@ function Helpdesk({ home }: { home: ResidentHome }) {
 
 function Emergency({ home }: { home: ResidentHome }) {
   const contact = home.emergencyContacts[0]
-  const call = () => contact?.phone ? Linking.openURL(`tel:${contact.phone}`).catch(() => {}) : router.push("/sos")
+  const call = () =>
+    contact?.phone
+      ? Linking.openURL(`tel:${contact.phone.replace(/[^+\d]/g, "")}`).catch(() => {})
+      : router.push("/sos")
+
   return (
     <View style={styles.emergencyCard}>
       <View style={styles.shield}><Icon name="security" size={25} color="#D93443" /></View>
-      <View style={styles.flex}><Text style={styles.emergencyTitle}>Emergency Contact</Text><Text numberOfLines={2} style={styles.summary}>{contact?.title ?? "Get immediate help from the KIZ team"}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={contact?.phone ? `Call ${contact.title}` : "Get emergency help"} onPress={call} style={({ pressed }) => [styles.callButton, pressed && styles.pressed]}><Icon name="call" size={17} color="#FFFFFF" /><Text style={styles.callText}>{contact?.phone ? "Call" : "SOS"}</Text></Pressable>
+      <View style={styles.flex}>
+        <Text style={styles.emergencyTitle}>Emergency Contact</Text>
+        <Text numberOfLines={2} style={styles.summary}>
+          {contact?.title ?? "Get immediate help from the KIZ team"}
+        </Text>
+      </View>
+      <PressScale
+        onPress={call}
+        scaleTo={0.94}
+        accessibilityRole="button"
+        accessibilityLabel={contact?.phone ? `Call ${contact.title}` : "Open SOS"}
+        style={styles.callButton}
+      >
+        <Icon name="call" size={17} color="#FFFFFF" />
+        <Text style={styles.callText}>{contact?.phone ? "Call" : "SOS"}</Text>
+      </PressScale>
     </View>
   )
 }
@@ -204,26 +504,55 @@ function Emergency({ home }: { home: ResidentHome }) {
 export default function DashboardScreen() {
   const theme = useTheme<Theme>()
   const { user } = useAuth()
+  const { isTablet } = useLayout()
   const { data, isLoading, isError, refetch, isRefetching } = useHome()
   if (!user) return null
-  if (isLoading) return <LoadingScreen label="Loading your dashboard…" />
 
   const home = data?.home ?? null
+
   return (
-    <Screen scroll padded={false} edges={["top"]} refreshing={isRefetching} onRefresh={() => void refetch()}>
-      <View style={styles.page}>
-        <Hero backgroundUrl={data?.heroBackgroundUrl ?? null} />
-        <QuickAccess />
-        {isError && !home ? (
-          <Pressable onPress={() => void refetch()} style={styles.errorCard}><Icon name="refresh" size={20} color={theme.colors.dangerInk} /><Text style={styles.errorText}>Couldn’t refresh your home. Tap to retry.</Text></Pressable>
-        ) : null}
-        {home ? (
-          <>
-            <Announcement home={home} />
-            <View style={styles.cardGrid}><ThingsToDo home={home} /><Helpdesk home={home} /></View>
-            <Emergency home={home} />
-          </>
-        ) : null}
+    <Screen
+      scroll
+      padded={false}
+      edges={["top"]}
+      refreshing={isRefetching}
+      onRefresh={() => void refetch()}
+    >
+      <View style={[styles.page, isTablet && styles.pageWide]}>
+        <View style={[styles.column, isTablet && styles.columnWide]}>
+          <Hero backgroundUrl={data?.heroBackgroundUrl ?? null} home={home} />
+
+          {/* Innovation first — visible without scrolling. */}
+          <Showcase />
+
+          {home ? <LaundryTile home={home} /> : null}
+
+          <QuickAccess home={home} />
+
+          {isLoading && !home ? (
+            <View style={styles.skeletonWrap}>
+              <Skeleton.CardList count={2} />
+            </View>
+          ) : null}
+
+          {isError && !home ? (
+            <PressScale onPress={() => void refetch()} style={styles.errorCard}>
+              <Icon name="refresh" size={20} color={theme.colors.dangerInk} />
+              <Text style={styles.errorText}>Couldn&rsquo;t refresh your home. Tap to retry.</Text>
+            </PressScale>
+          ) : null}
+
+          {home ? (
+            <>
+              <Announcement home={home} />
+              <View style={[styles.cardGrid, isTablet && styles.cardGridWide]}>
+                <View style={styles.flex}><ThingsToDo home={home} /></View>
+                <View style={styles.flex}><Helpdesk home={home} /></View>
+              </View>
+              <Emergency home={home} />
+            </>
+          ) : null}
+        </View>
       </View>
     </Screen>
   )
@@ -239,8 +568,13 @@ const shadow = {
 
 const styles = StyleSheet.create({
   page: { backgroundColor: "#F7F9FC", paddingHorizontal: 16, paddingTop: 10, paddingBottom: 36, minHeight: "100%" },
+  pageWide: { paddingHorizontal: 24 },
+  // Centres and caps the dashboard on iPad instead of stretching to 1024pt.
+  column: { width: "100%" },
+  columnWide: { maxWidth: 860, alignSelf: "center" },
   flex: { flex: 1 },
-  hero: { height: 228, borderRadius: 28, overflow: "hidden", backgroundColor: "#08799D", ...shadow },
+
+  hero: { height: 232, borderRadius: 28, overflow: "hidden", backgroundColor: "#08799D", ...shadow },
   heroScrim: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(2, 20, 31, 0.50)" },
   heroContent: { flex: 1, padding: 20, justifyContent: "space-between" },
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -250,60 +584,93 @@ const styles = StyleSheet.create({
   brandCopy: { flex: 1, minWidth: 0 },
   brandName: { color: "#FFFFFF", fontSize: 16, lineHeight: 19, fontWeight: "800" },
   collegeName: { color: "rgba(255,255,255,.74)", fontSize: 11.5, lineHeight: 16 },
-  headerActions: { flexDirection: "row", gap: 7 },
-  headerButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,.15)", borderWidth: 1, borderColor: "rgba(255,255,255,.17)", alignItems: "center", justifyContent: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 7 },
+  headerButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,.15)", borderWidth: 1, borderColor: "rgba(255,255,255,.17)", alignItems: "center", justifyContent: "center" },
   identityRow: { flexDirection: "row", alignItems: "flex-end", gap: 14 },
   identityCopy: { flex: 1, minWidth: 0 },
   greeting: { color: "rgba(255,255,255,.78)", fontSize: 13, lineHeight: 18, marginBottom: 2 },
   userName: { color: "#FFFFFF", fontSize: 25, lineHeight: 29, fontWeight: "700", letterSpacing: -0.7 },
-  matric: { color: "rgba(255,255,255,.86)", fontSize: 11.5, lineHeight: 16, fontWeight: "600", marginTop: 7, letterSpacing: .3 },
-  email: { color: "rgba(255,255,255,.68)", fontSize: 11.5, lineHeight: 15, marginTop: 1 },
+  heroMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 7, flexWrap: "wrap" },
+  matric: { color: "rgba(255,255,255,.86)", fontSize: 11.5, lineHeight: 16, fontWeight: "600", letterSpacing: .3 },
+  heroChip: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: "rgba(255,255,255,.20)" },
+  heroChipText: { color: "#FFFFFF", fontSize: 10, fontWeight: "700", letterSpacing: .3 },
+  roomLine: { color: "rgba(255,255,255,.80)", fontSize: 11.5, lineHeight: 16, marginTop: 3 },
   avatarRing: { width: 70, height: 70, borderRadius: 35, padding: 3, backgroundColor: "rgba(255,255,255,.23)" },
   avatar: { width: 64, height: 64, borderRadius: 32 },
   avatarFallback: { flex: 1, borderRadius: 32, backgroundColor: "#DDF7FC", alignItems: "center", justifyContent: "center" },
   avatarInitial: { color: "#08728F", fontSize: 24, fontWeight: "700" },
-  sectionHeader: { marginTop: 28, marginBottom: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+
+  sectionHeader: { marginTop: 26, marginBottom: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 },
   sectionTitle: { color: "#101827", fontSize: 18, lineHeight: 23, fontWeight: "700", letterSpacing: -0.35 },
-  sectionAction: { color: "#0097C9", fontSize: 12.5, lineHeight: 18, fontWeight: "700" },
+  sectionAction: { color: "#0891B2", fontSize: 12.5, lineHeight: 18, fontWeight: "700" },
+  sectionActionHit: { minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
+
+  showcaseRow: { flexDirection: "row", gap: 12 },
+  showcaseRowWide: { gap: 16 },
+  showcaseFlex: { flex: 1 },
+  showcaseCard: { height: 168, borderRadius: 22, overflow: "hidden", ...shadow },
+  showcaseInner: { flex: 1, padding: 15, justifyContent: "space-between" },
+  showcaseTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 6 },
+  showcaseGlyph: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,.20)", borderWidth: 1, borderColor: "rgba(255,255,255,.28)", alignItems: "center", justifyContent: "center" },
+  showcaseBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999, backgroundColor: "rgba(0,0,0,.24)" },
+  showcaseBadgeText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: "800", letterSpacing: .5 },
+  showcaseTitle: { color: "#FFFFFF", fontSize: 17, lineHeight: 21, fontWeight: "800", letterSpacing: -0.3 },
+  showcaseTagline: { color: "rgba(255,255,255,.88)", fontSize: 11.5, lineHeight: 15, marginTop: 3 },
+
+  askCard: { marginTop: 12, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#CFFAFE", padding: 12, flexDirection: "row", alignItems: "center", gap: 11, ...shadow },
+  askGlyph: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
+  askTitle: { color: "#101827", fontSize: 14.5, lineHeight: 19, fontWeight: "700" },
+  askHint: { color: "#71717A", fontSize: 12, lineHeight: 16, marginTop: 1, fontStyle: "italic" },
+  askSend: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#0891B2", alignItems: "center", justifyContent: "center" },
+
   actionGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 18 },
   quickAction: { width: "25%", alignItems: "center", paddingHorizontal: 3 },
-  quickPressed: { opacity: .72, transform: [{ scale: .96 }] },
   actionIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
   actionLabel: { color: "#273343", fontSize: 11.5, lineHeight: 14, fontWeight: "600", textAlign: "center", marginTop: 8 },
+
   card: { borderRadius: 22, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "rgba(15,23,42,.055)", ...shadow },
   announcementCard: { minHeight: 130, padding: 10, flexDirection: "row", gap: 12, overflow: "hidden" },
   announcementCopy: { flex: 1, minWidth: 0, padding: 7, justifyContent: "center" },
-  date: { color: "#0097C9", fontSize: 11.5, lineHeight: 15, fontWeight: "700" },
+  date: { color: "#0891B2", fontSize: 11.5, lineHeight: 15, fontWeight: "700" },
   announcementTitle: { color: "#111827", fontSize: 16, lineHeight: 20, fontWeight: "700", marginTop: 4 },
   summary: { color: "#667085", fontSize: 12.5, lineHeight: 17, marginTop: 4 },
   thumbnail: { width: 104, borderRadius: 16, backgroundColor: "#EEF3F6" },
-  thumbnailFallback: { width: 86, borderRadius: 16, backgroundColor: "#E7F5FF", alignItems: "center", justifyContent: "center" },
+  thumbnailFallback: { width: 86, borderRadius: 16, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
   emptyRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, padding: 8 },
-  emptyIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: "#E7F5FF", alignItems: "center", justifyContent: "center" },
+  emptyIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
+
   cardGrid: { gap: 14, marginTop: 16 },
+  cardGridWide: { flexDirection: "row", alignItems: "flex-start" },
   dashboardCard: { padding: 18 },
   cardHeading: { flexDirection: "row", alignItems: "center", gap: 7 },
   cardTitle: { color: "#111827", fontSize: 16, lineHeight: 21, fontWeight: "700", letterSpacing: -0.2 },
   progressLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 17, marginBottom: 8 },
   meta: { color: "#667085", fontSize: 11.5, lineHeight: 16 },
-  progressCount: { color: "#0097C9", fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  progressCount: { color: "#0891B2", fontSize: 12, lineHeight: 16, fontWeight: "700" },
   progressTrack: { height: 7, borderRadius: 4, backgroundColor: "#EAF1F5", overflow: "hidden" },
-  progressBar: { height: 7, borderRadius: 4, backgroundColor: "#0097C9" },
-  taskRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 17 },
-  smallIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#E7F5FF", alignItems: "center", justifyContent: "center" },
-  doneIcon: { backgroundColor: "#F0FDF4" },
+  progressBar: { height: 7, borderRadius: 4, backgroundColor: "#0891B2" },
+  taskRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 15, minHeight: 44 },
+  smallIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
   rowTitle: { color: "#192230", fontSize: 13.5, lineHeight: 18, fontWeight: "700" },
-  cardEmpty: { marginTop: 16 },
+  allDone: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 16 },
+  allDoneText: { color: "#15803D", fontSize: 13, lineHeight: 18, fontWeight: "600" },
+
+  laundryCard: { marginTop: 16, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#CCF0E7", padding: 13, flexDirection: "row", alignItems: "center", gap: 11, ...shadow },
+  laundryGlyph: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#E8F8F4", alignItems: "center", justifyContent: "center" },
+
   helpdeskRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 17 },
-  ticketIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#E7F5FF", alignItems: "center", justifyContent: "center" },
-  openButton: { minHeight: 36, paddingHorizontal: 13, borderRadius: 12, borderWidth: 1, borderColor: "#B8DDE9", alignItems: "center", justifyContent: "center" },
-  openText: { color: "#0086B3", fontSize: 12.5, fontWeight: "700" },
+  ticketIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#ECFEFF", alignItems: "center", justifyContent: "center" },
+  openButton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: "#A5F3FC", alignItems: "center", justifyContent: "center" },
+  openText: { color: "#0E7490", fontSize: 12.5, fontWeight: "700" },
+
   emergencyCard: { marginTop: 16, borderRadius: 22, backgroundColor: "#FFF0F1", borderWidth: 1, borderColor: "#FFDADD", padding: 17, flexDirection: "row", alignItems: "center", gap: 12 },
   shield: { width: 48, height: 48, borderRadius: 16, backgroundColor: "#FFDDE0", alignItems: "center", justifyContent: "center" },
   emergencyTitle: { color: "#171C26", fontSize: 15.5, lineHeight: 20, fontWeight: "700" },
-  callButton: { minHeight: 40, borderRadius: 13, paddingHorizontal: 13, backgroundColor: "#D93443", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  callButton: { minHeight: 44, borderRadius: 13, paddingHorizontal: 14, backgroundColor: "#D93443", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   callText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "700" },
+
+  skeletonWrap: { marginTop: 8 },
   errorCard: { marginTop: 24, borderRadius: 18, padding: 16, backgroundColor: "#FEF2F2", flexDirection: "row", alignItems: "center", gap: 10 },
   errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "600" },
-  pressed: { opacity: .68 },
 })

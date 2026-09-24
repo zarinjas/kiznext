@@ -50,16 +50,31 @@ export function navForRole(role: Role): NavGroup[] {
         { label: "My Bookings", icon: "calendar_month", path: "tempahan" },
       ],
     },
+    /**
+     * AI & AR leads the menu.
+     *
+     * These were rows 6–7 of a "Support" group, below Lost & Found — the
+     * flagship features buried under utilities. Naming the group "AI & AR" also
+     * makes the innovation legible at a glance on the one screen that shows the
+     * app's full breadth. Labels match what the features are called in-product
+     * ("AR Translate" was the nav label for a screen titled "KIZ Lens").
+     */
+    {
+      label: "AI & AR",
+      items: [
+        { label: "KIZ Lens — Translate", icon: "translate", path: "ar-terjemah" },
+        { label: "AR Wayfinder", icon: "view_in_ar", path: "direktori" },
+        { label: "KIZ-AI Concierge", icon: "smart_toy", path: "kiz-ai" },
+      ],
+    },
     {
       label: "Support",
       items: [
+        { label: "Notifications", icon: "notifications", path: "notifications" },
         { label: "SOS", icon: "sos", path: "sos" },
-        { label: "KIZ-AI", icon: "smart_toy", path: "kiz-ai" },
         { label: "Helpdesk", icon: "support_agent", path: "helpdesk", roles: ["ahli", "pengetua"] },
         { label: "Lost & Found", icon: "search", path: "hilang" },
         { label: "Offices", icon: "domain", path: "pejabat" },
-        { label: "AR Directory", icon: "view_in_ar", path: "direktori" },
-        { label: "AR Translate", icon: "translate", path: "ar-terjemah" },
       ],
     },
     {

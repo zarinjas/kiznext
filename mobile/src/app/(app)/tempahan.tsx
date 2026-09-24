@@ -1,7 +1,19 @@
-import { useTheme } from "@shopify/restyle"
+import { router } from "expo-router"
+import { Alert } from "react-native"
 
 import { useCancelFacility, useCancelGuestHouse, useMyBookings } from "@/lib/hooks"
-import { Box, KButton, KEmpty, LoadingScreen, Screen, StatusChip, Surface, Text, type ChipTone } from "@/ui"
+import {
+  Box,
+  KButton,
+  KEmpty,
+  LoadingScreen,
+  Screen,
+  StatusChip,
+  Surface,
+  Text,
+  useToast,
+  type ChipTone,
+} from "@/ui"
 
 function bookingTone(status: string): ChipTone {
   switch (status) {
@@ -40,13 +52,34 @@ function whenLabel(startIso: string, endIso?: string): string {
   return endIso ? `${fmt(startIso, true)} → ${fmt(endIso, true)}` : fmt(startIso, false)
 }
 
+function confirmCancel(label: string, run: () => void) {
+  Alert.alert("Cancel this booking?", `${label} will be released. This can't be undone.`, [
+    { text: "Keep booking", style: "cancel" },
+    { text: "Cancel booking", style: "destructive", onPress: run },
+  ])
+}
+
 export default function MyBookingsScreen() {
-  const theme = useTheme()
-  const { data, isLoading } = useMyBookings()
+  const { data, isLoading, refetch } = useMyBookings()
   const cancelFacility = useCancelFacility()
   const cancelGH = useCancelGuestHouse()
+  const toast = useToast()
 
-  if (isLoading || !data) return <LoadingScreen label="Loading your bookings…" />
+  if (isLoading) return <LoadingScreen label="Loading your bookings…" />
+
+  if (!data) {
+    return (
+      <Screen scroll edges={[]}>
+        <KEmpty
+          tone="danger"
+          icon="error_outline"
+          title="Couldn't load your bookings"
+          message="Check your connection and try again."
+          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
+        />
+      </Screen>
+    )
+  }
 
   const empty = data.facilityBookings.length === 0 && data.guestHouseBookings.length === 0
 
@@ -57,6 +90,21 @@ export default function MyBookingsScreen() {
           icon="calendar_month"
           title="No bookings yet"
           message="Book a facility or a guest house and it'll show up here."
+          action={
+            <>
+              <KButton
+                label="Book a facility"
+                icon="meeting_room"
+                onPress={() => router.push("/tempahan-fasiliti")}
+              />
+              <KButton
+                label="Book a guest house"
+                icon="hotel"
+                variant="secondary"
+                onPress={() => router.push("/rumah-tamu")}
+              />
+            </>
+          }
         />
       ) : (
         <>
@@ -86,7 +134,14 @@ export default function MyBookingsScreen() {
                       <KButton
                         label="Cancel"
                         variant="secondary"
-                        onPress={() => cancelFacility.mutate(b.id)}
+                        onPress={() =>
+                          confirmCancel(b.facilityName, () =>
+                            cancelFacility.mutate(b.id, {
+                              onSuccess: () => toast.success("Booking cancelled."),
+                              onError: () => toast.error("Couldn't cancel. Try again."),
+                            })
+                          )
+                        }
                         loading={cancelFacility.isPending}
                       />
                     </Box>
@@ -126,7 +181,14 @@ export default function MyBookingsScreen() {
                       <KButton
                         label="Cancel"
                         variant="secondary"
-                        onPress={() => cancelGH.mutate(b.id)}
+                        onPress={() =>
+                          confirmCancel(b.guestHouseName, () =>
+                            cancelGH.mutate(b.id, {
+                              onSuccess: () => toast.success("Booking cancelled."),
+                              onError: () => toast.error("Couldn't cancel. Try again."),
+                            })
+                          )
+                        }
                         loading={cancelGH.isPending}
                       />
                     </Box>
@@ -139,7 +201,6 @@ export default function MyBookingsScreen() {
       )}
 
       <Box height={32} />
-      <Text variant="caption" style={{ color: theme.colors.ink300 }} />
     </Screen>
   )
 }

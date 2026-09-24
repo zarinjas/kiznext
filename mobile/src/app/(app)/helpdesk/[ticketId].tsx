@@ -2,17 +2,21 @@ import { helpdeskCategoryMeta, helpdeskLocationLabel, ticketRef } from "@kiz/sha
 import { useTheme } from "@shopify/restyle"
 import { useLocalSearchParams } from "expo-router"
 import { useState } from "react"
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput } from "react-native"
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, TextInput } from "react-native"
 
+import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useCloseTicket, useHelpdeskThread, useSendReply } from "@/lib/hooks"
 import {
   Box,
   KButton,
+  KEmpty,
   LoadingScreen,
+  PressScale,
   Screen,
   StatusChip,
   Text,
+  useToast,
   type ChipTone,
 } from "@/ui"
 
@@ -53,21 +57,61 @@ export default function TicketThreadScreen() {
   const theme = useTheme()
   const { user } = useAuth()
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>()
-  const { data, isLoading } = useHelpdeskThread(ticketId)
+  const { data, isLoading, refetch } = useHelpdeskThread(ticketId)
   const reply = useSendReply(ticketId)
   const close = useCloseTicket(ticketId)
+  const toast = useToast()
   const [text, setText] = useState("")
 
-  if (isLoading || !data) return <LoadingScreen label="Loading request…" />
+  if (isLoading) return <LoadingScreen label="Loading request…" />
+
+  if (!data) {
+    return (
+      <Screen scroll edges={["top"]}>
+        <KEmpty
+          icon="error_outline"
+          tone="danger"
+          title="Couldn't load this request"
+          message="Check your connection and try again."
+          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
+        />
+      </Screen>
+    )
+  }
 
   const { ticket, messages, canReply } = data
   const category = helpdeskCategoryMeta(ticket.category)
 
+  /**
+   * Clear the draft only once the send succeeds, and restore it if it fails.
+   * This previously cleared the input immediately and ignored the mutation
+   * result, so a failed reply silently deleted what the user had typed.
+   */
   function submit() {
     const value = text.trim()
-    if (!value) return
-    reply.mutate(value)
+    if (!value || reply.isPending) return
     setText("")
+    reply.mutate(value, {
+      onError: (err) => {
+        setText(value)
+        toast.error(err instanceof ApiError ? err.message : "Reply didn't send. Try again.")
+      },
+    })
+  }
+
+  function closeTicket() {
+    Alert.alert("Close this request?", "You can reopen it later by sending another reply.", [
+      { text: "Keep open", style: "cancel" },
+      {
+        text: "Close request",
+        style: "destructive",
+        onPress: () =>
+          close.mutate(undefined, {
+            onSuccess: () => toast.success("Request closed."),
+            onError: () => toast.error("Couldn't close the request. Try again."),
+          }),
+      },
+    ])
   }
 
   return (
@@ -145,9 +189,12 @@ export default function TicketThreadScreen() {
                 multiline
               />
             </Box>
-            <Pressable
+            <PressScale
               onPress={submit}
               disabled={!text.trim() || reply.isPending}
+              scaleTo={0.94}
+              accessibilityRole="button"
+              accessibilityLabel="Send reply"
               style={{
                 paddingHorizontal: 16,
                 height: 44,
@@ -158,9 +205,9 @@ export default function TicketThreadScreen() {
               }}
             >
               <Text variant="button" style={{ color: "#FFFFFF" }}>
-                Send
+                {reply.isPending ? "Sending…" : "Send"}
               </Text>
-            </Pressable>
+            </PressScale>
           </Box>
         ) : (
           <Box padding="l" borderTopWidth={1} borderTopColor="border">
@@ -175,7 +222,8 @@ export default function TicketThreadScreen() {
             <KButton
               label="Close request"
               variant="secondary"
-              onPress={() => close.mutate()}
+              size="sm"
+              onPress={closeTicket}
               loading={close.isPending}
             />
           </Box>

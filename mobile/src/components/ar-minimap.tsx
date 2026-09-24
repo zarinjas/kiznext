@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Pressable } from "react-native"
 import { WebView } from "react-native-webview"
 
 import { API_BASE_URL } from "@/lib/config"
-import { Box } from "@/ui"
+import { LEAFLET_CSS, LEAFLET_JS } from "@/lib/leaflet-bundle"
+import { Box, PressScale } from "@/ui"
 
 export interface MiniLatLng {
   latitude: number
@@ -25,7 +25,7 @@ function buildHtml(interactive: boolean): string {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>${LEAFLET_CSS}</style>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; width: 100%; background: #FAFAFA; overflow: hidden; }
   #wrap { position: absolute; inset: 0; }
@@ -35,11 +35,17 @@ function buildHtml(interactive: boolean): string {
   .ar-dot { width: 14px; height: 14px; border-radius: 50%; background: ${NAV_BLUE}; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(26,115,232,0.3); }
   .ar-pin { width: 16px; height: 16px; border-radius: 50%; background: #DC2626; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
   .leaflet-marker-icon { background: transparent; border: none; }
+  /* Offline basemap substitute — a faint grid, so the route still reads. */
+  #wrap.no-tiles { background-color: #F4F4F5;
+    background-image: linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
+    background-size: 24px 24px; }
+  #wrap.no-tiles .leaflet-tile-pane { display: none; }
 </style>
 </head>
 <body>
 <div id="wrap"><div id="map"></div></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>${LEAFLET_JS}</script>
 <script>
   var INTERACTIVE = ${interactive ? "true" : "false"};
   var map = L.map('map', {
@@ -53,10 +59,19 @@ function buildHtml(interactive: boolean): string {
     keyboard: false,
     tap: INTERACTIVE
   });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Tiles still need network. If they fail (captive portal, saturated venue
+  // wifi) the basemap degrades to a plain grid while the user dot, destination
+  // pin and route line keep working — navigation stays usable offline.
+  var tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  });
+  var tileErrors = 0;
+  tiles.on('tileerror', function () {
+    tileErrors += 1;
+    if (tileErrors === 3) document.getElementById('wrap').classList.add('no-tiles');
+  });
+  tiles.addTo(map);
   map.setView([2.929, 101.782], 16);
 
   var userMarker = null, destMarker = null, line = null;
@@ -183,7 +198,12 @@ export function ArRadar({
   onExpand: () => void
 }) {
   return (
-    <Pressable onPress={onExpand}>
+    <PressScale
+      onPress={onExpand}
+      scaleTo={0.93}
+      accessibilityRole="button"
+      accessibilityLabel="Expand map to full screen"
+    >
       <Box
         width={116}
         height={116}
@@ -202,7 +222,7 @@ export function ArRadar({
           interactive={false}
         />
       </Box>
-    </Pressable>
+    </PressScale>
   )
 }
 

@@ -76,3 +76,45 @@ export async function unregisterDeviceToken(token: string): Promise<void> {
     // Best-effort.
   }
 }
+
+const ROLE_SEGMENTS = new Set(["superadmin", "admin_kiz", "pengetua", "fellow", "ahli", "staf"])
+
+/** Mobile routes an in-app notification link may point at. */
+const KNOWN_ROUTES = new Set([
+  "pengumuman",
+  "panduan",
+  "bilik",
+  "checkin",
+  "scan",
+  "tempahan-fasiliti",
+  "laundry",
+  "rumah-tamu",
+  "tempahan",
+  "hilang",
+  "pejabat",
+  "direktori",
+  "ar-terjemah",
+  "sos",
+  "kiz-ai",
+  "chat",
+  "kad-maya",
+  "profile",
+  "notifications",
+])
+
+export type NotificationLinkTarget = { external: string } | { route: string } | null
+
+/**
+ * Resolve a notification `link` to a navigation target. Web links look like
+ * "/ahli/tempahan"; the role segment is stripped and the rest is matched
+ * against the routes this app actually has. Unknown paths resolve to null so
+ * the caller can fall back to the inbox.
+ */
+export function notificationLinkTarget(link: string | null | undefined): NotificationLinkTarget {
+  if (!link) return null
+  if (/^https?:\/\//.test(link)) return { external: link }
+  const parts = link.split("?")[0].split("/").filter(Boolean)
+  const rest = parts[0] && ROLE_SEGMENTS.has(parts[0]) ? parts.slice(1) : parts
+  if (rest.length === 0 || !KNOWN_ROUTES.has(rest[0])) return null
+  return { route: "/" + rest.join("/") }
+}

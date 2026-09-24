@@ -79,6 +79,8 @@ model User {
   mobileSessions         MobileSession[]
   deviceTokens           DeviceToken[]
   laundryReminders       LaundryReminder[]
+  sentNotifications      Notification[]          @relation("SentNotifications")
+  receivedNotifications  NotificationRecipient[] @relation("ReceivedNotifications")
 
   @@map("users")
 }
@@ -1232,6 +1234,72 @@ model LaundryReminder {
   @@index([machineId])
   @@index([userId])
   @@map("laundry_reminders")
+}
+
+// ── Push notifications (broadcast) ──────────────────────────────────────────
+// Admin-composed messages fanned out to residents over three channels: an
+// in-app inbox row, an Expo push notification (which the Expo Push Service
+// delivers through APNs / FCM), and email (Resend). One `Notification` is the
+// campaign; one `NotificationRecipient` per targeted user carries that user's
+// read + delivery state.
+
+/// Who a broadcast targets. `all` = every active user, `role` = everyone in
+/// `audienceRole`, `selected` = the users whose recipient rows exist.
+enum NotificationAudience {
+  all
+  role
+  selected
+}
+
+model Notification {
+  id             String               @id @default(uuid())
+  title          String
+  body           String
+  /// Optional in-app deep link opened when the notification is tapped,
+  /// e.g. "/ahli/tempahan". Also passed to the push payload as `data.link`.
+  link           String?
+  audience       NotificationAudience @default(all)
+  /// Set only when `audience` is `role`.
+  audienceRole   Role?                @map("audience_role")
+  /// Enabled channels — any of "in_app" | "push" | "email".
+  channels       String[]             @default([])
+  sentById       String               @map("sent_by")
+  recipientCount Int                  @default(0) @map("recipient_count")
+  pushSentCount  Int                  @default(0) @map("push_sent_count")
+  emailSentCount Int                  @default(0) @map("email_sent_count")
+  failedCount    Int                  @default(0) @map("failed_count")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  deletedAt      DateTime?            @map("deleted_at")
+
+  sentBy     User                   @relation("SentNotifications", fields: [sentById], references: [id])
+  recipients NotificationRecipient[]
+
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// Per-user delivery + read state for one broadcast.
+model NotificationRecipient {
+  id             String    @id @default(uuid())
+  notificationId String    @map("notification_id")
+  userId         String    @map("user_id")
+  /// When the recipient opened the notification in-app (null = unread).
+  readAt         DateTime? @map("read_at")
+  pushedAt       DateTime? @map("pushed_at")
+  emailedAt      DateTime? @map("emailed_at")
+  pushError      String?   @map("push_error")
+  emailError     String?   @map("email_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_recipients")
 }
 
 /// Admin-editable welcome slides shown once on the mobile app's first launch.
