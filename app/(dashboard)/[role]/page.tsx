@@ -72,7 +72,7 @@ export default async function RoleDashboardPage({
         matricId: session.user.matricId ?? "",
         role,
       }),
-      getDashboardHeroBackground(),
+      getDashboardHeroBackground("web"),
       getDashboardPoster(),
     ])
 

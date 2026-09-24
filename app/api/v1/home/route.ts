@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   if (!isMemberRole(auth.user.role)) {
     const [heroBackgroundUrl, heroOverlay, showcase] = await Promise.all([
-      getDashboardHeroBackground(),
+      getDashboardHeroBackground("app"),
       getDashboardHeroOverlay(),
       getShowcaseBackgrounds(),
     ])
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         matricId: auth.user.matricId,
         role: auth.user.role as "ahli" | "staf" | "fellow",
       }),
-      getDashboardHeroBackground(),
+      getDashboardHeroBackground("app"),
       getDashboardHeroOverlay(),
       getShowcaseBackgrounds(),
     ])

@@ -11,7 +11,11 @@ const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
 const LOGIN_BACKGROUND_KEY = "login_background"
 const LOGIN_BACKGROUND_MAX_SIZE = 12 * 1024 * 1024
+/** Wide banner behind the member hero on the desktop website. */
 const DASHBOARD_HERO_BG_KEY = "dashboard_hero_bg"
+/** Separate banner for the mobile app hero — a different aspect ratio, so the
+ *  website image looked badly cropped on phones. */
+const DASHBOARD_HERO_BG_APP_KEY = "dashboard_hero_bg_app"
 const DASHBOARD_HERO_BG_MAX_SIZE = 12 * 1024 * 1024
 const DASHBOARD_HERO_OVERLAY_KEY = "dashboard_hero_overlay"
 const SHOWCASE_LENS_BG_KEY = "showcase_lens_bg"
@@ -440,13 +444,23 @@ export async function removeLoginBackground(): Promise<{ success: boolean; error
 // unset, the hero falls back to the default soft gradient. On mobile the image
 // is anchored bottom-right so the designed focal point stays in view.
 
-export async function getDashboardHeroBackground(): Promise<string | null> {
-  return getAppSetting(DASHBOARD_HERO_BG_KEY)
+/** Which surface's hero banner a read/write targets. */
+export type HeroSurface = "web" | "app"
+
+const HERO_BG_KEYS: Record<HeroSurface, string> = {
+  web: DASHBOARD_HERO_BG_KEY,
+  app: DASHBOARD_HERO_BG_APP_KEY,
+}
+
+export async function getDashboardHeroBackground(surface: HeroSurface = "web"): Promise<string | null> {
+  return getAppSetting(HERO_BG_KEYS[surface])
 }
 
 export async function uploadDashboardHeroBackground(
+  surface: HeroSurface,
   formData: FormData
 ): Promise<{ success: boolean; error?: string; url?: string }> {
+  const key = HERO_BG_KEYS[surface]
   try {
     const session = await auth()
     if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
@@ -458,46 +472,49 @@ export async function uploadDashboardHeroBackground(
       return { success: false, error: "No file selected" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
     if (existing?.value) {
       const oldPath = path.join(process.cwd(), "public", existing.value)
       try { await unlink(oldPath) } catch {}
     }
 
     const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
-      prefix: "dashboard-hero",
+      prefix: `dashboard-hero-${surface}`,
       maxBytes: DASHBOARD_HERO_BG_MAX_SIZE,
     })
 
     await prisma.appSetting.upsert({
-      where: { key: DASHBOARD_HERO_BG_KEY },
+      where: { key },
       update: { value: result.url },
-      create: { key: DASHBOARD_HERO_BG_KEY, value: result.url },
+      create: { key, value: result.url },
     })
 
     revalidatePath("/", "layout")
     return { success: true, url: result.url }
   } catch (err) {
-    return actionError("uploadDashboardHeroBackground", err)
+    return actionError(`uploadDashboardHeroBackground:${surface}`, err)
   }
 }
 
-export async function removeDashboardHeroBackground(): Promise<{ success: boolean; error?: string }> {
+export async function removeDashboardHeroBackground(
+  surface: HeroSurface
+): Promise<{ success: boolean; error?: string }> {
+  const key = HERO_BG_KEYS[surface]
   try {
     const session = await auth()
     if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
       return { success: false, error: "Unauthorized" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
     if (existing?.value) {
       try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
     }
-    await prisma.appSetting.deleteMany({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    await prisma.appSetting.deleteMany({ where: { key } })
     revalidatePath("/", "layout")
     return { success: true }
   } catch (err) {
-    return actionError("removeDashboardHeroBackground", err)
+    return actionError(`removeDashboardHeroBackground:${surface}`, err)
   }
 }
 
