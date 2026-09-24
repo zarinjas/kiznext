@@ -879,13 +879,22 @@ async function main() {
   // Cafe identity lives in AppSettings (never overwrite an admin's edits) plus
   // a small starter menu so the dashboard highlight + ordering flow are
   // demoable right after seeding.
+  const cafeDay = { closed: false, open: "07:30", close: "22:00" }
+  const cafeSchedule = {
+    mon: { ...cafeDay },
+    tue: { ...cafeDay },
+    wed: { ...cafeDay },
+    thu: { ...cafeDay },
+    fri: { ...cafeDay },
+    sat: { ...cafeDay, open: "08:00", close: "18:00" },
+    sun: { ...cafeDay, closed: true },
+  }
   const cafeSettings: [string, string][] = [
     ["cafe_name", "KIZ Cafe"],
     ["cafe_phone", "60123456789"],
     ["cafe_location", "KIZ Cafeteria, Ground Floor"],
-    ["cafe_hours_label", "Daily · 7:30 AM – 10:00 PM"],
-    ["cafe_opens_at", "07:30"],
-    ["cafe_closes_at", "22:00"],
+    ["cafe_schedule", JSON.stringify(cafeSchedule)],
+    ["cafe_closed_dates", JSON.stringify([])],
     ["cafe_tagline", "Order from your phone and skip the queue — KIZ-AI read our menu, so ordering takes seconds."],
     ["cafe_active", "1"],
   ]

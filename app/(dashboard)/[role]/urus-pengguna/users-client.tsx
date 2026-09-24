@@ -48,7 +48,7 @@ interface Props {
   blockOptions: string[]
 }
 
-const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "fellow", "ahli", "staf"]
+const ROLE_OPTIONS: Role[] = ["superadmin", "admin_kiz", "pengetua", "fellow", "ahli", "staf", "kafe"]
 const ACCOUNT_OPTIONS: AccountStatus[] = ["unverified", "pending", "active"]
 const ACCOUNT_LABELS: Record<AccountStatus, string> = {
   unverified: "Unverified",

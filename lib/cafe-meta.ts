@@ -4,33 +4,65 @@
  * imports here so client components can use it freely.
  */
 
+/** Opening hours for one weekday. Times are 24h "HH:MM" on the KL clock. */
+export interface CafeDayHours {
+  closed: boolean
+  open: string
+  close: string
+}
+
+export type CafeWeekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun"
+
+export type CafeSchedule = Record<CafeWeekday, CafeDayHours>
+
+/** Canonical weekday order for the schedule editor / display. */
+export const WEEKDAYS: { key: CafeWeekday; label: string }[] = [
+  { key: "mon", label: "Monday" },
+  { key: "tue", label: "Tuesday" },
+  { key: "wed", label: "Wednesday" },
+  { key: "thu", label: "Thursday" },
+  { key: "fri", label: "Friday" },
+  { key: "sat", label: "Saturday" },
+  { key: "sun", label: "Sunday" },
+]
+
+const SAME_DAY: CafeDayHours = { closed: false, open: "07:30", close: "22:00" }
+
+export const DEFAULT_CAFE_SCHEDULE: CafeSchedule = {
+  mon: { ...SAME_DAY },
+  tue: { ...SAME_DAY },
+  wed: { ...SAME_DAY },
+  thu: { ...SAME_DAY },
+  fri: { ...SAME_DAY },
+  sat: { ...SAME_DAY },
+  sun: { ...SAME_DAY },
+}
+
 export interface CafeConfig {
   name: string
   /** WhatsApp number, normalised to international digits (e.g. "60123456789"). */
   phone: string
   location: string
-  /** Human label, e.g. "7:30 AM – 10:00 PM". */
-  hoursLabel: string
-  /** Structured opening time, 24h KL "HH:MM" — drives the Open/Closed badge. */
-  opensAt: string
-  /** Structured closing time, 24h KL "HH:MM". */
-  closesAt: string
   /** Short marketing line for the dashboard highlight. */
   tagline: string
+  /** Master switch — off pauses ordering regardless of the schedule. */
   active: boolean
   menuImage: string | null
+  /** Per-weekday opening hours. */
+  schedule: CafeSchedule
+  /** KL calendar dates (YYYY-MM-DD) the cafe is closed — holidays. */
+  closedDates: string[]
 }
 
 export const DEFAULT_CAFE_CONFIG: CafeConfig = {
   name: "KIZ Cafe",
   phone: "",
   location: "KIZ Cafeteria",
-  hoursLabel: "Daily · 7:30 AM – 10:00 PM",
-  opensAt: "07:30",
-  closesAt: "22:00",
   tagline: "Order from your phone, skip the queue — pick up when it's ready.",
   active: false,
   menuImage: null,
+  schedule: DEFAULT_CAFE_SCHEDULE,
+  closedDates: [],
 }
 
 export interface CafeItemView {
@@ -148,18 +180,78 @@ export function nowHhmmKl(now: Date = new Date()): string {
   return `${hour}:${v.minute}`
 }
 
+const WEEKDAY_MAP: Record<string, CafeWeekday> = {
+  Mon: "mon",
+  Tue: "tue",
+  Wed: "wed",
+  Thu: "thu",
+  Fri: "fri",
+  Sat: "sat",
+  Sun: "sun",
+}
+
+/** Today's weekday key + KL calendar date (YYYY-MM-DD). */
+export function klToday(now: Date = new Date()): { weekday: CafeWeekday; date: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now)
+  const v = Object.fromEntries(parts.map((p) => [p.type, p.value]))
+  return {
+    weekday: WEEKDAY_MAP[v.weekday] ?? "mon",
+    date: `${v.year}-${v.month}-${v.day}`,
+  }
+}
+
+/** "14:30" → "2:30 PM". */
+export function formatTime12(hhmm: string): string {
+  const [hRaw, mRaw] = hhmm.split(":").map(Number)
+  if (Number.isNaN(hRaw) || Number.isNaN(mRaw)) return hhmm
+  const h = hRaw % 12 || 12
+  const suffix = hRaw < 12 ? "AM" : "PM"
+  return `${h}:${String(mRaw).padStart(2, "0")} ${suffix}`
+}
+
+/** Hours label for one day, e.g. "7:30 AM – 10:00 PM" or "Closed". */
+export function dayHoursLabel(day: CafeDayHours): string {
+  return day.closed ? "Closed" : `${formatTime12(day.open)} – ${formatTime12(day.close)}`
+}
+
+export interface CafeStatus {
+  open: boolean
+  /** Short status, e.g. "Open now" / "Closed today". */
+  label: string
+  /** Today's hours, e.g. "7:30 AM – 10:00 PM" or "Closed today". */
+  todayHours: string
+  /** True when today is a configured holiday (closed date). */
+  holiday: boolean
+}
+
 /**
- * Is the cafe accepting orders right now? `active` is the admin kill-switch;
- * otherwise the KL clock must sit inside the open/close window. Same-day ranges
- * only (a cafe open past midnight would need a cross-midnight flag).
+ * Resolve the cafe's live status. `active` is the master kill-switch; a closed
+ * date (holiday) or a day marked closed wins over the hours; the open window
+ * wraps past midnight when `close <= open`.
  */
-export function isCafeOpen(
-  cfg: Pick<CafeConfig, "active" | "opensAt" | "closesAt">,
-  now: Date = new Date(),
-): boolean {
-  if (!cfg.active) return false
+export function cafeStatus(cfg: CafeConfig, now: Date = new Date()): CafeStatus {
+  const { weekday, date } = klToday(now)
+  const day = cfg.schedule[weekday] ?? DEFAULT_CAFE_SCHEDULE[weekday]
+  const todayHours = day.closed ? "Closed today" : dayHoursLabel(day)
+
+  if (!cfg.active) return { open: false, label: "Not accepting orders", todayHours, holiday: false }
+  if (cfg.closedDates.includes(date)) return { open: false, label: "Closed today", todayHours, holiday: true }
+  if (day.closed) return { open: false, label: "Closed today", todayHours, holiday: false }
+
   const t = nowHhmmKl(now)
-  return t >= cfg.opensAt && t < cfg.closesAt
+  const openNow = day.close <= day.open ? t >= day.open || t < day.close : t >= day.open && t < day.close
+  return { open: openNow, label: openNow ? "Open now" : "Closed", todayHours, holiday: false }
+}
+
+/** Is the cafe accepting orders right now? */
+export function isCafeOpen(cfg: CafeConfig, now: Date = new Date()): boolean {
+  return cafeStatus(cfg, now).open
 }
 
 /** Suggested pickup times (every 15 min across the next 3 hours), KL clock. */

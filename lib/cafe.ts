@@ -10,6 +10,8 @@ import { saveUpload } from "@/lib/image-upload"
 import { extractMenuItems, type ExtractedCafeItem } from "@/lib/cafe-ai"
 import {
   DEFAULT_CAFE_CONFIG,
+  DEFAULT_CAFE_SCHEDULE,
+  WEEKDAYS,
   buildOrderMessage,
   buildWhatsAppLink,
   cartSubtotal,
@@ -18,6 +20,7 @@ import {
   type CafeConfig,
   type CafeItemView,
   type CafeOrderView,
+  type CafeSchedule,
 } from "@/lib/cafe-meta"
 
 /**
@@ -31,12 +34,11 @@ const KEYS = {
   name: "cafe_name",
   phone: "cafe_phone",
   location: "cafe_location",
-  hoursLabel: "cafe_hours_label",
-  opensAt: "cafe_opens_at",
-  closesAt: "cafe_closes_at",
   tagline: "cafe_tagline",
   active: "cafe_active",
   menuImage: "cafe_menu_image",
+  schedule: "cafe_schedule",
+  closedDates: "cafe_closed_dates",
 } as const
 
 const SETTING_KEYS = Object.values(KEYS)
@@ -52,6 +54,57 @@ async function upsertSetting(key: string, value: string) {
   await prisma.appSetting.upsert({ where: { key }, update: { value }, create: { key, value } })
 }
 
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/** Parse a stored weekly schedule, tolerating missing/garbage values. */
+function parseSchedule(raw: string | null | undefined): CafeSchedule {
+  const out: CafeSchedule = { ...DEFAULT_CAFE_SCHEDULE }
+  if (!raw) return out
+  try {
+    const parsed = JSON.parse(raw) as Partial<CafeSchedule>
+    for (const { key } of WEEKDAYS) {
+      const d = parsed[key]
+      if (d && typeof d === "object") {
+        out[key] = {
+          closed: Boolean(d.closed),
+          open: HHMM_RE.test(String(d.open)) ? String(d.open) : DEFAULT_CAFE_SCHEDULE[key].open,
+          close: HHMM_RE.test(String(d.close)) ? String(d.close) : DEFAULT_CAFE_SCHEDULE[key].close,
+        }
+      }
+    }
+  } catch {
+    // fall through to the default
+  }
+  return out
+}
+
+function parseClosedDates(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr.filter((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) : []
+  } catch {
+    return []
+  }
+}
+
+/** Normalise a submitted schedule (from the admin form) to a safe value. */
+function sanitiseSchedule(input: CafeSchedule | undefined): CafeSchedule {
+  const out: CafeSchedule = { ...DEFAULT_CAFE_SCHEDULE }
+  if (!input || typeof input !== "object") return out
+  for (const { key } of WEEKDAYS) {
+    const d = input[key]
+    if (d && typeof d === "object") {
+      out[key] = {
+        closed: Boolean(d.closed),
+        open: HHMM_RE.test(String(d.open)) ? String(d.open) : DEFAULT_CAFE_SCHEDULE[key].open,
+        close: HHMM_RE.test(String(d.close)) ? String(d.close) : DEFAULT_CAFE_SCHEDULE[key].close,
+      }
+    }
+  }
+  return out
+}
+
 // ── Reads ────────────────────────────────────────────────────────────────────
 
 export async function getCafeConfig(): Promise<CafeConfig> {
@@ -62,12 +115,11 @@ export async function getCafeConfig(): Promise<CafeConfig> {
     name: get(KEYS.name) ?? DEFAULT_CAFE_CONFIG.name,
     phone: get(KEYS.phone) ?? DEFAULT_CAFE_CONFIG.phone,
     location: get(KEYS.location) ?? DEFAULT_CAFE_CONFIG.location,
-    hoursLabel: get(KEYS.hoursLabel) ?? DEFAULT_CAFE_CONFIG.hoursLabel,
-    opensAt: get(KEYS.opensAt) ?? DEFAULT_CAFE_CONFIG.opensAt,
-    closesAt: get(KEYS.closesAt) ?? DEFAULT_CAFE_CONFIG.closesAt,
     tagline: get(KEYS.tagline) ?? DEFAULT_CAFE_CONFIG.tagline,
     active: (get(KEYS.active) ?? "0") === "1",
     menuImage: get(KEYS.menuImage),
+    schedule: parseSchedule(get(KEYS.schedule)),
+    closedDates: parseClosedDates(get(KEYS.closedDates)),
   }
 }
 
@@ -159,18 +211,19 @@ export async function saveCafeConfig(input: CafeConfig): Promise<{ success: bool
     if (!phone) return { success: false, error: "Add the cafe's WhatsApp number (e.g. 0123456789)." }
     if (phone.length < 10) return { success: false, error: "That WhatsApp number looks too short." }
 
-    const opensAt = /^\d{2}:\d{2}$/.test(input.opensAt) ? input.opensAt : DEFAULT_CAFE_CONFIG.opensAt
-    const closesAt = /^\d{2}:\d{2}$/.test(input.closesAt) ? input.closesAt : DEFAULT_CAFE_CONFIG.closesAt
+    const schedule = sanitiseSchedule(input.schedule)
+    const closedDates = Array.isArray(input.closedDates)
+      ? Array.from(new Set(input.closedDates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))).sort()
+      : []
 
     await Promise.all([
       upsertSetting(KEYS.name, name),
       upsertSetting(KEYS.phone, phone),
       upsertSetting(KEYS.location, input.location.trim() || DEFAULT_CAFE_CONFIG.location),
-      upsertSetting(KEYS.hoursLabel, input.hoursLabel.trim() || DEFAULT_CAFE_CONFIG.hoursLabel),
-      upsertSetting(KEYS.opensAt, opensAt),
-      upsertSetting(KEYS.closesAt, closesAt),
       upsertSetting(KEYS.tagline, input.tagline.trim() || DEFAULT_CAFE_CONFIG.tagline),
       upsertSetting(KEYS.active, input.active ? "1" : "0"),
+      upsertSetting(KEYS.schedule, JSON.stringify(schedule)),
+      upsertSetting(KEYS.closedDates, JSON.stringify(closedDates)),
     ])
 
     revalidatePath(`/${role}`)

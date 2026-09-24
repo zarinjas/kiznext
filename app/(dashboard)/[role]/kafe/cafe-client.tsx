@@ -17,10 +17,12 @@ import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { createCafeOrder } from "@/lib/cafe"
 import {
+  WEEKDAYS,
   cartSubtotal,
+  cafeStatus,
+  dayHoursLabel,
   dietaryMeta,
   formatRM,
-  isCafeOpen,
   pickupTimeOptions,
   type CafeCartLine,
   type CafeConfig,
@@ -44,13 +46,15 @@ export function CafeClient({ config, menu, orders }: Props) {
   const [cart, setCart] = useState<Cart>({})
   const [cartOpen, setCartOpen] = useState(false)
   const [showPhoto, setShowPhoto] = useState(false)
+  const [showHours, setShowHours] = useState(false)
   const [pickup, setPickup] = useState("ASAP")
   const [note, setNote] = useState("")
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState<{ refCode: string; whatsappUrl: string } | null>(null)
 
-  const open = isCafeOpen(config)
+  const status = cafeStatus(config)
+  const open = status.open
   const pickupOptions = useMemo(() => pickupTimeOptions(), [])
 
   const categories = useMemo(() => {
@@ -182,9 +186,18 @@ export function CafeClient({ config, menu, orders }: Props) {
             <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25, maxWidth: 560 }}>
               {config.tagline}
             </Typography>
-            <Box sx={{ display: "flex", gap: 2, mt: 1.25, flexWrap: "wrap" }}>
-              <Meta icon="schedule" text={config.hoursLabel} />
+            <Box sx={{ display: "flex", gap: 2, mt: 1.25, flexWrap: "wrap", alignItems: "center" }}>
+              <Meta icon="schedule" text={`Today · ${status.todayHours}`} />
               <Meta icon="place" text={config.location} />
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setShowHours((s) => !s)}
+                endIcon={<KIcon icon={showHours ? "expand_less" : "expand_more"} size={16} />}
+                sx={{ minWidth: 0, px: 0.5, textTransform: "none" }}
+              >
+                Weekly hours
+              </Button>
             </Box>
           </Box>
 
@@ -205,6 +218,33 @@ export function CafeClient({ config, menu, orders }: Props) {
             </Typography>
           </Box>
         </Box>
+
+        {showHours && (
+          <Box sx={{ position: "relative", mt: 1.75, borderRadius: `${radius.card}px`, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper", overflow: "hidden", maxWidth: 420 }}>
+            {WEEKDAYS.map(({ key, label }, i) => {
+              const day = config.schedule[key]
+              return (
+                <Box
+                  key={key}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 2,
+                    px: 1.75,
+                    py: 1,
+                    ...(i > 0 && { borderTop: "1px solid", borderColor: "divider" }),
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 550, fontSize: 13.5 }}>{label}</Typography>
+                  <Typography variant="body2" sx={{ color: day.closed ? "text.disabled" : "text.secondary", fontSize: 13.5, fontFamily: font.mono }}>
+                    {dayHoursLabel(day)}
+                  </Typography>
+                </Box>
+              )
+            })}
+          </Box>
+        )}
 
         {config.menuImage && (
           <Collapse in={showPhoto}>

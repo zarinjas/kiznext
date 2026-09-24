@@ -9,6 +9,7 @@ import IconButton from "@mui/material/IconButton"
 import TextField from "@mui/material/TextField"
 import MenuItem from "@mui/material/MenuItem"
 import Switch from "@mui/material/Switch"
+import Chip from "@mui/material/Chip"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KButton } from "@/components/kiz/primitives/k-button"
@@ -25,10 +26,14 @@ import {
 import {
   CAFE_CATEGORIES,
   DIETARY_TAGS,
+  WEEKDAYS,
   buildOrderMessage,
+  cafeStatus,
   formatRM,
   type CafeConfig,
+  type CafeDayHours,
   type CafeItemView,
+  type CafeWeekday,
 } from "@/lib/cafe-meta"
 import { color, font, radius } from "@/lib/theme"
 
@@ -62,6 +67,7 @@ export function CafeAdmin({ config, items, aiEnabled }: Props) {
   const [form, setForm] = useState<CafeConfig>(config)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [newClosedDate, setNewClosedDate] = useState("")
 
   // ── Menu ───────────────────────────────────────────────────────────────────
   const [menuImage, setMenuImage] = useState<string | null>(config.menuImage)
@@ -72,6 +78,19 @@ export function CafeAdmin({ config, items, aiEnabled }: Props) {
   const [menuMsg, setMenuMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const set = (patch: Partial<CafeConfig>) => setForm((f) => ({ ...f, ...patch }))
+
+  function setDay(key: CafeWeekday, patch: Partial<CafeDayHours>) {
+    setForm((f) => ({ ...f, schedule: { ...f.schedule, [key]: { ...f.schedule[key], ...patch } } }))
+  }
+
+  function addClosedDate(date: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return
+    setForm((f) => ({ ...f, closedDates: Array.from(new Set([...f.closedDates, date])).sort() }))
+  }
+
+  function removeClosedDate(date: string) {
+    setForm((f) => ({ ...f, closedDates: f.closedDates.filter((d) => d !== date) }))
+  }
 
   async function handleSaveSettings() {
     setSavingSettings(true)
@@ -199,27 +218,108 @@ export function CafeAdmin({ config, items, aiEnabled }: Props) {
             helperText="Malaysian number — stored as 60XXXXXXXXX for wa.me"
           />
           <TextField label="Location" value={form.location} onChange={(e) => set({ location: e.target.value })} size="medium" />
-          <TextField label="Hours label" value={form.hoursLabel} onChange={(e) => set({ hoursLabel: e.target.value })} size="medium" placeholder="e.g. Daily · 7:30 AM – 10:00 PM" />
-          <TextField label="Opens at" type="time" value={form.opensAt} onChange={(e) => set({ opensAt: e.target.value })} size="medium" slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label="Closes at" type="time" value={form.closesAt} onChange={(e) => set({ closesAt: e.target.value })} size="medium" slotProps={{ inputLabel: { shrink: true } }} />
-        </FormGrid>
-        <Box sx={{ mt: 2 }}>
           <TextField
             label="Tagline"
             value={form.tagline}
             onChange={(e) => set({ tagline: e.target.value })}
             size="medium"
-            fullWidth
             helperText="One line shown on the student dashboard highlight."
           />
-        </Box>
+        </FormGrid>
         <FormControlLabel
-          sx={{ mt: 1 }}
+          sx={{ mt: 1.5 }}
           control={<Switch checked={form.active} onChange={(e) => set({ active: e.target.checked })} />}
-          label="Accepting orders"
+          label="Accepting orders (master switch)"
         />
+      </FormSection>
+
+      {/* ── Opening hours ────────────────────────────────────────────────── */}
+      <FormSection
+        title="Opening hours"
+        subtitle="Ordering only opens inside these hours. Change them any time — mornings, evenings, or closed."
+        icon="schedule"
+      >
+        <Box sx={{ mb: 1.75 }}>
+          <StatusPreview config={form} />
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          {WEEKDAYS.map(({ key, label }) => {
+            const day = form.schedule[key]
+            return (
+              <Box key={key} sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", py: 0.5 }}>
+                <Box sx={{ width: 92, fontSize: 13.5, fontWeight: 600 }}>{label}</Box>
+                <FormControlLabel
+                  sx={{ mr: 0.5 }}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={!day.closed}
+                      onChange={(e) => setDay(key, { closed: !e.target.checked })}
+                    />
+                  }
+                  label={<Typography variant="caption" sx={{ width: 46, display: "inline-block" }}>{day.closed ? "Closed" : "Open"}</Typography>}
+                />
+                <TextField
+                  type="time"
+                  size="small"
+                  value={day.open}
+                  disabled={day.closed}
+                  onChange={(e) => setDay(key, { open: e.target.value })}
+                  sx={{ width: 132 }}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <Typography variant="caption" sx={{ color: "text.disabled" }}>to</Typography>
+                <TextField
+                  type="time"
+                  size="small"
+                  value={day.close}
+                  disabled={day.closed}
+                  onChange={(e) => setDay(key, { close: e.target.value })}
+                  sx={{ width: 132 }}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Box>
+            )
+          })}
+        </Box>
+        <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 1 }}>
+          A closing time earlier than the opening time runs past midnight (e.g. 6:00 PM – 1:00 AM).
+        </Typography>
+
+        <Box sx={{ mt: 2.5 }}>
+          <Typography sx={{ fontWeight: 600, fontSize: 13.5, mb: 1 }}>Closed dates (holidays)</Typography>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+            <TextField
+              type="date"
+              size="small"
+              value={newClosedDate}
+              onChange={(e) => setNewClosedDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={!newClosedDate}
+              onClick={() => {
+                addClosedDate(newClosedDate)
+                setNewClosedDate("")
+              }}
+              startIcon={<KIcon icon="add" size={16} />}
+            >
+              Add
+            </Button>
+          </Box>
+          {form.closedDates.length > 0 && (
+            <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mt: 1.25 }}>
+              {form.closedDates.map((d) => (
+                <Chip key={d} label={formatClosedDate(d)} size="small" onDelete={() => removeClosedDate(d)} sx={{ borderRadius: radius.pill }} />
+              ))}
+            </Box>
+          )}
+        </Box>
+
         {settingsMsg && <Msg tone={settingsMsg.ok}>{settingsMsg.text}</Msg>}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1.5 }}>
           <KButton loading={savingSettings} icon="save" onClick={handleSaveSettings}>
             Save settings
           </KButton>
@@ -352,6 +452,42 @@ function Msg({ tone, children }: { tone: boolean; children: React.ReactNode }) {
       }}
     >
       {children}
+    </Box>
+  )
+}
+
+function formatClosedDate(date: string): string {
+  const d = new Date(`${date}T00:00:00+08:00`)
+  if (Number.isNaN(d.getTime())) return date
+  return new Intl.DateTimeFormat("en-MY", {
+    timeZone: "Asia/Kuala_Lumpur",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d)
+}
+
+/** Live "Open now / Closed" preview driven by the form's current schedule. */
+function StatusPreview({ config }: { config: CafeConfig }) {
+  const status = cafeStatus(config)
+  return (
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.75,
+        px: 1.25,
+        py: 0.5,
+        borderRadius: radius.pill,
+        backgroundColor: status.open ? color.success.soft : color.neutral.soft,
+        color: status.open ? color.success.ink : color.neutral.ink,
+        fontSize: 12.5,
+        fontWeight: 600,
+      }}
+    >
+      <Box sx={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: status.open ? color.success.main : color.neutral.main }} />
+      {status.label} · Today {status.todayHours}
     </Box>
   )
 }

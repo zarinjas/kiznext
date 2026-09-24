@@ -82,11 +82,12 @@ pills are `radius.pill`, never `999` as a number.
 
 `superadmin` (full) · `admin_kiz` (approvals, announcements, helpdesk) ·
 `pengetua` (read-only admin views) · `staf` (helpdesk inbox + accommodation /
-check-in management) · `fellow` (helpdesk inbox) · `ahli` (student).
+check-in management) · `fellow` (helpdesk inbox) · `ahli` (student) · `kafe`
+(cafe operator — KIZ Cafe only, admin-created).
 
 Role groups live in `lib/rbac.ts` (`ADMIN_ROLES`, `SUPPORT_ROLES`,
-`GUEST_HOUSE_ROLES`, `RESIDENCE_MANAGE_ROLES`, `RESIDENCE_VIEW_ROLES`) — reuse
-them instead of writing inline role lists.
+`GUEST_HOUSE_ROLES`, `RESIDENCE_MANAGE_ROLES`, `RESIDENCE_VIEW_ROLES`,
+`CAFE_MANAGE_ROLES`) — reuse them instead of writing inline role lists.
 
 Access matrix in `docs/SPEC.md`. `admin_ukmre` is post-MVP — adding it means a new
 enum value plus an `approvedById` check, no schema restructure.

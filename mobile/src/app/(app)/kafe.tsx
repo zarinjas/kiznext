@@ -5,9 +5,11 @@ import { Image } from "expo-image"
 
 import {
   CAFE_DIETARY_LABELS,
+  WEEKDAYS,
   cartSubtotal,
+  cafeStatus,
+  dayHoursLabel,
   formatRM,
-  isCafeOpen,
   pickupTimeOptions,
   type CafeCartLine,
   type CafeItem,
@@ -49,6 +51,7 @@ export default function KafeScreen() {
   const [category, setCategory] = useState("All")
   const [cart, setCart] = useState<Record<string, number>>({})
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [showHours, setShowHours] = useState(false)
   const [pickup, setPickup] = useState("ASAP")
   const [note, setNote] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +74,8 @@ export default function KafeScreen() {
   }
 
   const { config, menu, orders } = data
-  const open = isCafeOpen(config)
+  const status = cafeStatus(config)
+  const open = status.open
   const categories = ["All", ...Array.from(new Set(menu.map((m) => m.category)))]
   const visible = category === "All" ? menu : menu.filter((m) => m.category === category)
   const lines: CafeCartLine[] = Object.entries(cart)
@@ -131,13 +135,41 @@ export default function KafeScreen() {
           <Box flexDirection="row" alignItems="center" gap="m" marginTop="s" flexWrap="wrap">
             <Box flexDirection="row" alignItems="center" gap="xs">
               <Icon name="schedule" size={14} color={theme.colors.ink500} />
-              <Text variant="caption">{config.hoursLabel}</Text>
+              <Text variant="caption">Today · {status.todayHours}</Text>
             </Box>
             <Box flexDirection="row" alignItems="center" gap="xs">
               <Icon name="place" size={14} color={theme.colors.ink500} />
               <Text variant="caption">{config.location}</Text>
             </Box>
           </Box>
+          <Box marginTop="s">
+            <KPill label="Weekly hours" icon="schedule" selected={showHours} onPress={() => setShowHours((s) => !s)} />
+          </Box>
+          {showHours ? (
+            <Box marginTop="s" borderWidth={1} borderColor="border" borderRadius="card" overflow="hidden">
+              {WEEKDAYS.map(({ key, label }, i) => {
+                const day = config.schedule[key]
+                return (
+                  <Box
+                    key={key}
+                    flexDirection="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    gap="m"
+                    paddingHorizontal="m"
+                    paddingVertical="s"
+                    borderTopWidth={i > 0 ? 1 : 0}
+                    borderColor="border"
+                  >
+                    <Text variant="bodyStrong">{label}</Text>
+                    <Text variant="caption" style={{ color: day.closed ? theme.colors.ink300 : theme.colors.ink500 }}>
+                      {dayHoursLabel(day)}
+                    </Text>
+                  </Box>
+                )
+              })}
+            </Box>
+          ) : null}
           {menuImage ? (
             <Box marginTop="m">
               <Image

@@ -32,7 +32,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Lost & Found | Community-reported lost/found items with a photo. |
 | Accommodation Applications | Accepted students (imported from eKolej via CSV) request a single room, a same-gender double-room roommate by matric ID, or flexible placement during an admin-defined window. Students never choose or see physical rooms; admins allocate final rooms after review. See `ROOM-SELECTION.md`. |
 | Directory | AR Directory — pick a destination and a camera-compass arrow + live distance guide you to it (outdoor GPS/compass; indoor rooms are pinned by lat/lng inside the single-floor admin building). Admin manages the destination pins. |
-| Smart Ordering (KIZ Cafe) | The campus cafe has no app of its own. The cafe uploads a photo of its menu; **KIZ-AI's vision model reads it into orderable items** (the admin reviews + publishes them, or adds items by hand). Students build a cart and hand the order off to **WhatsApp** — a `wa.me` deep link pre-filled with an itemised receipt and a `#KIZ-CAFE-NNNN` pickup reference, so the cafe receives a normal WhatsApp message and there is no payment gateway (paid at pickup). Orders are stored for history + one-tap reorder, and a highlight card promotes the feature on the member dashboard. |
+| Smart Ordering (KIZ Cafe) | The campus cafe has no app of its own. The cafe uploads a photo of its menu; **KIZ-AI's vision model reads it into orderable items** (the admin reviews + publishes them, or adds items by hand). Students build a cart and hand the order off to **WhatsApp** — a `wa.me` deep link pre-filled with an itemised receipt and a `#KIZ-CAFE-NNNN` pickup reference, so the cafe receives a normal WhatsApp message and there is no payment gateway (paid at pickup). Orders are stored for history + one-tap reorder, and a highlight card promotes the feature on the member dashboard. **Opening hours are a per-weekday schedule** (open/close per day, any day marked closed) plus a **closed-dates list for holidays**, so the cafe can open mornings or evenings and shut for cuti — a master "accepting orders" switch pauses everything. A dedicated **`kafe` role** lets the operator manage the cafe and view its orders and nothing else. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
 | Invitations | Superadmin invites people (student or admin) to self-register by email — one at a time or in bulk. An invited student whose matric is already on the active intake is marked a resident and activated on registration; admin invitations never need an intake match. |
 
@@ -46,28 +46,28 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 
 ## 3. Roles & access
 
-Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
+Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`, `kafe`.
 
-| Capability | superadmin | admin_kiz | pengetua | fellow | ahli | staf |
-|---|---|---|---|---|---|---|
-| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — | — |
-| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | — | ✓ | — | ✓ |
-| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | read-only | — | — | ✓ |
-| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | read-only | — | — | — |
-| Post / edit announcements | ✓ | ✓ | — | — | — | — |
-| Manage digital guides (`urus-panduan`) | ✓ | ✓ | — | — | — | — |
-| Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — |
-| Manage facilities, parcels | ✓ | ✓ | — | — | — | — |
-| Manage KIZ Cafe menu (`urus-kafe`) | ✓ | ✓ | — | — | — | — |
-| Order from KIZ Cafe (`kafe`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| App settings (logo) | ✓ | ✓ | — | — | — | — |
-| View-only reporting | ✓ | ✓ | ✓ | — | — | — |
-| Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — |
-| Set a laundry reminder (`laundry`) | — | — | — | — | ✓ | — |
-| Manage laundry machines (`urus-laundry`) | ✓ | ✓ | read-only | — | — | — |
+| Capability | superadmin | admin_kiz | pengetua | fellow | ahli | staf | kafe |
+|---|---|---|---|---|---|---|---|
+| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | profile |
+| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — | — | — |
+| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | — | ✓ | — | ✓ | — |
+| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | read-only | — | — | ✓ | — |
+| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | read-only | — | — | — | — |
+| Post / edit announcements | ✓ | ✓ | — | — | — | — | — |
+| Manage digital guides (`urus-panduan`) | ✓ | ✓ | — | — | — | — | — |
+| Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — | — |
+| Manage facilities, parcels | ✓ | ✓ | — | — | — | — | — |
+| Manage KIZ Cafe (`urus-kafe`) | ✓ | ✓ | — | — | — | — | ✓ |
+| Order from KIZ Cafe (`kafe`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| App settings (logo) | ✓ | ✓ | — | — | — | — | — |
+| View-only reporting | ✓ | ✓ | ✓ | — | — | — | — |
+| Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — | — |
+| Set a laundry reminder (`laundry`) | — | — | — | — | ✓ | — | — |
+| Manage laundry machines (`urus-laundry`) | ✓ | ✓ | read-only | — | — | — | — |
 
 `pengetua` (principal) is read-only by design — no approval or edit rights. They
 reach the admin views of guest house, accommodation, and check-in/out in a
@@ -92,6 +92,13 @@ reply/close), full **accommodation** (`urus-bilik`) and **check-in/out**
 
 `admin_ukmre` (external guest-house operator) is post-MVP: add the enum value and
 route guest-house approvals to it. No schema restructure needed.
+
+`kafe` (cafe operator) is a single-purpose account for the campus cafe. It reaches
+**only** `urus-kafe` (cafe settings + menu + orders) plus its own profile / Digital
+Resident ID — every other route is blocked in `proxy.ts`, and `navForRole` returns
+a bespoke one-item menu. It is created by an admin via user management
+(`urus-pengguna`); it never self-registers. `CAFE_MANAGE_ROLES` (in `lib/rbac.ts`)
+is `superadmin` / `admin_kiz` / `kafe`.
 
 ### Registration & verification
 

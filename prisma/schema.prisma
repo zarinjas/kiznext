@@ -14,6 +14,9 @@ enum Role {
   fellow
   ahli
   staf
+  /// Cafe operator — manages the KIZ Cafe (settings + menu) and views its
+  /// orders, nothing else. Created by an admin, never self-registered.
+  kafe
 }
 
 /// Self-service registration state machine. `unverified` = email link not yet

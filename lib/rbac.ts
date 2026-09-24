@@ -1,4 +1,4 @@
-export type Role = "superadmin" | "admin_kiz" | "pengetua" | "fellow" | "ahli" | "staf";
+export type Role = "superadmin" | "admin_kiz" | "pengetua" | "fellow" | "ahli" | "staf" | "kafe";
 
 /** Member roles (resident-style home + community features, no urus-*). */
 export const MEMBER_ROLES: Role[] = ["ahli", "staf", "fellow"]
@@ -30,8 +30,11 @@ export const LAUNDRY_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"
 /** Analytics / reports — admins and the principal (read-only). */
 export const REPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
-/** KIZ Cafe smart ordering — admins manage the menu + cafe settings. */
-export const CAFE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz"]
+/** KIZ Cafe smart ordering — admins + the dedicated cafe operator. */
+export const CAFE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "kafe"]
+
+/** The cafe operator role — cafe surfaces only. */
+export const CAFE_OPERATOR_ROLES: Role[] = ["kafe"]
 
 /**
  * Broadcast push notifications — admins plus the principal. The deputy

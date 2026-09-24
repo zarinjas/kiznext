@@ -1,4 +1,4 @@
-export type Role = "superadmin" | "admin_kiz" | "pengetua" | "fellow" | "ahli" | "staf"
+export type Role = "superadmin" | "admin_kiz" | "pengetua" | "fellow" | "ahli" | "staf" | "kafe"
 
 /** Member roles (resident-style home + community features, no urus-*). */
 export const MEMBER_ROLES: Role[] = ["ahli", "staf", "fellow"]
@@ -30,6 +30,9 @@ export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", 
  */
 export const NOTIFICATION_SEND_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
+/** KIZ Cafe smart ordering — admins + the dedicated cafe operator. */
+export const CAFE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "kafe"]
+
 /** Self-service registration lifecycle. */
 export type AccountStatus = "unverified" | "pending" | "active"
 
@@ -50,6 +53,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   fellow: "Fellow",
   ahli: "Student",
   staf: "Staff",
+  kafe: "Cafe Operator",
 }
 
 export const ROLE_OVERLINES: Record<Role, string> = {
@@ -59,4 +63,5 @@ export const ROLE_OVERLINES: Record<Role, string> = {
   fellow: "Fellow",
   ahli: "Resident",
   staf: "Staff",
+  kafe: "KIZ Cafe",
 }

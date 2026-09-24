@@ -29,6 +29,17 @@ export interface NavGroup {
 }
 
 export function navForRole(role: Role): NavGroup[] {
+  // The cafe operator is a single-purpose account — the mobile app only shows
+  // their profile (the cafe dashboard lives on the web).
+  if (role === "kafe") {
+    return [
+      {
+        label: "KIZ Cafe",
+        items: [{ label: "Profile", icon: "person", path: "profile" }],
+      },
+    ]
+  }
+
   const groups: NavGroup[] = [
     {
       label: "Overview",

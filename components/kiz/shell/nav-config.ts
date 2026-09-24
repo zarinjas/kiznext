@@ -34,6 +34,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   fellow: "Fellow",
   ahli: "Student",
   staf: "Staff",
+  kafe: "Cafe Operator",
 }
 
 export const ROLE_OVERLINES: Record<Role, string> = {
@@ -43,9 +44,24 @@ export const ROLE_OVERLINES: Record<Role, string> = {
   fellow: "Fellow",
   ahli: "Resident",
   staf: "Staff",
+  kafe: "KIZ Cafe",
 }
 
 export function navForRole(role: Role): NavGroup[] {
+  // The cafe operator gets a single-purpose shell: manage the cafe, view its
+  // orders, nothing else. (Enforced in `proxy.ts` too.)
+  if (role === "kafe") {
+    return [
+      {
+        label: "KIZ Cafe",
+        items: [
+          { label: "Cafe Dashboard", href: `/${role}/urus-kafe`, icon: "restaurant" },
+          { label: "Profile", href: `/${role}/profile`, icon: "person" },
+        ],
+      },
+    ]
+  }
+
   const groups: NavGroup[] = [
     {
       label: "Overview",

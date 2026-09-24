@@ -33,6 +33,10 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
     title: "Staff Dashboard",
     description: "Book facilities, check announcements, and more.",
   },
+  kafe: {
+    title: "KIZ Cafe Dashboard",
+    description: "Manage your cafe and view orders.",
+  },
 }
 
 /** Time-of-day greeting, computed server-side so it can never mismatch on hydration. */
@@ -53,6 +57,9 @@ export default async function RoleDashboardPage({
 
   const userRole = session.user.role as string
   if (role !== userRole) redirect(`/${userRole}`)
+
+  // The cafe operator has a single-purpose dashboard.
+  if (userRole === "kafe") redirect(`/${userRole}/urus-kafe`)
 
   // Students (ahli), staff (staf) and fellows all get the resident-style member
   // home. Only students can apply for accommodation, so the room reminder is
