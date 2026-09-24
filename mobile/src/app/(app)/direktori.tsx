@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import {
   bearingDeg,
-  fetchWalkingRoute,
+  fetchWalkingRouteDetailed,
   formatDistanceMeters,
   haversineMeters,
   headingDelta,
@@ -126,6 +126,9 @@ export default function DirectoryScreen() {
   const [group, setGroup] = useState<Group>("all")
   const [nearestFirst, setNearestFirst] = useState(false)
   const [route, setRoute] = useState<{ latitude: number; longitude: number }[] | null>(null)
+  // True when the drawn line is a straight-line estimate, not a real walking
+  // path — surfaced in the UI so we never imply more than we know.
+  const [routeDegraded, setRouteDegraded] = useState(false)
   const [mapOpen, setMapOpen] = useState(false)
   const lastFetch = useRef<{ lat: number; lng: number; destId: string } | null>(null)
 
@@ -263,8 +266,10 @@ export default function DirectoryScreen() {
 
     lastFetch.current = { lat: position.latitude, lng: position.longitude, destId: target.id }
     let active = true
-    fetchWalkingRoute(position, targetPoint).then((r) => {
-      if (active && r) setRoute(r)
+    fetchWalkingRouteDetailed(position, targetPoint).then((r) => {
+      if (!active) return
+      setRoute(r.points)
+      setRouteDegraded(r.degraded)
     })
     return () => {
       active = false
@@ -418,6 +423,20 @@ export default function DirectoryScreen() {
                 <Text variant="subheading" marginTop="s" numberOfLines={1}>
                   {autoTargeted ? `Nearest: ${target.name}` : target.name}
                 </Text>
+                {/*
+                  Say so when the line is an estimate. Drawing a straight line
+                  that looks like a path, without labelling it, would imply a
+                  precision we don't have — and a judge who knows the campus
+                  would spot it.
+                */}
+                {routeDegraded && routingApplicable ? (
+                  <Box flexDirection="row" alignItems="center" gap="xs" marginTop="xs">
+                    <Icon name="wifi_off" size={12} color={theme.colors.warningInk} />
+                    <Text variant="caption" style={{ color: theme.colors.warningInk }}>
+                      Straight-line estimate — turn-by-turn unavailable
+                    </Text>
+                  </Box>
+                ) : null}
                 {arrived ? (
                   <Text variant="caption" marginTop="xs" style={{ color: theme.colors.successInk }}>
                     You&apos;ve arrived.

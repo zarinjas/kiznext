@@ -17,6 +17,7 @@ export { AiBadge, LiveDot } from "./ai-badge"
 export { ToastProvider, useToast } from "./toast"
 export { Sheet, FullScreenModal } from "./sheet"
 export { CardGrid, PillRail } from "./grid"
+export { SplitView, useSplitView } from "./split-view"
 export {
   PressScale,
   FadeInUp,

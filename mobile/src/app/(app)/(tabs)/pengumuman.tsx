@@ -3,7 +3,7 @@ import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
-import { Pressable } from "react-native"
+import { Pressable, ScrollView } from "react-native"
 
 import { useAuth } from "@/lib/auth-context"
 import { absoluteUrl } from "@/lib/config"
@@ -20,9 +20,11 @@ import {
   PressScale,
   Screen,
   Skeleton,
+  SplitView,
   StatusChip,
   Text,
   useToast,
+  useSplitView,
   type ChipTone,
   type Theme,
 } from "@/ui"
@@ -47,15 +49,19 @@ export default function AnnouncementsScreen() {
   const { user } = useAuth()
   const { data, isLoading, isError, refetch, isRefetching } = useAnnouncements()
   const [openId, setOpenId] = useState<string | null>(null)
+  const { isSplit } = useSplitView()
 
   const announcements = data?.announcements ?? []
   const canInteract = Boolean(user && MEMBER_ROLES.includes(user.role))
   const open = announcements.find((a) => a.id === openId) ?? null
 
-  return (
-    <Screen scroll edges={["top"]} refreshing={isRefetching} onRefresh={() => refetch()}>
+  const header = (
+    <>
       {/* Header stays mounted through load and error so the page never blanks. */}
-      <PageHeader title="Announcements" subtitle="Stay updated with the latest news and notices from KIZ." />
+      <PageHeader
+        title="Announcements"
+        subtitle="Stay updated with the latest news and notices from KIZ."
+      />
 
       <AsyncBoundary
         data={data}
@@ -81,6 +87,7 @@ export default function AnnouncementsScreen() {
                   <AnnouncementCard
                     announcement={a}
                     canInteract={canInteract}
+                    selected={isSplit && a.id === openId}
                     onOpen={() => setOpenId(a.id)}
                   />
                 </FadeInUp>
@@ -89,6 +96,39 @@ export default function AnnouncementsScreen() {
           )
         }}
       </AsyncBoundary>
+    </>
+  )
+
+  // Tablet landscape: list beside detail, so reading doesn't lose the feed.
+  // Phone / portrait tablet: unchanged single-column flow with a full-screen
+  // reader, which is the right shape for a narrow screen.
+  if (isSplit) {
+    return (
+      <Screen padded={false} edges={["top"]} refreshing={isRefetching} onRefresh={() => refetch()}>
+        <SplitView
+          placeholderTitle="Pick an announcement"
+          placeholderMessage="Tap a notice on the left to read it here."
+          placeholderIcon="campaign"
+          list={
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+              {header}
+            </ScrollView>
+          }
+          detail={
+            open ? (
+              <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+                <AnnouncementBody announcement={open} canInteract={canInteract} />
+              </ScrollView>
+            ) : null
+          }
+        />
+      </Screen>
+    )
+  }
+
+  return (
+    <Screen scroll edges={["top"]} refreshing={isRefetching} onRefresh={() => refetch()}>
+      {header}
 
       <Box height={32} />
 
@@ -117,10 +157,13 @@ function tagAccent(tag: string): keyof Theme["colors"] {
 function AnnouncementCard({
   announcement,
   canInteract,
+  selected = false,
   onOpen,
 }: {
   announcement: Announcement
   canInteract: boolean
+  /** Highlighted in the tablet split view when it's the open item. */
+  selected?: boolean
   onOpen: () => void
 }) {
   const theme = useTheme<Theme>()
@@ -132,15 +175,16 @@ function AnnouncementCard({
       onPress={onOpen}
       scaleTo={0.985}
       accessibilityRole="button"
+      accessibilityState={{ selected }}
       accessibilityLabel={`${meta.label}: ${announcement.title}`}
     >
       <Box
         borderRadius="cardLg"
         borderWidth={1}
-        borderColor="border"
+        borderColor={selected ? "brand600" : "border"}
+        backgroundColor={selected ? "brand50" : "surface"}
         borderLeftWidth={4}
         borderLeftColor={accent}
-        backgroundColor="surface"
         padding="l"
         overflow="hidden"
       >
@@ -260,26 +304,46 @@ function AnnouncementDialog({
   canInteract: boolean
   onClose: () => void
 }) {
+  return (
+    // Full-screen rather than a sheet: announcements run long, and a 92%-tall
+    // sheet left the body scrolling in a letterbox.
+    <FullScreenModal visible={Boolean(announcement)} onClose={onClose} title="Announcement">
+      {announcement ? (
+        <AnnouncementBody announcement={announcement} canInteract={canInteract} />
+      ) : null}
+    </FullScreenModal>
+  )
+}
+
+/**
+ * The announcement detail body, shared by the phone modal and the tablet detail
+ * pane so the two can never drift.
+ */
+function AnnouncementBody({
+  announcement,
+  canInteract,
+}: {
+  announcement: Announcement
+  canInteract: boolean
+}) {
   const theme = useTheme<Theme>()
+  const meta = announcementTagMeta(announcement.tag)
+  const attachment = absoluteUrl(announcement.attachmentUrl)
+  const isImage = announcement.attachmentType === "image"
+  const isPdf = announcement.attachmentType === "pdf"
+
+  // Mark-read lives here rather than in the dialog, so it fires for both the
+  // phone modal and the tablet detail pane.
   const markRead = useMarkAnnouncementRead()
-  const announcementId = announcement?.id
-  const unread = announcement?.unread
+  const announcementId = announcement.id
+  const unread = announcement.unread
 
   useEffect(() => {
     if (announcementId && unread) markRead.mutate(announcementId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [announcementId, unread])
 
-  const meta = announcement ? announcementTagMeta(announcement.tag) : null
-  const attachment = announcement ? absoluteUrl(announcement.attachmentUrl) : null
-  const isImage = announcement?.attachmentType === "image"
-  const isPdf = announcement?.attachmentType === "pdf"
-
   return (
-    // Full-screen rather than a sheet: announcements run long, and a 92%-tall
-    // sheet left the body scrolling in a letterbox.
-    <FullScreenModal visible={Boolean(announcement)} onClose={onClose} title="Announcement">
-      {announcement && meta ? (
         <Box gap="m">
           <Box flexDirection="row" alignItems="center" gap="s" flexWrap="wrap">
             <StatusChip label={meta.label} tone={toneForTag(announcement.tag)} icon={meta.icon} />
@@ -350,7 +414,5 @@ function AnnouncementDialog({
             </Box>
           ) : null}
         </Box>
-      ) : null}
-    </FullScreenModal>
   )
 }

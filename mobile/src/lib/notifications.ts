@@ -23,6 +23,67 @@ export function configureNotificationHandler(): void {
   })
 }
 
+/**
+ * Why push is or isn't working on this device.
+ *
+ * Registration failures were previously swallowed into a `console.warn`, so a
+ * resident could have notifications silently broken forever with no way to tell.
+ * Surfaced in Profile → Notifications so the state is at least visible and
+ * re-triable.
+ */
+export type PushStatus =
+  | { state: "ready"; token: string }
+  | { state: "denied" }
+  | { state: "simulator" }
+  | { state: "unconfigured" }
+  | { state: "error"; message: string }
+
+export async function getPushStatus(): Promise<PushStatus> {
+  if (!Device.isDevice) return { state: "simulator" }
+
+  const { status } = await Notifications.getPermissionsAsync()
+  if (status !== "granted") return { state: "denied" }
+
+  const projectId =
+    Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId
+  if (!projectId) return { state: "unconfigured" }
+
+  try {
+    const { data } = await Notifications.getExpoPushTokenAsync({ projectId })
+    return { state: "ready", token: data }
+  } catch (err) {
+    return { state: "error", message: err instanceof Error ? err.message : "Unknown error" }
+  }
+}
+
+/** Human-readable label + whether a retry is worth offering. */
+export function pushStatusLabel(status: PushStatus): { title: string; detail: string; retry: boolean } {
+  switch (status.state) {
+    case "ready":
+      return { title: "On", detail: "This device is registered for notifications.", retry: false }
+    case "denied":
+      return {
+        title: "Off",
+        detail: "Notifications are blocked. Turn them on in your device settings.",
+        retry: true,
+      }
+    case "simulator":
+      return {
+        title: "Unavailable",
+        detail: "Push notifications need a physical device.",
+        retry: false,
+      }
+    case "unconfigured":
+      return {
+        title: "Not set up",
+        detail: "This build has no push project configured.",
+        retry: false,
+      }
+    case "error":
+      return { title: "Problem", detail: status.message, retry: true }
+  }
+}
+
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (!Device.isDevice) return null
 

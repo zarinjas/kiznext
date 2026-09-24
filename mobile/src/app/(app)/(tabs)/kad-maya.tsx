@@ -2,9 +2,10 @@ import { formatWallClockTime, nowHhmmMalaysia } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { useEffect, useRef, useState } from "react"
-import { Alert, Linking, Platform, Pressable } from "react-native"
+import { Linking, Platform, Pressable } from "react-native"
 import QRCode from "react-native-qrcode-svg"
 
+import { useBoostBrightness } from "@/lib/brightness"
 import { absoluteUrl } from "@/lib/config"
 import { useEcard, useRegisterEcard, useWalletLinks } from "@/lib/hooks"
 import {
@@ -13,11 +14,13 @@ import {
   Icon,
   KButton,
   KEmpty,
+  LiveDot,
   LoadingScreen,
   Screen,
   SectionTitle,
   StatusChip,
   Text,
+  useToast,
   type Theme,
 } from "@/ui"
 
@@ -84,11 +87,14 @@ export default function EcardScreen() {
   // Live wall-clock stamp under the QR — makes a screenshot of the card
   // visibly distinguishable from the live card for the officer checking it.
   const [shownAt, setShownAt] = useState(() => nowHhmmMalaysia())
+  const toast = useToast()
+
+  // Full brightness while the card is on screen, so the QR scans outdoors.
+  // Restored automatically on leave.
+  useBoostBrightness(Boolean(data))
 
   function openWallet(url: string) {
-    Linking.openURL(url).catch(() =>
-      Alert.alert("Couldn't open Wallet", "Please try again in a moment.")
-    )
+    Linking.openURL(url).catch(() => toast.error("Couldn't open Wallet. Try again in a moment."))
   }
 
   // First view registers the eCard (clears the dashboard checklist task).
@@ -225,10 +231,16 @@ export default function EcardScreen() {
               ) : null}
 
               <Box alignItems="center" marginTop="l">
-                <QRCode value={c.matricId} size={120} />
-                <Text variant="caption" marginTop="s">
-                  Shown at {formatWallClockTime(shownAt)}
-                </Text>
+                <QRCode value={c.matricId} size={128} />
+                {/*
+                  A live "LIVE · 3:42 PM" stamp is the cheap anti-fraud
+                  affordance here: a screenshot of this card will show a stale
+                  time, which an officer can spot at a glance.
+                */}
+                <Box flexDirection="row" alignItems="center" gap="s" marginTop="s">
+                  <LiveDot label="LIVE" />
+                  <Text variant="caption">{formatWallClockTime(shownAt)}</Text>
+                </Box>
               </Box>
 
               {c.validUntil ? (

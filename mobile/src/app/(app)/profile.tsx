@@ -5,11 +5,12 @@ import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
-import { Switch } from "react-native"
+import { Linking, Switch } from "react-native"
 
 import { ApiError, apiFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useDemo } from "@/lib/demo"
+import { getPushStatus, pushStatusLabel, type PushStatus } from "@/lib/notifications"
 import {
   authenticateBiometric,
   biometricLabel,
@@ -50,6 +51,20 @@ export default function ProfileScreen() {
   const [bioEnabled, setBioEnabled] = useState(false)
   const [bioLabel, setBioLabel] = useState("Biometric unlock")
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; phone?: string }>({})
+  const [push, setPush] = useState<PushStatus | null>(null)
+  const pushInfo = push ? pushStatusLabel(push) : null
+
+  // Push registration used to fail silently, so a resident could have
+  // notifications broken indefinitely with no way to tell.
+  useEffect(() => {
+    let active = true
+    getPushStatus().then((s) => {
+      if (active) setPush(s)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -306,6 +321,45 @@ export default function ProfileScreen() {
         active (a DEMO pill on the dashboard) so it can never be mistaken for
         live sensor output.
       */}
+      <ListGroup title="Notifications">
+        <ListRow
+          icon="notifications"
+          title="Push notifications"
+          subtitle={pushInfo?.detail ?? "Checking…"}
+          trailing={
+            pushInfo ? (
+              <StatusChip
+                label={pushInfo.title}
+                tone={
+                  push?.state === "ready"
+                    ? "success"
+                    : push?.state === "denied" || push?.state === "error"
+                      ? "warning"
+                      : "neutral"
+                }
+              />
+            ) : undefined
+          }
+          onPress={
+            pushInfo?.retry
+              ? () => {
+                  void Linking.openSettings().catch(() =>
+                    toast.error("Couldn't open Settings on this device.")
+                  )
+                }
+              : undefined
+          }
+        />
+        <ListRow
+          icon="inbox"
+          title="Notification inbox"
+          subtitle="See everything the KIZ office has sent you"
+          onPress={() => router.push("/notifications")}
+        />
+      </ListGroup>
+
+      <Box height={24} />
+
       <ListGroup title="Presentation">
         <ListRow
           icon="auto_awesome"
