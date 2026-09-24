@@ -3,11 +3,12 @@ import { Alert } from "react-native"
 
 import { useCancelFacility, useCancelGuestHouse, useMyBookings } from "@/lib/hooks"
 import {
+  AsyncBoundary,
   Box,
   KButton,
   KEmpty,
-  LoadingScreen,
   Screen,
+  Skeleton,
   StatusChip,
   Surface,
   Text,
@@ -60,60 +61,54 @@ function confirmCancel(label: string, run: () => void) {
 }
 
 export default function MyBookingsScreen() {
-  const { data, isLoading, refetch } = useMyBookings()
+  const { data, isLoading, isError, refetch } = useMyBookings()
   const cancelFacility = useCancelFacility()
   const cancelGH = useCancelGuestHouse()
   const toast = useToast()
 
-  if (isLoading) return <LoadingScreen label="Loading your bookings…" />
-
-  if (!data) {
-    return (
-      <Screen scroll edges={[]}>
-        <KEmpty
-          tone="danger"
-          icon="error_outline"
-          title="Couldn't load your bookings"
-          message="Check your connection and try again."
-          action={<KButton label="Try again" icon="refresh" onPress={() => refetch()} />}
-        />
-      </Screen>
-    )
-  }
-
-  const empty = data.facilityBookings.length === 0 && data.guestHouseBookings.length === 0
-
   return (
-    <Screen scroll edges={[]}>
-      {empty ? (
-        <KEmpty
-          icon="calendar_month"
-          title="No bookings yet"
-          message="Book a facility or a guest house and it'll show up here."
-          action={
-            <>
-              <KButton
-                label="Book a facility"
-                icon="meeting_room"
-                onPress={() => router.push("/tempahan-fasiliti")}
-              />
-              <KButton
-                label="Book a guest house"
-                icon="hotel"
-                variant="secondary"
-                onPress={() => router.push("/rumah-tamu")}
-              />
-            </>
-          }
-        />
-      ) : (
+    <Screen scroll edges={[]} refreshing={isLoading} onRefresh={() => refetch()}>
+      <AsyncBoundary
+        data={data}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={refetch}
+        skeleton={<Skeleton.CardList count={3} />}
+        errorTitle="Couldn't load your bookings"
+      >
+        {(loaded) => {
+          const empty =
+            loaded.facilityBookings.length === 0 && loaded.guestHouseBookings.length === 0
+
+          return empty ? (
+            <KEmpty
+              icon="calendar_month"
+              title="No bookings yet"
+              message="Book a facility or a guest house and it'll show up here."
+              action={
+                <>
+                  <KButton
+                    label="Book a facility"
+                    icon="meeting_room"
+                    onPress={() => router.push("/tempahan-fasiliti")}
+                  />
+                  <KButton
+                    label="Book a guest house"
+                    icon="hotel"
+                    variant="secondary"
+                    onPress={() => router.push("/rumah-tamu")}
+                  />
+                </>
+              }
+            />
+          ) : (
         <>
-          {data.facilityBookings.length > 0 ? (
+          {loaded.facilityBookings.length > 0 ? (
             <Box marginTop="l" gap="m">
               <Text variant="label" marginLeft="xs">
                 FACILITY BOOKINGS
               </Text>
-              {data.facilityBookings.map((b) => (
+              {loaded.facilityBookings.map((b) => (
                 <Surface key={b.id}>
                   <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap="s">
                     <Text variant="bodyStrong" flex={1} numberOfLines={1}>
@@ -151,12 +146,12 @@ export default function MyBookingsScreen() {
             </Box>
           ) : null}
 
-          {data.guestHouseBookings.length > 0 ? (
+          {loaded.guestHouseBookings.length > 0 ? (
             <Box marginTop="l" gap="m">
               <Text variant="label" marginLeft="xs">
                 GUEST HOUSE BOOKINGS
               </Text>
-              {data.guestHouseBookings.map((b) => (
+              {loaded.guestHouseBookings.map((b) => (
                 <Surface key={b.id}>
                   <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap="s">
                     <Text variant="bodyStrong" flex={1} numberOfLines={1}>
@@ -197,8 +192,10 @@ export default function MyBookingsScreen() {
               ))}
             </Box>
           ) : null}
-        </>
-      )}
+          </>
+        )
+        }}
+      </AsyncBoundary>
 
       <Box height={32} />
     </Screen>

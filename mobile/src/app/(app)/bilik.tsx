@@ -76,7 +76,7 @@ function feeLabel(value: number | null): string {
 
 export default function BilikScreen() {
   const theme = useTheme()
-  const { data, isLoading, refetch } = useBilik()
+  const { data, isLoading, isError, refetch } = useBilik()
   const submit = useSubmitApplication()
   const withdraw = useWithdrawApplication()
   const respond = useRespondRoommate()
@@ -88,7 +88,12 @@ export default function BilikScreen() {
 
   if (isLoading) return <LoadingScreen label="Loading room selection…" />
 
-  if (!data) {
+  // `isError || !data` rather than just `!data`: an error and an empty
+  // successful response are different situations, and only the former should
+  // offer a retry. The body below has several legitimate early returns
+  // (ineligible / already applied / window closed), so the branch structure is
+  // left intact rather than forced through AsyncBoundary.
+  if (isError || !data) {
     return (
       <Screen scroll edges={[]}>
         <KEmpty
