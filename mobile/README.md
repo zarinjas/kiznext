@@ -73,7 +73,7 @@ live backend.
 
 ```bash
 npx eas-cli@latest login            # sign in with your Expo account
-npx eas-cli@latest init             # links the project, writes extra.eas.projectId
+npx eas-cli@latest init             # already done: @cyberockets-team/mykiz
 ```
 
 `eas init` writes `extra.eas.projectId` into `app.json` — **push notifications
@@ -144,7 +144,7 @@ build profile, and run `eas update`. Native changes still need a new build.
 - [ ] `npm run typecheck && npm run lint` clean
 - [ ] `npx expo export --platform ios` bundles
 - [ ] Replace `assets/images/icon.png` + `splash-icon.png` with the official KIZ logo (current ones are a teal "K" placeholder)
-- [ ] `eas init` done (adds `extra.eas.projectId`) — required for push
+- [x] `eas init` done — linked to `@cyberockets-team/mykiz` (push works once rebuilt)
 - [ ] App Store Connect app record + Play Console app created for `my.kiz.app`
 - [ ] Store listings: name **MyKIZ**, subtitle, description, screenshots, privacy policy URL
 - [ ] iOS encryption: `ios.config.usesNonExemptEncryption: false` is set (expo-secure-store)

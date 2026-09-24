@@ -515,7 +515,7 @@ export interface HeroOverlay {
   opacity: number
 }
 
-export const DEFAULT_HERO_OVERLAY: HeroOverlay = {
+const DEFAULT_HERO_OVERLAY: HeroOverlay = {
   from: "#02141F",
   to: "#02141F",
   opacity: 0.55,
