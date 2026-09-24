@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticate, unauthorized, badRequest } from "@/lib/mobile-auth"
 import { askConciergeCore } from "@/lib/ai/concierge"
+import { getAiConfig } from "@/lib/ai/config"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+/** The concierge's identity + availability, for the mobile header and greeting. */
+export async function GET(req: NextRequest) {
+  const auth = await authenticate(req)
+  if (!auth) return unauthorized()
+
+  const cfg = await getAiConfig()
+  return NextResponse.json({
+    data: {
+      name: cfg.conciergeName,
+      avatarUrl: cfg.avatarUrl,
+      enabled: cfg.enabled,
+    },
+  })
+}
 
 /** Ask KIZ-AI a question (Gemini/Ollama RAG). Returns a `ConciergeReply`. */
 export async function POST(req: NextRequest) {

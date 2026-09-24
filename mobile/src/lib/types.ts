@@ -77,6 +77,19 @@ export interface HomeTodo {
   ctaLabel: string
 }
 
+/** Overlay scrim drawn over the dashboard hero banner image. */
+export interface HeroOverlay {
+  from: string
+  to: string
+  opacity: number
+}
+
+/** Admin-uploaded backgrounds for the AI & AR showcase cards, or null. */
+export interface ShowcaseBackgrounds {
+  lens: string | null
+  wayfinder: string | null
+}
+
 export interface ResidentHome {
   room: {
     roomCode: string

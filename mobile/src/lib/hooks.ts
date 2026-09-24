@@ -13,6 +13,7 @@ import type {
   ChatSnapshot,
   CheckInLookup,
   ConciergeReply,
+  HeroOverlay,
   CheckInOverview,
   CheckInScan,
   CheckInSubmit,
@@ -32,6 +33,7 @@ import type {
   OnboardingSlide,
   Panorama,
   ResidentHome,
+  ShowcaseBackgrounds,
   SosData,
   WalletLinks,
 } from "./types"
@@ -39,6 +41,16 @@ import type {
 /** One-shot KIZ-AI question. Returns the reply (never throws for AI-off). */
 export function askConcierge(question: string): Promise<ConciergeReply> {
   return apiPost<ConciergeReply>("/concierge", { question })
+}
+
+/** The concierge's identity + availability, for the header and greeting. */
+export function useConciergeMeta() {
+  return useQuery({
+    queryKey: ["concierge-meta"],
+    queryFn: () =>
+      apiGet<{ name: string; avatarUrl: string | null; enabled: boolean }>("/concierge"),
+    staleTime: 5 * 60 * 1000,
+  })
 }
 
 export function useOnboardingSlides() {
@@ -79,7 +91,13 @@ export function useToggleAnnouncementReaction() {
 export function useHome() {
   return useQuery({
     queryKey: ["home"],
-    queryFn: () => apiGet<{ home: ResidentHome | null; heroBackgroundUrl: string | null }>("/home"),
+    queryFn: () =>
+      apiGet<{
+        home: ResidentHome | null
+        heroBackgroundUrl: string | null
+        heroOverlay: HeroOverlay
+        showcase: ShowcaseBackgrounds
+      }>("/home"),
   })
 }
 

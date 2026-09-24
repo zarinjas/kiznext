@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { getAppLogoUrl, getLoginBackgroundUrl, getDashboardHeroBackground, getDashboardPoster, getResendConfig, getStudentCardDesign, getAllCardBackgrounds } from "@/lib/settings"
+import { getAppLogoUrl, getLoginBackgroundUrl, getDashboardHeroBackground, getDashboardHeroOverlay, getDashboardPoster, getShowcaseBackgrounds, getResendConfig, getStudentCardDesign, getAllCardBackgrounds } from "@/lib/settings"
 import { getSosSettings } from "@/lib/sos"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
@@ -16,11 +16,13 @@ export default async function UrusTetapanPage() {
     redirect(`/${session.user.role}`)
   }
 
-  const [logoUrl, loginBackgroundUrl, dashboardHeroBackgroundUrl, dashboardPosterUrl, cardDesign, cardBackgrounds, resend, sos] = await Promise.all([
+  const [logoUrl, loginBackgroundUrl, dashboardHeroBackgroundUrl, dashboardHeroOverlay, dashboardPosterUrl, showcaseBackgrounds, cardDesign, cardBackgrounds, resend, sos] = await Promise.all([
     getAppLogoUrl(),
     getLoginBackgroundUrl(),
     getDashboardHeroBackground(),
+    getDashboardHeroOverlay(),
     getDashboardPoster(),
+    getShowcaseBackgrounds(),
     getStudentCardDesign(),
     getAllCardBackgrounds(),
     getResendConfig(),
@@ -38,7 +40,9 @@ export default async function UrusTetapanPage() {
         currentLogoUrl={logoUrl}
         currentLoginBackgroundUrl={loginBackgroundUrl}
         currentDashboardHeroBackgroundUrl={dashboardHeroBackgroundUrl}
+        currentDashboardHeroOverlay={dashboardHeroOverlay}
         currentDashboardPosterUrl={dashboardPosterUrl}
+        currentShowcaseBackgrounds={showcaseBackgrounds}
       />
       <ResendSettingsForm apiKeySet={resend.apiKeySet} initialFrom={resend.from} />
       <SosSettingsForm initial={sos} />

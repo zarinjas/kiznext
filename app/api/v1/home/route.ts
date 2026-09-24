@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { authenticate, unauthorized, serverError } from "@/lib/mobile-auth"
 import { getResidentHomeData } from "@/lib/dashboard"
 import { isMemberRole } from "@/lib/rbac"
-import { getDashboardHeroBackground } from "@/lib/settings"
+import { getDashboardHeroBackground, getDashboardHeroOverlay, getShowcaseBackgrounds } from "@/lib/settings"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -16,20 +16,26 @@ export async function GET(req: NextRequest) {
   if (!auth) return unauthorized()
 
   if (!isMemberRole(auth.user.role)) {
-    const heroBackgroundUrl = await getDashboardHeroBackground()
-    return NextResponse.json({ data: { home: null, heroBackgroundUrl } })
+    const [heroBackgroundUrl, heroOverlay, showcase] = await Promise.all([
+      getDashboardHeroBackground(),
+      getDashboardHeroOverlay(),
+      getShowcaseBackgrounds(),
+    ])
+    return NextResponse.json({ data: { home: null, heroBackgroundUrl, heroOverlay, showcase } })
   }
 
   try {
-    const [home, heroBackgroundUrl] = await Promise.all([
+    const [home, heroBackgroundUrl, heroOverlay, showcase] = await Promise.all([
       getResidentHomeData({
         userId: auth.user.id,
         matricId: auth.user.matricId,
         role: auth.user.role as "ahli" | "staf" | "fellow",
       }),
       getDashboardHeroBackground(),
+      getDashboardHeroOverlay(),
+      getShowcaseBackgrounds(),
     ])
-    return NextResponse.json({ data: { home, heroBackgroundUrl } })
+    return NextResponse.json({ data: { home, heroBackgroundUrl, heroOverlay, showcase } })
   } catch (err) {
     console.error("[api/v1/home] failed", err)
     return serverError("Couldn't load your dashboard.")

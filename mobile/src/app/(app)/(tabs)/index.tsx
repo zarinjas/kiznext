@@ -16,9 +16,9 @@ import { GradientBg } from "@/components/gradient"
 import { useAuth } from "@/lib/auth-context"
 import { absoluteUrl } from "@/lib/config"
 import { useDemo } from "@/lib/demo"
-import { useHome } from "@/lib/hooks"
+import { useConciergeMeta, useHome } from "@/lib/hooks"
 import { useLayout } from "@/lib/responsive"
-import type { HomeTodo, ResidentHome } from "@/lib/types"
+import type { HeroOverlay, HomeTodo, ResidentHome, ShowcaseBackgrounds } from "@/lib/types"
 import {
   AiBadge,
   FadeInUp,
@@ -33,6 +33,9 @@ import {
 import { Icon } from "@/ui/icon"
 
 const LOGO = require("../../../../assets/images/logo-mark.png")
+
+/** Matches the server default — used only before the first `/home` resolves. */
+const DEFAULT_OVERLAY: HeroOverlay = { from: "#02141F", to: "#02141F", opacity: 0.55 }
 
 /**
  * The three flagship AI/AR surfaces, promoted out of the utility grid.
@@ -133,7 +136,15 @@ function HeaderButton({ icon, label, path }: { icon: string; label: string; path
   )
 }
 
-function Hero({ backgroundUrl, home }: { backgroundUrl: string | null; home: ResidentHome | null }) {
+function Hero({
+  backgroundUrl,
+  overlay,
+  home,
+}: {
+  backgroundUrl: string | null
+  overlay: HeroOverlay
+  home: ResidentHome | null
+}) {
   const { user } = useAuth()
   const { demo } = useDemo()
   if (!user) return null
@@ -145,15 +156,29 @@ function Hero({ backgroundUrl, home }: { backgroundUrl: string | null; home: Res
   const roomLine = room
     ? `Block ${room.blockName} · Room ${room.roomNumber}${room.bed ? ` · ${room.bed}` : ""}`
     : null
+  const hasTag = Boolean(home?.checkInStatus)
+
+  // The hero is `justifyContent: space-between`, so a fixed height left a huge
+  // dead gap when a fresh account had neither a room line nor a check-in tag.
+  // A shorter variant keeps the two rows a comfortable, consistent distance
+  // apart instead of stretching to fill 232pt.
+  const compact = !roomLine || !hasTag
 
   return (
-    <View style={styles.hero}>
+    <View style={[styles.hero, compact && styles.heroCompact]}>
       {background ? (
         <Image source={{ uri: background }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} />
       ) : (
         <GradientBg id="mobile-home-hero" colors={[...gradientStops.hero]} />
       )}
-      <View style={styles.heroScrim} />
+      {/* Admin-configured overlay scrim — keeps the white text legible over any
+          photo, defaulting to a near-black navy. */}
+      <GradientBg
+        id="mobile-home-hero-overlay"
+        colors={[overlay.from, overlay.to]}
+        opacity={overlay.opacity}
+        direction="br"
+      />
       <View style={styles.heroContent}>
         <View style={styles.heroTop}>
           <View style={styles.brandRow}>
@@ -239,43 +264,58 @@ function SectionHeader({
 }
 
 /** The promoted AI/AR block. */
-function Showcase() {
+function Showcase({
+  backgrounds,
+  aiName,
+}: {
+  backgrounds: ShowcaseBackgrounds
+  aiName: string
+}) {
   const { isTablet } = useLayout()
 
   return (
     <>
       <SectionHeader title="AI & AR at KIZ" badge={<AiBadge label="POWERED" />} />
       <View style={[styles.showcaseRow, isTablet && styles.showcaseRowWide]}>
-        {SHOWCASE.map((item, i) => (
-          <FadeInUp key={item.key} index={i} style={styles.showcaseFlex}>
-            <Pulse enabled={i === 0}>
-              <PressScale
-                onPress={() => router.push(item.path)}
-                scaleTo={0.96}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.label}. ${item.tagline}`}
-                style={styles.showcaseCard}
-              >
-                <GradientBg id={`sc-${item.key}`} colors={[...item.gradient]} direction="br" />
-                <View style={styles.showcaseInner}>
-                  <View style={styles.showcaseTop}>
-                    <View style={styles.showcaseGlyph}>
-                      <Icon name={item.icon} size={24} color="#FFFFFF" />
+        {SHOWCASE.map((item, i) => {
+          const image = backgrounds[item.key] ? absoluteUrl(backgrounds[item.key]) : null
+          return (
+            <FadeInUp key={item.key} index={i} style={styles.showcaseFlex}>
+              <Pulse enabled={i === 0}>
+                <PressScale
+                  onPress={() => router.push(item.path)}
+                  scaleTo={0.96}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.label}. ${item.tagline}`}
+                  style={styles.showcaseCard}
+                >
+                  {image ? (
+                    <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+                  ) : (
+                    <GradientBg id={`sc-${item.key}`} colors={[...item.gradient]} direction="br" />
+                  )}
+                  {/* Legibility scrim over an admin-uploaded photo. */}
+                  {image ? <View style={styles.showcaseScrim} /> : null}
+                  <View style={styles.showcaseInner}>
+                    <View style={styles.showcaseTop}>
+                      <View style={styles.showcaseGlyph}>
+                        <Icon name={item.icon} size={24} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.showcaseBadge}>
+                        <Icon name="auto_awesome" size={10} color="#FFFFFF" />
+                        <Text style={styles.showcaseBadgeText}>{item.badge}</Text>
+                      </View>
                     </View>
-                    <View style={styles.showcaseBadge}>
-                      <Icon name="auto_awesome" size={10} color="#FFFFFF" />
-                      <Text style={styles.showcaseBadgeText}>{item.badge}</Text>
+                    <View>
+                      <Text style={styles.showcaseTitle}>{item.label}</Text>
+                      <Text numberOfLines={2} style={styles.showcaseTagline}>{item.tagline}</Text>
                     </View>
                   </View>
-                  <View>
-                    <Text style={styles.showcaseTitle}>{item.label}</Text>
-                    <Text numberOfLines={2} style={styles.showcaseTagline}>{item.tagline}</Text>
-                  </View>
-                </View>
-              </PressScale>
-            </Pulse>
-          </FadeInUp>
-        ))}
+                </PressScale>
+              </Pulse>
+            </FadeInUp>
+          )
+        })}
       </View>
 
       {/* KIZ-AI gets an input-shaped affordance, not a link — it invites typing. */}
@@ -284,14 +324,14 @@ function Showcase() {
           onPress={() => router.push("/kiz-ai")}
           scaleTo={0.98}
           accessibilityRole="button"
-          accessibilityLabel="Ask KIZ-AI a question"
+          accessibilityLabel={`Ask ${aiName} a question`}
           style={styles.askCard}
         >
           <View style={styles.askGlyph}>
             <Icon name="smart_toy" size={20} color={color.brand[700]} />
           </View>
           <View style={styles.flex}>
-            <Text style={styles.askTitle}>Ask KIZ-AI</Text>
+            <Text style={styles.askTitle}>Ask {aiName}</Text>
             <Text numberOfLines={1} style={styles.askHint}>&ldquo;How do I pay my room fee?&rdquo;</Text>
           </View>
           <View style={styles.askSend}>
@@ -514,9 +554,13 @@ export default function DashboardScreen() {
   const { user } = useAuth()
   const { isTablet } = useLayout()
   const { data, isLoading, isError, refetch, isRefetching } = useHome()
+  const { data: conciergeMeta } = useConciergeMeta()
   if (!user) return null
 
   const home = data?.home ?? null
+  const overlay = data?.heroOverlay ?? DEFAULT_OVERLAY
+  const showcase = data?.showcase ?? { lens: null, wayfinder: null }
+  const aiName = conciergeMeta?.name ?? "KIZ-AI"
 
   return (
     <Screen
@@ -528,10 +572,10 @@ export default function DashboardScreen() {
     >
       <View style={[styles.page, isTablet && styles.pageWide]}>
         <View style={[styles.column, isTablet && styles.columnWide]}>
-          <Hero backgroundUrl={data?.heroBackgroundUrl ?? null} home={home} />
+          <Hero backgroundUrl={data?.heroBackgroundUrl ?? null} overlay={overlay} home={home} />
 
           {/* Innovation first — visible without scrolling. */}
-          <Showcase />
+          <Showcase backgrounds={showcase} aiName={aiName} />
 
           {home ? <LaundryTile home={home} /> : null}
 
@@ -577,7 +621,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
 
   hero: { height: 232, borderRadius: 28, overflow: "hidden", backgroundColor: "#08799D", ...shadow },
-  heroScrim: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(2, 20, 31, 0.50)" },
+  heroCompact: { height: 200 },
   heroContent: { flex: 1, padding: 20, justifyContent: "space-between" },
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   brandRow: { flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0, gap: 9 },
@@ -612,6 +656,7 @@ const styles = StyleSheet.create({
   showcaseRowWide: { gap: 16 },
   showcaseFlex: { flex: 1 },
   showcaseCard: { height: 168, borderRadius: 22, overflow: "hidden", ...shadow },
+  showcaseScrim: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(2, 20, 31, 0.30)" },
   showcaseInner: { flex: 1, padding: 15, justifyContent: "space-between" },
   showcaseTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 6 },
   showcaseGlyph: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,.20)", borderWidth: 1, borderColor: "rgba(255,255,255,.28)", alignItems: "center", justifyContent: "center" },

@@ -14,6 +14,7 @@ import {
   StyleSheet,
   TextInput,
 } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { absoluteUrl } from "@/lib/config"
 import { useAuth } from "@/lib/auth-context"
@@ -303,6 +304,11 @@ export default function ChatScreen() {
   const { user } = useAuth()
   const toast = useToast()
   const { data, isLoading, isError, refetch } = useChat()
+  // The custom header lives *inside* the keyboard-avoiding view, which itself
+  // sits inside a SafeAreaView that already offsets the top notch. iOS needs to
+  // know that offset or the composer is pushed by the wrong amount and the
+  // keyboard covers the input.
+  const insets = useSafeAreaInsets()
   const send = useSendChat()
   const react = useToggleReaction()
   const report = useReportChatMessage()
@@ -376,7 +382,11 @@ export default function ChatScreen() {
 
   return (
     <Screen padded={false} edges={["top"]}>
-      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+      >
         <Box paddingHorizontal="l" paddingVertical="m" borderBottomWidth={1} borderBottomColor="border" backgroundColor="surface">
           <Box flexDirection="row" alignItems="center" gap="m">
             <Box width={44} height={44} borderRadius="pill" backgroundColor="brand50" alignItems="center" justifyContent="center">

@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { Pressable, type PressableProps, type ViewStyle } from "react-native"
+import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native"
 import Animated, {
   Easing,
   FadeIn,
@@ -14,6 +14,8 @@ import Animated, {
 } from "react-native-reanimated"
 
 import { tapLight } from "@/lib/feedback"
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 /**
  * Motion primitives.
@@ -54,7 +56,7 @@ export function PressScale({
   /** Fire a light haptic on press-in. Disable for high-frequency controls. */
   haptic?: boolean
   scaleTo?: number
-  style?: ViewStyle
+  style?: StyleProp<ViewStyle>
 } & Omit<PressableProps, "style" | "onPress" | "children">) {
   const pressed = useSharedValue(0)
 
@@ -63,8 +65,13 @@ export function PressScale({
     opacity: withTiming(1 - 0.22 * pressed.value, { duration: 90 }),
   }))
 
+  // `style` must land on the Pressable itself, not a wrapper. When it sat on an
+  // inner Animated.View, any `width: "25%"` (or fixed size) was measured against
+  // an auto-width wrapper, so rows of equal-width tiles collapsed — the Quick
+  // Access grid rendered one full-width item per line. An animated Pressable
+  // keeps layout, visuals and the press transform on a single element.
   return (
-    <Pressable
+    <AnimatedPressable
       onPressIn={() => {
         pressed.value = 1
         if (haptic && !disabled) tapLight()
@@ -75,9 +82,10 @@ export function PressScale({
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       {...rest}
+      style={[style, animated]}
     >
-      <Animated.View style={[style, animated]}>{children}</Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   )
 }
 

@@ -13,6 +13,10 @@ const LOGIN_BACKGROUND_KEY = "login_background"
 const LOGIN_BACKGROUND_MAX_SIZE = 12 * 1024 * 1024
 const DASHBOARD_HERO_BG_KEY = "dashboard_hero_bg"
 const DASHBOARD_HERO_BG_MAX_SIZE = 12 * 1024 * 1024
+const DASHBOARD_HERO_OVERLAY_KEY = "dashboard_hero_overlay"
+const SHOWCASE_LENS_BG_KEY = "showcase_lens_bg"
+const SHOWCASE_WAYFINDER_BG_KEY = "showcase_wayfinder_bg"
+const SHOWCASE_BG_MAX_SIZE = 8 * 1024 * 1024
 const DASHBOARD_POSTER_KEY = "dashboard_poster"
 const DASHBOARD_POSTER_MAX_SIZE = 12 * 1024 * 1024
 
@@ -494,6 +498,166 @@ export async function removeDashboardHeroBackground(): Promise<{ success: boolea
     return { success: true }
   } catch (err) {
     return actionError("removeDashboardHeroBackground", err)
+  }
+}
+
+// ── Dashboard hero overlay gradient ─────────────────────────────────────────
+// A dark scrim gradient drawn over the hero banner image so the white greeting
+// text stays legible regardless of the photo. Admin-configurable: two hex stops
+// plus an opacity. Defaults to the near-black navy the hero shipped with.
+
+export interface HeroOverlay {
+  /** First gradient stop (top-left). */
+  from: string
+  /** Second gradient stop (bottom-right). */
+  to: string
+  /** 0–1 overlay opacity. */
+  opacity: number
+}
+
+export const DEFAULT_HERO_OVERLAY: HeroOverlay = {
+  from: "#02141F",
+  to: "#02141F",
+  opacity: 0.55,
+}
+
+const HEX_RE = /^#([0-9a-fA-F]{6})$/
+
+function isHex(value: unknown): value is string {
+  return typeof value === "string" && HEX_RE.test(value)
+}
+
+/** Read the overlay, falling back to the default and tolerating bad values. */
+export async function getDashboardHeroOverlay(): Promise<HeroOverlay> {
+  const raw = await getAppSetting(DASHBOARD_HERO_OVERLAY_KEY)
+  if (!raw) return DEFAULT_HERO_OVERLAY
+  try {
+    const parsed = JSON.parse(raw) as Partial<HeroOverlay>
+    const from = isHex(parsed.from) ? parsed.from : DEFAULT_HERO_OVERLAY.from
+    const to = isHex(parsed.to) ? parsed.to : DEFAULT_HERO_OVERLAY.to
+    const opacity =
+      typeof parsed.opacity === "number" && parsed.opacity >= 0 && parsed.opacity <= 1
+        ? parsed.opacity
+        : DEFAULT_HERO_OVERLAY.opacity
+    return { from, to, opacity }
+  } catch {
+    return DEFAULT_HERO_OVERLAY
+  }
+}
+
+export async function setDashboardHeroOverlay(
+  overlay: HeroOverlay
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+    if (!isHex(overlay.from) || !isHex(overlay.to)) {
+      return { success: false, error: "Pick a valid hex colour (e.g. #02141F)." }
+    }
+    const opacity = Math.max(0, Math.min(1, overlay.opacity ?? DEFAULT_HERO_OVERLAY.opacity))
+
+    await prisma.appSetting.upsert({
+      where: { key: DASHBOARD_HERO_OVERLAY_KEY },
+      update: { value: JSON.stringify({ from: overlay.from, to: overlay.to, opacity }) },
+      create: { key: DASHBOARD_HERO_OVERLAY_KEY, value: JSON.stringify({ from: overlay.from, to: overlay.to, opacity }) },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("setDashboardHeroOverlay", err)
+  }
+}
+
+// ── AI & AR showcase card backgrounds ────────────────────────────────────────
+// The two promoted cards on the mobile dashboard ("KIZ Lens" and "AR Wayfinder")
+// render a brand gradient by default; admins can override either with an image.
+
+export type ShowcaseSlot = "lens" | "wayfinder"
+
+export interface ShowcaseBackgrounds {
+  lens: string | null
+  wayfinder: string | null
+}
+
+function showcaseKey(slot: ShowcaseSlot): string {
+  return slot === "lens" ? SHOWCASE_LENS_BG_KEY : SHOWCASE_WAYFINDER_BG_KEY
+}
+
+export async function getShowcaseBackgrounds(): Promise<ShowcaseBackgrounds> {
+  const [lens, wayfinder] = await Promise.all([
+    getAppSetting(SHOWCASE_LENS_BG_KEY),
+    getAppSetting(SHOWCASE_WAYFINDER_BG_KEY),
+  ])
+  return { lens, wayfinder }
+}
+
+export async function uploadShowcaseBackground(
+  slot: ShowcaseSlot,
+  formData: FormData
+): Promise<{ success: boolean; error?: string; url?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+    if (slot !== "lens" && slot !== "wayfinder") {
+      return { success: false, error: "Unknown card." }
+    }
+
+    const file = formData.get("background") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const key = showcaseKey(slot)
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: `showcase-${slot}`,
+      maxBytes: SHOWCASE_BG_MAX_SIZE,
+    })
+
+    await prisma.appSetting.upsert({
+      where: { key },
+      update: { value: result.url },
+      create: { key, value: result.url },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true, url: result.url }
+  } catch (err) {
+    return actionError("uploadShowcaseBackground", err)
+  }
+}
+
+export async function removeShowcaseBackground(
+  slot: ShowcaseSlot
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+      return { success: false, error: "Unauthorized" }
+    }
+    if (slot !== "lens" && slot !== "wayfinder") {
+      return { success: false, error: "Unknown card." }
+    }
+
+    const key = showcaseKey(slot)
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+    await prisma.appSetting.deleteMany({ where: { key } })
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeShowcaseBackground", err)
   }
 }
 

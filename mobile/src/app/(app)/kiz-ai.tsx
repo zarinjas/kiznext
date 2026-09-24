@@ -8,7 +8,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, TextInput } from "react-nat
 import { absoluteUrl } from "@/lib/config"
 import { AI_STARTERS, demoAiAnswer, useDemo } from "@/lib/demo"
 import { notifyError, tapLight } from "@/lib/feedback"
-import { askConcierge } from "@/lib/hooks"
+import { askConcierge, useConciergeMeta } from "@/lib/hooks"
 import type { ConciergeReply } from "@/lib/types"
 import {
   AiBadge,
@@ -51,10 +51,10 @@ interface Turn {
   reply?: ConciergeReply
 }
 
-const GREETING: Turn = {
-  id: "greeting",
-  role: "ai",
-  text: "Hi! I'm KIZ-AI. Ask me anything about life at Kolej Ibu Zain — rooms, facilities, laundry, helpdesk, check-in and payments.",
+const GREETING_ID = "greeting"
+
+function greetingFor(name: string): string {
+  return `Hi! I'm ${name}. Ask me anything about life at Kolej Ibu Zain — rooms, facilities, laundry, helpdesk, check-in and payments.`
 }
 
 let seq = 0
@@ -67,13 +67,20 @@ export default function KizAiScreen() {
   const theme = useTheme<Theme>()
   const scrollRef = useRef<ScrollView>(null)
   const { demo } = useDemo()
+  const { data: meta } = useConciergeMeta()
 
-  const [turns, setTurns] = useState<Turn[]>([GREETING])
+  // The concierge is renamed in the admin panel (e.g. "Kizzy"). Fall back to the
+  // default label only until the meta request resolves.
+  const aiName = meta?.name ?? "KIZ-AI"
+
+  // The greeting is *not* persisted — it is rendered fresh from `aiName`, so an
+  // admin rename can never leave a stale "Hi, I'm KIZ-AI" greeting behind.
+  const [turns, setTurns] = useState<Turn[]>([])
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const [restored, setRestored] = useState(false)
 
-  // Restore the previous conversation.
+  // Restore the previous conversation (user/assistant turns only).
   useEffect(() => {
     AsyncStorage.getItem(HISTORY_KEY)
       .then((raw) => {
@@ -86,9 +93,9 @@ export default function KizAiScreen() {
       .finally(() => setRestored(true))
   }, [])
 
-  // Persist on change (skip the initial greeting-only state).
+  // Persist on change (only meaningful once there is something beyond a greeting).
   useEffect(() => {
-    if (!restored || turns.length <= 1) return
+    if (!restored || turns.length === 0) return
     AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(turns.slice(-MAX_PERSISTED))).catch(() => {})
   }, [turns, restored])
 
@@ -114,7 +121,7 @@ export default function KizAiScreen() {
           {
             id: nextId(),
             role: "ai",
-            text: reply.answer || (reply.enabled ? "" : "KIZ-AI isn't switched on yet."),
+            text: reply.answer || (reply.enabled ? "" : `${aiName} isn't switched on yet.`),
             reply,
           },
         ])
@@ -134,16 +141,16 @@ export default function KizAiScreen() {
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60)
       }
     },
-    [busy, demo]
+    [busy, demo, aiName]
   )
 
   const clearHistory = useCallback(() => {
-    setTurns([GREETING])
+    setTurns([])
     AsyncStorage.removeItem(HISTORY_KEY).catch(() => {})
     tapLight()
   }, [])
 
-  const showStarters = turns.length <= 1 && !busy
+  const showStarters = turns.length === 0 && !busy
 
   return (
     <Screen padded={false} edges={[]}>
@@ -167,7 +174,7 @@ export default function KizAiScreen() {
             </Box>
             <Box flex={1}>
               <Box flexDirection="row" alignItems="center" gap="s">
-                <Text variant="subheading">KIZ-AI</Text>
+                <Text variant="subheading">{aiName}</Text>
                 <AiBadge label={demo ? "DEMO" : "AI"} />
               </Box>
               <Text variant="caption">Your KIZ concierge</Text>
@@ -176,6 +183,12 @@ export default function KizAiScreen() {
               <KIconButton icon="history" label="Clear conversation" onPress={clearHistory} />
             ) : null}
           </Box>
+
+          {/*
+            Greeting is rendered from the live name, not stored — see the note
+            above. Rendered as a plain assistant bubble with no reply payload.
+          */}
+          <AssistantBubble turn={{ id: GREETING_ID, role: "ai", text: greetingFor(aiName) }} />
 
           {turns.map((turn, i) =>
             turn.role === "user" ? (
