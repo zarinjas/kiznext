@@ -162,20 +162,20 @@ export default function EcardScreen() {
               />
             ) : null}
 
-            <Box padding="l">
+            <Box padding="m">
               <Box flexDirection="row" alignItems="center" justifyContent="center" gap="s">
                 <LogoSlot uri={c.ukmLogoUrl} fallback="UKM" />
                 <LogoSlot uri={c.kizLogoUrl} fallback="KIZ" />
               </Box>
 
-              <Box alignItems="center" marginTop="m">
+              <Box alignItems="center" marginTop="s">
                 <Text variant="subheading" style={{ letterSpacing: 1 }}>
                   KOLEJ IBU ZAIN
                 </Text>
                 <Text variant="caption">MYKIZ DIGITAL RESIDENT ID</Text>
               </Box>
 
-              <Box alignItems="center" marginTop="s">
+              <Box alignItems="center" marginTop="xs">
                 <StatusChip
                   label={c.roleLabel ? c.roleLabel.toUpperCase() : "ACTIVE STUDENT"}
                   tone={c.roleLabel ? "brand" : "success"}
@@ -184,10 +184,10 @@ export default function EcardScreen() {
                 />
               </Box>
 
-              <Box alignItems="center" marginTop="l">
+              <Box alignItems="center" marginTop="m">
                 <Box
-                  width={110}
-                  height={136}
+                  width={92}
+                  height={114}
                   borderRadius="card"
                   overflow="hidden"
                   backgroundColor="brand50"
@@ -197,7 +197,7 @@ export default function EcardScreen() {
                   {avatar ? (
                     <Image
                       source={{ uri: avatar }}
-                      style={{ width: 110, height: 136 }}
+                      style={{ width: 92, height: 114 }}
                       contentFit="cover"
                     />
                   ) : (
@@ -208,7 +208,7 @@ export default function EcardScreen() {
                 </Box>
               </Box>
 
-              <Box alignItems="center" marginTop="m">
+              <Box alignItems="center" marginTop="s">
                 <Text variant="subheading" style={{ textTransform: "uppercase", textAlign: "center" }}>
                   {c.name}
                 </Text>
@@ -217,7 +217,7 @@ export default function EcardScreen() {
                 </Text>
               </Box>
 
-              <Box height={1} backgroundColor="border" marginVertical="m" alignSelf="center" width="60%" />
+              <Box height={1} backgroundColor="border" marginVertical="s" alignSelf="center" width="60%" />
 
               {roomLine ? (
                 <Text variant="caption" textAlign="center">
@@ -230,8 +230,8 @@ export default function EcardScreen() {
                 </Text>
               ) : null}
 
-              <Box alignItems="center" marginTop="l">
-                <QRCode value={c.matricId} size={128} />
+              <Box alignItems="center" marginTop="m">
+                <QRCode value={c.matricId} size={112} />
                 {/*
                   A live "LIVE · 3:42 PM" stamp is the cheap anti-fraud
                   affordance here: a screenshot of this card will show a stale
@@ -244,7 +244,7 @@ export default function EcardScreen() {
               </Box>
 
               {c.validUntil ? (
-                <Text variant="caption" textAlign="center" marginTop="m">
+                <Text variant="caption" textAlign="center" marginTop="s">
                   Valid until {c.validUntil}
                 </Text>
               ) : null}
