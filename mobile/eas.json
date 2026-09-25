@@ -37,7 +37,8 @@
         "track": "internal"
       },
       "ios": {
-        "appleId": "cyberokettechnology@gmail.com"
+        "appleId": "cyberokettechnology@gmail.com",
+        "ascAppId": "6815929833"
       }
     }
   }
