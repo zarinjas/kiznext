@@ -28,6 +28,7 @@ import { Bento, BentoItem, MetricTile } from "@/components/kiz/patterns/bento"
 import { FormSection, FormGrid } from "@/components/kiz/patterns/form-section"
 import { seatTone, color, radius } from "@/lib/theme"
 import { bedWord } from "@/lib/bilik-format"
+import { CohortChip, CohortFilterChips, type StudentCohort } from "@/components/shared/cohort-chip"
 import {
   previewImport,
   confirmImport,
@@ -85,6 +86,7 @@ interface StudentData {
   nationality: string
   faculty: string | null
   yearOfStudy: string | null
+  cohort: StudentCohort
   currentCollege: string | null
   merit: number | null
   isB40: boolean
@@ -1242,12 +1244,14 @@ function formatContractDate(iso: string | null): string | null {
 
 function StudentListTab({ students }: { students: StudentData[] }) {
   const [filter, setFilter] = useState<"all" | "registered" | "not_registered" | "no_room">("all")
+  const [cohortFilter, setCohortFilter] = useState<"all" | StudentCohort>("all")
   const [search, setSearch] = useState("")
 
   const filtered = students.filter((s) => {
     if (filter === "registered" && !s.isRegistered) return false
     if (filter === "not_registered" && s.isRegistered) return false
     if (filter === "no_room" && s.room) return false
+    if (cohortFilter !== "all" && s.cohort !== cohortFilter) return false
     if (search && !`${s.matricId} ${s.name} ${s.faculty ?? ""} ${s.room ?? ""}`.toLowerCase().includes(search.toLowerCase()))
       return false
     return true
@@ -1347,6 +1351,9 @@ function StudentListTab({ students }: { students: StudentData[] }) {
           </Box>
         ))}
       </Box>
+      <Box sx={{ mb: 2 }}>
+        <CohortFilterChips value={cohortFilter} onChange={setCohortFilter} allLabel="Semua cohort" />
+      </Box>
 
       {filtered.length === 0 ? (
         <KEmpty icon="group" title="Tiada pelajar" body="Tiada pelajar sepadan dengan carian atau filter, atau tiada intake aktif." />
@@ -1357,6 +1364,7 @@ function StudentListTab({ students }: { students: StudentData[] }) {
               <TableRow>
                 <TableCell>Matric</TableCell>
                 <TableCell>Nama</TableCell>
+                <TableCell>Cohort</TableCell>
                 <TableCell>Fakulti</TableCell>
                 <TableCell>Bilik · Katil</TableCell>
                 <TableCell>Rakan sebilik</TableCell>
@@ -1375,6 +1383,7 @@ function StudentListTab({ students }: { students: StudentData[] }) {
                       <Typography variant="body2">{s.name}</Typography>
                       <Typography variant="caption" sx={{ color: "text.secondary" }}>{s.gender} · {s.nationality}</Typography>
                     </TableCell>
+                    <TableCell><CohortChip cohort={s.cohort} /></TableCell>
                     <TableCell>{s.faculty ?? "—"}</TableCell>
                     <TableCell>
                       {s.room ? (
@@ -1423,6 +1432,7 @@ function StudentsTab({
   notify: (m: string, s?: "success" | "error") => void
 }) {
   const [filter, setFilter] = useState<"all" | "applied" | "no_application" | "single" | "double" | "flexible" | "allocated">("all")
+  const [cohortFilter, setCohortFilter] = useState<"all" | StudentCohort>("all")
   const [search, setSearch] = useState("")
   const [detail, setDetail] = useState<StudentData | null>(null)
   // "now" snapshot set after mount so SSR and the first client render agree —
@@ -1443,6 +1453,7 @@ function StudentsTab({
     if (filter === "double" && s.applicationType !== "double") return false
     if (filter === "flexible" && s.applicationType !== "flexible") return false
     if (filter === "allocated" && !s.room) return false
+    if (cohortFilter !== "all" && s.cohort !== cohortFilter) return false
     if (search && !`${s.matricId} ${s.name}`.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
@@ -1477,6 +1488,9 @@ function StudentsTab({
           </Box>
         ))}
       </Box>
+      <Box sx={{ mb: 2 }}>
+        <CohortFilterChips value={cohortFilter} onChange={setCohortFilter} allLabel="Semua cohort" />
+      </Box>
 
       {!deadlinePassed && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
@@ -1505,7 +1519,12 @@ function StudentsTab({
               {filtered.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>{s.matricId}</TableCell>
-                  <TableCell>{s.name}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                      <span>{s.name}</span>
+                      <CohortChip cohort={s.cohort} />
+                    </Box>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="caption" sx={{ display: "block" }}>{s.gender} · {s.race ?? "—"}</Typography>
                     <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{s.religion ?? "—"} · {s.nationality}</Typography>

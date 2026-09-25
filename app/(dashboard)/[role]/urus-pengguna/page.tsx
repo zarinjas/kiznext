@@ -6,6 +6,8 @@ import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { UsersClient } from "./users-client"
 import { getResidentRoomLabels } from "@/lib/bilik"
+import { classifyCohort, resolveCurrentPrefix } from "@/lib/student-cohort"
+import type { StudentCohort } from "@/components/shared/cohort-chip"
 
 export default async function UrusPenggunaPage() {
   const session = await auth()
@@ -26,6 +28,17 @@ export default async function UrusPenggunaPage() {
     }),
   ])
   const blockOptions = blockRows.map((b) => b.name)
+
+  // Cohort (Junior/Senior/Postgrad) is derived from the active intake's matrics
+  // — students outside it, and non-student roles, simply have no cohort.
+  const intakeStudents = await prisma.eligibleStudent.findMany({
+    where: { deletedAt: null, intake: { status: "active", deletedAt: null } },
+    select: { matricId: true, yearOfStudy: true },
+  })
+  const currentPrefix = resolveCurrentPrefix(intakeStudents.map((s) => s.matricId))
+  const yearByMatric = new Map(intakeStudents.map((s) => [s.matricId.toUpperCase(), s.yearOfStudy]))
+  const cohortFor = (matricId: string, role: string): StudentCohort | null =>
+    role === "ahli" ? classifyCohort(matricId, currentPrefix, yearByMatric.get(matricId.toUpperCase())) : null
 
   const needsReview = users.filter((u) => u.accountStatus !== "active").length
 
@@ -53,6 +66,7 @@ export default async function UrusPenggunaPage() {
           role: u.role,
           block: u.block,
           position: u.position,
+          cohort: cohortFor(u.matricId, u.role),
           accountStatus: u.accountStatus,
           emailVerifiedAt: u.emailVerifiedAt?.toISOString() ?? null,
           roomLabel: roomLabels.get(u.id) ?? null,

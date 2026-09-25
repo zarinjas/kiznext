@@ -93,6 +93,24 @@ export async function fetchSpreadsheetGrid(opts: {
 export const SHEET_SA_KEY = "google_service_account"
 export const SHEET_ID_KEY = "google_sheet_id"
 export const SHEET_RANGE_KEY = "google_sheet_range"
+export const SHEET_LAST_SYNCED_KEY = "google_sheet_last_synced_at"
+
+/** Stamp the moment the accommodation sheet was last applied. */
+export async function markSheetSynced(at: Date = new Date()): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { key: SHEET_LAST_SYNCED_KEY },
+    update: { value: at.toISOString() },
+    create: { key: SHEET_LAST_SYNCED_KEY, value: at.toISOString() },
+  })
+}
+
+/** When the accommodation sheet was last applied (null if never). */
+export async function getSheetLastSyncedAt(): Promise<Date | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: SHEET_LAST_SYNCED_KEY } })
+  if (!row) return null
+  const d = new Date(row.value)
+  return Number.isNaN(d.getTime()) ? null : d
+}
 
 export interface SheetConfig {
   serviceAccount: string | null

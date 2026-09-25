@@ -116,6 +116,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Insights",
       items: [
         { label: "Reports", href: `/${role}/urus-laporan`, icon: "monitoring", admin: true, roles: REPORT_ROLES },
+        { label: "Student Data", href: `/${role}/urus-pelajar`, icon: "groups", admin: true, roles: RESIDENCE_VIEW_ROLES },
       ],
     },
     {

@@ -5,6 +5,8 @@ import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { areAllocationsPublished, getOccupancySummary, getRoomFees } from "@/lib/bilik"
 import { nowMalaysia } from "@/lib/room-selection"
 import { roomAssignmentLabel } from "@/lib/bilik-format"
+import { classifyCohort, resolveCurrentPrefix } from "@/lib/student-cohort"
+import type { StudentCohort } from "@/components/shared/cohort-chip"
 import { getCheckInStatusForMatrics } from "@/lib/checkin"
 import { UrusBilikClient } from "./urus-bilik-client"
 import { getOccupancy } from "./actions"
@@ -63,6 +65,7 @@ export default async function UrusBilikPage() {
 
   // Serialize to plain objects for the client component.
   const checkInStatus = await getCheckInStatusForMatrics(students.map((s) => s.matricId))
+  const currentPrefix = resolveCurrentPrefix(students.map((s) => s.matricId))
 
   const blocksData = blocks.map((b) => ({
     id: b.id,
@@ -110,6 +113,7 @@ export default async function UrusBilikPage() {
     nationality: s.nationality,
     faculty: s.faculty,
     yearOfStudy: s.yearOfStudy,
+    cohort: (classifyCohort(s.matricId, currentPrefix, s.yearOfStudy) ?? "unknown") as StudentCohort,
     currentCollege: s.currentCollege,
     merit: s.merit,
     isB40: s.isB40,

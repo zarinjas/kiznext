@@ -14,6 +14,7 @@ import { KDialog } from "@/components/kiz/primitives/k-dialog"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { ROLE_LABELS } from "@/components/kiz/shell/nav-config"
+import { CohortChip, CohortFilterChips, type StudentCohort } from "@/components/shared/cohort-chip"
 import { color } from "@/lib/theme"
 import type { AccountStatus, Role } from "@/lib/rbac"
 import { UserForm } from "./user-form"
@@ -33,6 +34,8 @@ export interface UserRow {
   block: string | null
   /** Office within the pengetua role ("pengetua" / "timbalan_pengetua"). */
   position: string | null
+  /** Junior / Senior / Postgrad for students in the active intake; null otherwise. */
+  cohort: StudentCohort | null
   accountStatus: AccountStatus
   emailVerifiedAt: string | null
   /** Canonical allocated room ("K18A-101 (Bed A)"), null when not allocated. */
@@ -64,6 +67,7 @@ export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
   const [accountFilter, setAccountFilter] = useState<string>("all")
+  const [cohortFilter, setCohortFilter] = useState<"all" | StudentCohort>("all")
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<UserRow | null>(null)
   const [resetting, setResetting] = useState<UserRow | null>(null)
@@ -74,7 +78,8 @@ export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }
       !q || u.name.toLowerCase().includes(q) || u.matricId.toLowerCase().includes(q)
     const matchesRole = roleFilter === "all" || u.role === roleFilter
     const matchesAccount = accountFilter === "all" || u.accountStatus === accountFilter
-    return matchesSearch && matchesRole && matchesAccount
+    const matchesCohort = cohortFilter === "all" || u.cohort === cohortFilter
+    return matchesSearch && matchesRole && matchesAccount && matchesCohort
   })
 
   const columns: GridColDef[] = [
@@ -121,6 +126,17 @@ export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }
       headerName: "Account",
       width: 130,
       renderCell: ({ value }) => <StatusChip status={value as string} />,
+    },
+    {
+      field: "cohort",
+      headerName: "Cohort",
+      width: 110,
+      renderCell: ({ row }) =>
+        row.cohort ? (
+          <CohortChip cohort={row.cohort} />
+        ) : (
+          <Typography variant="body2" sx={{ color: "text.disabled" }}>—</Typography>
+        ),
     },
     {
       field: "email",
@@ -275,18 +291,22 @@ export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }
         ))}
       </Box>
 
+      <Box sx={{ mb: 2.5 }}>
+        <CohortFilterChips value={cohortFilter} onChange={setCohortFilter} />
+      </Box>
+
       <SmartTable
         columns={columns}
         rows={filtered}
         getRowId={(row) => row.id}
         emptyIcon="group"
         emptyTitle={
-          search || roleFilter !== "all" || accountFilter !== "all"
+          search || roleFilter !== "all" || accountFilter !== "all" || cohortFilter !== "all"
             ? "No users match your filters"
             : "No users yet"
         }
         emptyBody={
-          search || roleFilter !== "all" || accountFilter !== "all"
+          search || roleFilter !== "all" || accountFilter !== "all" || cohortFilter !== "all"
             ? undefined
             : "Click 'Add User' to create the first account."
         }

@@ -10,6 +10,7 @@ import {
 } from "@/lib/room-selection"
 import { roomCode, parseRoomNumber } from "@/lib/bilik-format"
 import { ensureBlock, ensureRoom, claimBed, markReservedBeds } from "@/lib/bilik-rooms"
+import { markSheetSynced } from "@/lib/google-sheets"
 
 /**
  * Accommodation SYNC — unlike `confirmImport` (which creates a NEW intake), sync
@@ -333,6 +334,7 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
       }
     }, { timeout: 120_000, maxWait: 15_000 })
 
+    await markSheetSynced()
     return { ok: true, added, moved, released, removed, roomsSynced }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Sync failed" }
