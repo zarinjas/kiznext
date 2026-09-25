@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import { Platform } from "react-native"
+import { AppState, Platform } from "react-native"
 import * as Device from "expo-device"
 import { apiGet, apiPost } from "./api"
 import { persister } from "./persister"
@@ -53,6 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active = false
     }
   }, [])
+
+  // Returning to the foreground re-reads the user, so profile changes made
+  // elsewhere (a new photo on the website, another device) reach the dashboard
+  // hero and the rest of the app without a cold restart.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refresh().catch(() => {})
+    })
+    return () => sub.remove()
+  }, [refresh])
 
   const signIn = useCallback(async (matricId: string, password: string) => {
     const data = await apiPost<{ token: string; user: MobileUser }>("/auth/login", {

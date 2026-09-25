@@ -8,8 +8,9 @@ import {
   nowHhmmMalaysia,
 } from "@kiz/shared"
 import { Image } from "expo-image"
-import { router, type Href } from "expo-router"
+import { router, useFocusEffect, type Href } from "expo-router"
 import { useTheme } from "@shopify/restyle"
+import { useCallback } from "react"
 import { Linking, StyleSheet, View } from "react-native"
 
 import { AppLogo } from "@/components/app-logo"
@@ -604,10 +605,20 @@ function Emergency({ home }: { home: ResidentHome }) {
 
 export default function DashboardScreen() {
   const theme = useTheme<Theme>()
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const { isTablet } = useLayout()
   const { data, isLoading, isError, refetch, isRefetching } = useHome()
   const { data: conciergeMeta } = useConciergeMeta()
+
+  // The hero avatar is read from the cached auth user. Refresh it whenever the
+  // dashboard regains focus so a photo changed on the eCard tab — or anywhere
+  // else (website, another device) — shows up without a cold restart.
+  useFocusEffect(
+    useCallback(() => {
+      void refresh().catch(() => {})
+    }, [refresh])
+  )
+
   if (!user) return null
 
   const home = data?.home ?? null
