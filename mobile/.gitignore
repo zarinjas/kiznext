@@ -50,5 +50,8 @@ dist-verify/
 fcm-service-account.json
 *-firebase-adminsdk-*.json
 
+# App Store Connect credentials for `eas submit` (SECRET — never commit)
+.env.submit
+
 # NOTE: google-services.json is intentionally NOT ignored — it holds only
 # public identifiers and must be committed so EAS Build can configure FCM.
