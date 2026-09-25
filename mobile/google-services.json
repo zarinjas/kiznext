@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "463124000751",
+    "project_id": "mykizapp",
+    "storage_bucket": "mykizapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463124000751:android:2c6ccdf1e591db2cc5101a",
+        "android_client_info": {
+          "package_name": "my.kiz.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlsrIjMLuPxZF_1ToZQghkd43NI_sUAIQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

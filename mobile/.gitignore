@@ -45,3 +45,10 @@ example
 
 # expo export verification output
 dist-verify/
+
+# Firebase admin SDK service account (SECRET — contains a private key, never commit)
+fcm-service-account.json
+*-firebase-adminsdk-*.json
+
+# NOTE: google-services.json is intentionally NOT ignored — it holds only
+# public identifiers and must be committed so EAS Build can configure FCM.
