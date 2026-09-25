@@ -238,11 +238,20 @@ function SlideView({ slide, width }: { slide: Slide; width: number }) {
       />
 
       {/*
-        Mandatory legibility scrim. Independent of the admin-controlled overlay
-        above, so a light photo plus a low opacity setting can never produce
-        white text on a white background.
+        Legibility scrim. A smooth fade to dark — the previous version was a
+        solid `rgba(0,0,0,0.42)` box whose hard top edge read as a misplaced
+        band across the slide rather than an overlay. Independent of the
+        admin-controlled gradient above, so a light photo plus a low opacity
+        setting can never produce white text on a white background.
       */}
-      <Box style={styles.textScrim} pointerEvents="none" />
+      <Box style={styles.textScrim} pointerEvents="none">
+        <GradientBg
+          id={`onb-scrim-${slide.id}`}
+          colors={["#000000", "#000000"]}
+          stopOpacities={[0, 0.72]}
+          direction="tb"
+        />
+      </Box>
 
       <Box flex={1} justifyContent="flex-end" padding="xl" paddingBottom="xxxl">
         {slide.icon ? (
@@ -292,7 +301,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: "62%",
-    backgroundColor: "rgba(0,0,0,0.42)",
+    // Tall enough for the fade to be seamless at its top edge.
+    height: "65%",
   },
 })

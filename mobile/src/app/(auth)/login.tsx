@@ -23,27 +23,6 @@ import {
   type Theme,
 } from "@/ui"
 
-/**
- * Logo is bundled, not fetched.
- *
- * This previously loaded from `${API_BASE_URL}/api/app-icon`, so on venue wifi
- * or a cold backend the very first screen showed an empty box where the brand
- * mark should be. Brand identity must never depend on the network — the
- * `AppLogo` component now prefers the admin-uploaded logo but falls back to the
- * bundled copy, so this holds while still tracking an admin logo change.
- */
-
-/**
- * Stable demo accounts, guaranteed by `prisma/seed.ts` to exist and be active
- * after any seed or deploy. Present so a reviewer can be inside the app in one
- * tap instead of typing credentials — the web app has had this for a while and
- * mobile was the only surface still gating evaluation behind a keyboard.
- */
-const DEMO_ACCOUNTS = [
-  { label: "Student demo", matricId: "A999999", password: "kiz123", icon: "school" },
-  { label: "Admin demo", matricId: "SUPER001", password: "kiz123", icon: "admin_panel_settings" },
-] as const
-
 export default function LoginScreen() {
   const theme = useTheme<Theme>()
   const { signIn } = useAuth()
@@ -55,7 +34,6 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null)
   const [needsVerify, setNeedsVerify] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [demoBusy, setDemoBusy] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
 
   async function authenticate(id: string, pass: string) {
@@ -88,22 +66,6 @@ export default function LoginScreen() {
     }
   }
 
-  async function demoSignIn(account: (typeof DEMO_ACCOUNTS)[number]) {
-    setError(null)
-    setDemoBusy(account.matricId)
-    try {
-      await authenticate(account.matricId, account.password)
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? `Demo sign-in failed: ${err.message}`
-          : "Couldn't reach the server for the demo account."
-      )
-    } finally {
-      setDemoBusy(null)
-    }
-  }
-
   async function resend() {
     setResending(true)
     try {
@@ -115,8 +77,6 @@ export default function LoginScreen() {
       setResending(false)
     }
   }
-
-  const anyBusy = busy || demoBusy !== null
 
   return (
     <SafeAreaView style={styles.flex} edges={["top", "bottom"]}>
@@ -214,7 +174,7 @@ export default function LoginScreen() {
                   </FadeInUp>
                 ) : null}
 
-                <KButton label="Sign in" onPress={submit} loading={busy} disabled={anyBusy} />
+                <KButton label="Sign in" onPress={submit} loading={busy} disabled={busy} />
 
                 <Box flexDirection="row" justifyContent="space-between">
                   <PressScale onPress={() => router.push("/daftar")} haptic={false}>
@@ -231,32 +191,6 @@ export default function LoginScreen() {
                       </Text>
                     </Box>
                   </PressScale>
-                </Box>
-              </Box>
-            </FadeInUp>
-
-            {/* One-tap evaluation path. */}
-            <FadeInUp index={2}>
-              <Box marginTop="xl">
-                <Box flexDirection="row" alignItems="center" gap="m" marginBottom="m">
-                  <Box flex={1} height={1} backgroundColor="border" />
-                  <Text variant="label">EXPLORE WITHOUT AN ACCOUNT</Text>
-                  <Box flex={1} height={1} backgroundColor="border" />
-                </Box>
-                <Box flexDirection="row" gap="s">
-                  {DEMO_ACCOUNTS.map((account) => (
-                    <Box key={account.matricId} flex={1}>
-                      <KButton
-                        label={account.label}
-                        icon={account.icon}
-                        variant="secondary"
-                        size="sm"
-                        loading={demoBusy === account.matricId}
-                        disabled={anyBusy && demoBusy !== account.matricId}
-                        onPress={() => void demoSignIn(account)}
-                      />
-                    </Box>
-                  ))}
                 </Box>
               </Box>
             </FadeInUp>

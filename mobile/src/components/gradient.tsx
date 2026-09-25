@@ -10,11 +10,18 @@ export function GradientBg({
   id = "grad",
   direction = "br",
   opacity = 1,
+  stopOpacities,
 }: {
   colors: string[]
   id?: string
   direction?: "br" | "tb"
   opacity?: number
+  /**
+   * Optional per-stop alpha (0–1), same length as `colors`. Lets a gradient fade
+   * from transparent to solid using `stopOpacity` rather than an `rgba()` string,
+   * which SVG renderers handle inconsistently.
+   */
+  stopOpacities?: number[]
 }) {
   const [x1, y1, x2, y2] = direction === "tb" ? ["0", "0", "0", "1"] : ["0", "0", "1", "1"]
   const stops = colors.length > 1 ? colors : [colors[0] ?? "#0891B2", colors[0] ?? "#0891B2"]
@@ -24,7 +31,12 @@ export function GradientBg({
       <Defs>
         <LinearGradient id={id} x1={x1} y1={y1} x2={x2} y2={y2}>
           {stops.map((c, i) => (
-            <Stop key={i} offset={i / (stops.length - 1)} stopColor={c} />
+            <Stop
+              key={i}
+              offset={i / (stops.length - 1)}
+              stopColor={c}
+              stopOpacity={stopOpacities?.[i] ?? 1}
+            />
           ))}
         </LinearGradient>
       </Defs>
