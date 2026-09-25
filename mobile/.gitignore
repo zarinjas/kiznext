@@ -53,5 +53,9 @@ fcm-service-account.json
 # App Store Connect credentials for `eas submit` (SECRET — never commit)
 .env.submit
 
+# iOS signing credentials for the `production-local` build profile (SECRET)
+certs/
+credentials.json
+
 # NOTE: google-services.json is intentionally NOT ignored — it holds only
 # public identifiers and must be committed so EAS Build can configure FCM.

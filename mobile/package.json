@@ -70,7 +70,8 @@
     "build:ios": "npx eas-cli@latest build --profile production --platform ios",
     "build:android": "npx eas-cli@latest build --profile production --platform android",
     "submit:ios": "bash scripts/submit-ios.sh",
-    "submit:android": "npx eas-cli@latest submit --profile production --platform android"
+    "submit:android": "npx eas-cli@latest submit --profile production --platform android",
+    "build:ios:local": "npx eas-cli@latest build --profile production-local --platform ios"
   },
   "private": true
 }

@@ -151,8 +151,57 @@ your shell history.
 > still needs the Apple **Developer Portal** login (real Apple ID password +
 > 2FA) to create the distribution certificate and provisioning profile. That is
 > a one-time step per year — once EAS holds the credentials, later builds do not
-> ask again. If the 2FA prompt keeps rejecting the code, use local credentials
-> (`credentials.json` + `"credentialsSource": "local"`) instead.
+> ask again.
+
+#### Local iOS credentials (when Apple 2FA is unavailable)
+
+EAS CLI authenticates against the Apple Developer Portal over **SMS 2FA**, which
+Apple has made unreliable — and it is impossible if the Apple ID has no trusted
+device (a code is only ever offered via SMS). If `eas credentials` fails with
+*"Verification codes can't be sent to this phone number"*, create the signing
+credentials yourself in the browser and build with the `production-local`
+profile instead — no Apple login reaches EAS.
+
+1. **App ID** — https://developer.apple.com/account/resources/identifiers →
+   **+** → *App IDs* → *App* → Bundle ID **Explicit** `my.kiz.app` → tick
+   **Push Notifications** → Register.
+2. **Certificate Signing Request** — Keychain Access → *Certificate Assistant* →
+   *Request a Certificate from a Certificate Authority* → save the `.certSigningRequest`
+   to disk (email can be blank, "Saved to disk").
+3. **Distribution certificate** — https://developer.apple.com/account/resources/certificates
+   → **+** → *Apple Distribution* → upload the CSR → download the `.cer` →
+   double-click to import it → in Keychain Access, export it as **`certs/dist.p12`**
+   (set a password; you will need it in step 5).
+4. **Provisioning profile** — https://developer.apple.com/account/resources/profiles
+   → **+** → *App Store Connect* → the `my.kiz.app` App ID + the certificate from
+   step 3 → download → save as **`certs/profile.mobileprovision`**.
+5. **Point `credentials.json` at them** (already git-ignored) and set the real
+   password:
+   ```json
+   {
+     "ios": {
+       "provisioningProfilePath": "certs/profile.mobileprovision",
+       "distributionCertificate": {
+         "path": "certs/dist.p12",
+         "password": "the password you set in step 3"
+       }
+     }
+   }
+   ```
+6. **Build**:
+   ```bash
+   npm run build:ios:local
+   ```
+
+Then `npm run submit:ios` uploads to TestFlight as usual (the app-specific
+password covers that step).
+
+> iOS **push** additionally needs an APNs key registered with EAS. Create one at
+> https://developer.apple.com/account/resources/authkeys → **+** → *Apple Push
+> Notifications service* → download the `.p8`, then upload it with
+> `eas credentials --platform ios` → *Push Notifications* (this step still needs
+> the Apple login). Until then, in-app notifications work but remote push does
+> not.
 
 ### 5. Over-the-air updates (optional)
 

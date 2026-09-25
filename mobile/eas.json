@@ -25,6 +25,10 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://mykiz.my"
       }
+    },
+    "production-local": {
+      "extends": "production",
+      "credentialsSource": "local"
     }
   },
   "submit": {
