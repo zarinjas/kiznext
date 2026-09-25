@@ -126,11 +126,33 @@ build — not in Expo Go.
 # in app.json: "version": "1.0.0"
 
 npx eas-cli@latest build --profile production --platform all
-npx eas-cli@latest submit --profile production --platform all
+npm run submit:ios      # iOS -> TestFlight (loads .env.submit, see below)
+npm run submit:android  # Android -> the Play track in eas.json (internal)
 ```
 
 `eas submit` uploads to TestFlight (iOS) and the chosen Play track (Android —
 `internal` by default, per `eas.json`).
+
+#### iOS submit credentials
+
+App Store Connect is authenticated with an **app-specific password**, kept out of
+the repo in the git-ignored `mobile/.env.submit`:
+
+```
+EXPO_APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+EXPO_APPLE_ID=cyberokettechnology@gmail.com
+```
+
+`npm run submit:ios` runs `scripts/submit-ios.sh`, which sources that file and
+then calls `eas submit`, so the secret never lands in `eas.json`, the repo, or
+your shell history.
+
+> An app-specific password authenticates **App Store Connect only**. `eas build`
+> still needs the Apple **Developer Portal** login (real Apple ID password +
+> 2FA) to create the distribution certificate and provisioning profile. That is
+> a one-time step per year — once EAS holds the credentials, later builds do not
+> ask again. If the 2FA prompt keeps rejecting the code, use local credentials
+> (`credentials.json` + `"credentialsSource": "local"`) instead.
 
 ### 5. Over-the-air updates (optional)
 
