@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { auth } from "@/lib/auth"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { isOfficeHours } from "@/lib/office-hours"
 import { getAppSetting } from "@/lib/settings"
 import { revalidatePath } from "next/cache"
@@ -77,7 +77,7 @@ export async function resolveSosTarget(now: Date = new Date()): Promise<SosTarge
 async function requireAdmin(): Promise<Role> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   return session.user.role as Role
 }
 

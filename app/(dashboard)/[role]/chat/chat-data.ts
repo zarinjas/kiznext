@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db"
 import { nowMalaysia } from "@/lib/timezone"
 import { ONLINE_WINDOW_MS } from "@/lib/chat-meta"
-import type { Role } from "@/lib/rbac"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 import type {
   ChatMessageView,
   ChatReactionView,
@@ -32,7 +32,7 @@ export async function getChatSnapshot(
 ): Promise<ChatSnapshotView> {
   const now = nowMalaysia()
   const onlineSince = new Date(now.getTime() - ONLINE_WINDOW_MS)
-  const canModerate = userRole === "admin_kiz" || userRole === "superadmin"
+  const canModerate = ADMIN_ROLES.includes(userRole as Role)
 
   // ── Presence + member + team counts ──────────────────────────────────────
   const [memberCount, onlineCount, teamRows] = await Promise.all([

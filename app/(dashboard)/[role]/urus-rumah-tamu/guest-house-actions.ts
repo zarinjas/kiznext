@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 
@@ -20,7 +20,7 @@ export type GuestHouseFormData = {
 export async function createGuestHouse(data: GuestHouseFormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouse.create({
     data: {
@@ -41,7 +41,7 @@ export async function createGuestHouse(data: GuestHouseFormData) {
 export async function updateGuestHouse(id: string, data: GuestHouseFormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouse.update({
     where: { id },
@@ -63,7 +63,7 @@ export async function updateGuestHouse(id: string, data: GuestHouseFormData) {
 export async function deleteGuestHouse(id: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const active = await prisma.guestHouseBooking.count({
     where: {

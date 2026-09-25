@@ -1,10 +1,13 @@
 import { formatWallClockTime, nowHhmmMalaysia } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
+import { useQueryClient } from "@tanstack/react-query"
 import { Image } from "expo-image"
 import { useEffect, useRef, useState } from "react"
 import { Linking, Platform, Pressable } from "react-native"
 import QRCode from "react-native-qrcode-svg"
 
+import { useAuth } from "@/lib/auth-context"
+import { pickAndUploadAvatar } from "@/lib/avatar"
 import { useBoostBrightness } from "@/lib/brightness"
 import { absoluteUrl } from "@/lib/config"
 import { useEcard, useRegisterEcard, useWalletLinks } from "@/lib/hooks"
@@ -90,7 +93,10 @@ export default function EcardScreen() {
   // Live wall-clock stamp under the QR — makes a screenshot of the card
   // visibly distinguishable from the live card for the officer checking it.
   const [shownAt, setShownAt] = useState(() => nowHhmmMalaysia())
+  const [uploading, setUploading] = useState(false)
   const toast = useToast()
+  const queryClient = useQueryClient()
+  const { updateUser } = useAuth()
 
   // Full brightness while the card is on screen, so the QR scans outdoors.
   // Restored automatically on leave.
@@ -98,6 +104,22 @@ export default function EcardScreen() {
 
   function openWallet(url: string) {
     Linking.openURL(url).catch(() => toast.error("Couldn't open Wallet. Try again in a moment."))
+  }
+
+  async function changePhoto() {
+    setUploading(true)
+    try {
+      const avatarUrl = await pickAndUploadAvatar()
+      if (!avatarUrl) return
+      updateUser({ avatarUrl })
+      queryClient.invalidateQueries({ queryKey: ["ecard"] })
+      queryClient.invalidateQueries({ queryKey: ["home"] })
+      toast.success("Looking good — photo updated.")
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Upload didn't go through.")
+    } finally {
+      setUploading(false)
+    }
   }
 
   // First view registers the eCard (clears the dashboard checklist task).
@@ -254,6 +276,35 @@ export default function EcardScreen() {
             </Box>
           </Box>
         </FadeInUp>
+
+        <Box
+          width="100%"
+          maxWidth={380}
+          marginTop="l"
+          borderRadius="cardLg"
+          borderWidth={1}
+          borderColor="border"
+          backgroundColor="surface"
+          padding="m"
+          flexDirection="row"
+          alignItems="center"
+          gap="m"
+        >
+          <Box flex={1} minWidth={0}>
+            <Text variant="subheading">Profile Photo</Text>
+            <Text variant="caption" marginTop="xs">
+              This photo appears on your Resident ID and profile.
+            </Text>
+          </Box>
+          <KButton
+            label={uploading ? "Uploading…" : "Change"}
+            onPress={changePhoto}
+            variant="secondary"
+            icon="photo_camera"
+            loading={uploading}
+            fullWidth={false}
+          />
+        </Box>
 
         <Box
           width="100%"

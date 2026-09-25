@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { unlink } from "fs/promises"
 import path from "path"
 import { saveUpload } from "@/lib/image-upload"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 
 const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
@@ -70,7 +71,7 @@ export async function getLoginBackgroundUrl(): Promise<string | null> {
 export async function uploadAppLogo(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -113,7 +114,7 @@ export async function uploadAppLogo(formData: FormData): Promise<{ success: bool
 export async function removeAppLogo(): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -192,7 +193,7 @@ export async function setResidentialSession(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
     const clean = value.trim()
@@ -248,7 +249,7 @@ export async function uploadStudentCardLogo(
 
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -294,7 +295,7 @@ export async function removeStudentCardLogo(
   const settingKey = slot === "ukm" ? STUDENT_CARD_UKM_LOGO_KEY : STUDENT_CARD_KIZ_LOGO_KEY
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -320,7 +321,7 @@ export async function uploadCardBackground(
   const settingKey = CARD_BG_KEYS[slot]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -365,7 +366,7 @@ export async function removeCardBackground(
   const settingKey = CARD_BG_KEYS[slot]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -387,7 +388,7 @@ export async function removeCardBackground(
 export async function uploadLoginBackground(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -422,7 +423,7 @@ export async function uploadLoginBackground(formData: FormData): Promise<{ succe
 export async function removeLoginBackground(): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -463,7 +464,7 @@ export async function uploadDashboardHeroBackground(
   const key = HERO_BG_KEYS[surface]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -502,7 +503,7 @@ export async function removeDashboardHeroBackground(
   const key = HERO_BG_KEYS[surface]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -567,7 +568,7 @@ export async function setDashboardHeroOverlay(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
     if (!isHex(overlay.from) || !isHex(overlay.to)) {
@@ -617,7 +618,7 @@ export async function uploadShowcaseBackground(
 ): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
     if (slot !== "lens" && slot !== "wayfinder") {
@@ -658,7 +659,7 @@ export async function removeShowcaseBackground(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
     if (slot !== "lens" && slot !== "wayfinder") {
@@ -691,7 +692,7 @@ export async function uploadDashboardPoster(
 ): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -727,7 +728,7 @@ export async function uploadDashboardPoster(
 export async function removeDashboardPoster(): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -754,7 +755,7 @@ export interface ResendConfig {
 }
 
 function isResendAdmin(session: { user?: { role?: string } | null } | null): boolean {
-  return session?.user?.role === "superadmin" || session?.user?.role === "admin_kiz"
+  return ADMIN_ROLES.includes(session?.user?.role as Role)
 }
 
 export async function getResendConfig(): Promise<ResendConfig> {

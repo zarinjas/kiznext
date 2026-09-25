@@ -2,7 +2,7 @@ import QRCode from "qrcode"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_MANAGE_ROLES, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { siteUrl } from "@/lib/site-url"
 import { getAppLogoUrl, getStudentCardLogos } from "@/lib/settings"
 import { getCheckinDirectionsImage } from "@/lib/checkin"
@@ -17,7 +17,7 @@ export default async function UrusCheckinPage() {
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
-  const readOnly = session.user.role === "pengetua"
+  const readOnly = !RESIDENCE_MANAGE_ROLES.includes(session.user.role as Role)
 
   const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl, intake] = await Promise.all([
     prisma.checkInSession.findMany({

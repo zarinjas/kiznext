@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 import type { ContentKind } from "@/app/generated/prisma/client"
@@ -25,7 +25,7 @@ export type ContentItemInput = {
 async function requireAdmin(): Promise<Role> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   return session.user.role as Role
 }
 

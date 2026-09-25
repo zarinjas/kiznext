@@ -40,7 +40,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const ROLE_OVERLINES: Record<Role, string> = {
   superadmin: "College operations",
   admin_kiz: "College operations",
-  pengetua: "Principal view · read only",
+  pengetua: "College operations",
   fellow: "Fellow",
   ahli: "Resident",
   staf: "Staff",
@@ -86,7 +86,7 @@ export function navForRole(role: Role): NavGroup[] {
       label: "Support",
       items: [
         { label: "SOS", href: `/${role}/sos`, icon: "sos" },
-        { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent", roles: ["ahli", "pengetua"] },
+        { label: "Helpdesk", href: `/${role}/helpdesk`, icon: "support_agent", roles: ["ahli"] },
         { label: "Lost & Found", href: `/${role}/hilang`, icon: "search" },
         { label: "Offices", href: `/${role}/pejabat`, icon: "domain" },
         { label: "AR Directory", href: `/${role}/direktori`, icon: "view_in_ar" },
@@ -155,7 +155,7 @@ export function navForRole(role: Role): NavGroup[] {
 
   // Role-gated items: drop anything that lists explicit roles the current
   // session role isn't in (e.g. room selection is student-only), then drop any
-  // group left empty (e.g. Content for pengetua/staf/fellow).
+  // group left empty (e.g. Content for staf/fellow).
   return groups
     .map((group) => ({
       ...group,

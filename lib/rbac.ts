@@ -8,30 +8,30 @@ export function isMemberRole(role: Role | undefined): boolean {
 }
 
 /** Full admins — can manage every `urus-*` surface. */
-export const ADMIN_ROLES: Role[] = ["superadmin", "admin_kiz"]
+export const ADMIN_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
 /**
  * Office support desk — answers and closes helpdesk tickets. Staff and fellows
  * are members who also sit on the support desk, so they reach the admin inbox.
  */
-export const SUPPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", "fellow"]
+export const SUPPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua", "staf", "fellow"]
 
 /** Guest-house admin — approve bookings and configure the houses. */
 export const GUEST_HOUSE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
-/** Accommodation / check-in management — staff manage, pengetua reads. */
-export const RESIDENCE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "staf"]
-export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "staf", "pengetua"]
+/** Accommodation / check-in management. */
+export const RESIDENCE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua", "staf"]
+export const RESIDENCE_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua", "staf"]
 
-/** Laundry machines — admins manage, pengetua reads. Students use the member page. */
-export const LAUNDRY_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz"]
+/** Laundry machines — admins manage. Students use the member page. */
+export const LAUNDRY_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 export const LAUNDRY_VIEW_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
-/** Analytics / reports — admins and the principal (read-only). */
+/** Analytics / reports. */
 export const REPORT_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua"]
 
 /** KIZ Cafe smart ordering — admins + the dedicated cafe operator. */
-export const CAFE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "kafe"]
+export const CAFE_MANAGE_ROLES: Role[] = ["superadmin", "admin_kiz", "pengetua", "kafe"]
 
 /** The cafe operator role — cafe surfaces only. */
 export const CAFE_OPERATOR_ROLES: Role[] = ["kafe"]
@@ -57,8 +57,8 @@ export function requireRole(userRole: Role | undefined, allowedRoles: Role[]): v
 }
 
 /**
- * Office held within the `pengetua` role. Same permissions either way — the
- * position only changes the label shown on the Digital Resident ID.
+ * Office held within the `pengetua` role. The position only changes the label
+ * shown on the Digital Resident ID — permissions are identical either way.
  */
 export type PengetuaPosition = "pengetua" | "timbalan_pengetua";
 

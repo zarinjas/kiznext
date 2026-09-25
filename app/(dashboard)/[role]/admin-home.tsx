@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { Bento, BentoItem, MetricTile, ActionTile, HeroTile } from "@/components/kiz/patterns/bento"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 
 interface Props {
   /** Retained for the server page's call signature; the bento derives its own copy. */
@@ -22,8 +23,7 @@ interface Props {
 }
 
 export function AdminHome({ userName, role, stats }: Props) {
-  const canManage = role === "admin_kiz" || role === "superadmin"
-  const isPengetua = role === "pengetua"
+  const canManage = ADMIN_ROLES.includes(role as Role)
 
   const totalPending = stats.pendingFacility + stats.pendingGuestHouse
   const firstName = userName.trim().split(" ")[0] || "there"
@@ -36,6 +36,8 @@ export function AdminHome({ userName, role, stats }: Props) {
   ]
 
   const visibleMetrics = canManage ? metrics : metrics.filter((m) => m.href === "hilang")
+  // AdminHome is only reachable by admin roles (members get AhliHome), so the
+  // read-only fallbacks below are kept for safety but normally unused.
 
   const actions = [
     canManage && { label: "Publish announcement", href: "urus-pengumuman", icon: "campaign" },
@@ -92,7 +94,6 @@ export function AdminHome({ userName, role, stats }: Props) {
             />
           ) : (
             <HeroTile
-              eyebrow={isPengetua ? "Principal · read only" : undefined}
               title={`Welcome, ${firstName}`}
               body="A read-only overview of college operations."
             />

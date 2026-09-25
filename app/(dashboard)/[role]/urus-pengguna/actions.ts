@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES, type Role } from "@/lib/rbac"
 import { issueVerificationTokenAndEmail } from "@/lib/registration"
 
 /**
@@ -24,8 +24,6 @@ export interface UserInput {
   /** Office within the `pengetua` role — only persisted for `pengetua`. */
   position?: string
 }
-
-const ADMIN_ROLES: Role[] = ["superadmin", "admin_kiz"]
 
 function normalizeBlock(role: Role, block?: string): string | null {
   if (role !== "fellow") return null

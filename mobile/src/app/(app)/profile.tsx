@@ -2,13 +2,13 @@ import { ROLE_LABELS } from "@kiz/shared"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
-import * as ImagePicker from "expo-image-picker"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
 import { Linking, Switch } from "react-native"
 
 import { ApiError, apiFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { pickAndUploadAvatar } from "@/lib/avatar"
 import { useDemo } from "@/lib/demo"
 import { getPushStatus, pushStatusLabel, type PushStatus } from "@/lib/notifications"
 import {
@@ -104,42 +104,17 @@ export default function ProfileScreen() {
     toast.success(value ? `${bioLabel} enabled.` : `${bioLabel} turned off.`)
   }
 
-  async function pickAndUploadAvatar() {
+  async function changePhoto() {
     setError(null)
     setNotice(null)
-
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (!permission.granted) {
-      setError("Photo library access is needed to change your picture.")
-      return
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    })
-    if (result.canceled || !result.assets[0]) return
-
-    const asset = result.assets[0]
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append("file", {
-        uri: asset.uri,
-        name: asset.fileName ?? "avatar.jpg",
-        type: asset.mimeType ?? "image/jpeg",
-      } as unknown as Blob)
-
-      const res = await apiFetch<{ avatarUrl: string }>("/avatar", {
-        method: "POST",
-        formData: form,
-      })
-      updateUser({ avatarUrl: res.avatarUrl })
+      const avatarUrl = await pickAndUploadAvatar()
+      if (!avatarUrl) return
+      updateUser({ avatarUrl })
       setNotice("Looking good — photo updated.")
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Upload didn't go through.")
+      setError(err instanceof Error && err.message ? err.message : "Upload didn't go through.")
     } finally {
       setUploading(false)
     }
@@ -207,7 +182,7 @@ export default function ProfileScreen() {
         <Box height={12} />
         <KButton
           label={uploading ? "Uploading…" : "Change photo"}
-          onPress={pickAndUploadAvatar}
+          onPress={changePhoto}
           variant="secondary"
           icon="photo_camera"
           loading={uploading}

@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_MANAGE_ROLES, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { areAllocationsPublished, getOccupancySummary, getRoomFees } from "@/lib/bilik"
 import { nowMalaysia } from "@/lib/room-selection"
 import { roomAssignmentLabel } from "@/lib/bilik-format"
@@ -16,10 +16,10 @@ export default async function UrusBilikPage() {
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
-  const readOnly = session.user.role === "pengetua"
+  const readOnly = !RESIDENCE_MANAGE_ROLES.includes(session.user.role as Role)
 
-  // `getOccupancy` is a gated Server Action; `pengetua` may only read, so use
-  // the shared read-only helper directly instead of the admin-gated action.
+  // `getOccupancy` is a gated Server Action; a read-only viewer falls back to
+  // the shared helper directly instead of the admin-gated action.
   const occupancy = readOnly ? await getOccupancySummary() : await getOccupancy()
 
   const [window, intakes, blocks, allocationsPublished, fees] = await Promise.all([

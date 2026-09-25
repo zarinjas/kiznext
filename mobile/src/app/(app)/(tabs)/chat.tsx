@@ -330,7 +330,12 @@ export default function ChatScreen() {
       toast.warning("Photo library access is needed to attach a photo.")
       return
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 })
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    })
     if (result.canceled || !result.assets[0]) return
     const asset = result.assets[0]
     const name = asset.fileName ?? "photo.jpg"

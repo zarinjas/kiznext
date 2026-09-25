@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { Alert } from "react-native"
 
+import { ADMIN_ROLES, type Role } from "@kiz/shared"
+
 import { useAuth } from "@/lib/auth-context"
 import { useAdminBookings, useAdminFacilityAction, useAdminGHAction } from "@/lib/hooks"
 import {
@@ -57,7 +59,7 @@ function slotLabel(startIso: string, endIso?: string): string {
 
 export default function AdminBookingsScreen() {
   const { user } = useAuth()
-  const canAct = user?.role === "superadmin" || user?.role === "admin_kiz"
+  const canAct = ADMIN_ROLES.includes(user?.role as Role)
   const [status, setStatus] = useState<"pending" | "all">("pending")
   const [tab, setTab] = useState<"facility" | "guest">("facility")
   const { data, isLoading, isError, refetch, isRefetching } = useAdminBookings(status)

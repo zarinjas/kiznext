@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
@@ -10,7 +10,7 @@ import { OfficeAdmin } from "./office-admin"
 export default async function UrusPejabatPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const [offices, blocks] = await Promise.all([
     prisma.office.findMany({

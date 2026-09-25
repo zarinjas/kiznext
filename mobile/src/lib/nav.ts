@@ -83,7 +83,7 @@ export function navForRole(role: Role): NavGroup[] {
       items: [
         { label: "Notifications", icon: "notifications", path: "notifications" },
         { label: "SOS", icon: "sos", path: "sos" },
-        { label: "Helpdesk", icon: "support_agent", path: "helpdesk", roles: ["ahli", "pengetua"] },
+        { label: "Helpdesk", icon: "support_agent", path: "helpdesk", roles: ["ahli"] },
         { label: "Lost & Found", icon: "search", path: "hilang" },
         { label: "Offices", icon: "domain", path: "pejabat" },
       ],

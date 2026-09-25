@@ -57,5 +57,9 @@ fcm-service-account.json
 certs/
 credentials.json
 
+# App Store Connect API keys and other secrets (SECRET)
+secrets/
+AuthKey_*.p8
+
 # NOTE: google-services.json is intentionally NOT ignored — it holds only
 # public identifiers and must be committed so EAS Build can configure FCM.

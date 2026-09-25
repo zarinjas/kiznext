@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { LAUNDRY_VIEW_ROLES, type Role } from "@/lib/rbac"
+import { LAUNDRY_MANAGE_ROLES, LAUNDRY_VIEW_ROLES, type Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { getLaundrySnapshot } from "@/lib/laundry"
@@ -27,7 +27,7 @@ export default async function UrusLaundryPage() {
       <LaundryAdmin
         initialMachines={snapshot.machines}
         defaultImageUrl={snapshot.defaultImageUrl}
-        readOnly={role === "pengetua"}
+        readOnly={!LAUNDRY_MANAGE_ROLES.includes(role)}
       />
     </Box>
   )

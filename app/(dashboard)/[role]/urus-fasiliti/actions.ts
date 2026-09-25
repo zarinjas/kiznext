@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 import type { FacilitySection, FacilityStatus } from "@/app/generated/prisma/client"
@@ -36,7 +36,7 @@ async function resolveBookable(categoryId: string | null): Promise<boolean> {
 export async function createFacility(data: FacilityFormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.facility.create({
     data: {
@@ -63,7 +63,7 @@ export async function createFacility(data: FacilityFormData) {
 export async function updateFacility(id: string, data: FacilityFormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const existing = await prisma.facility.findUnique({ where: { id } })
   if (!existing) throw new Error("Facility not found")
@@ -94,7 +94,7 @@ export async function updateFacility(id: string, data: FacilityFormData) {
 export async function deleteFacility(id: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.facility.update({
     where: { id },
@@ -116,7 +116,7 @@ export type FacilityCategoryFormData = {
 export async function createFacilityCategory(data: FacilityCategoryFormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const existing = await prisma.facilityCategory.findUnique({
     where: { section_name: { section: data.section, name: data.name.trim() } },
@@ -139,7 +139,7 @@ export async function createFacilityCategory(data: FacilityCategoryFormData) {
 export async function updateFacilityCategory(id: string, data: FacilityCategoryFormData) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const clash = await prisma.facilityCategory.findUnique({
     where: { section_name: { section: data.section, name: data.name.trim() } },
@@ -167,7 +167,7 @@ export async function updateFacilityCategory(id: string, data: FacilityCategoryF
 export async function deleteFacilityCategory(id: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const category = await prisma.facilityCategory.findUnique({
     where: { id },

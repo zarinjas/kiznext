@@ -267,7 +267,8 @@ export async function getActiveIntake() {
 
 /**
  * Aggregate occupancy for the monitor. Read-only and role-agnostic — callers
- * decide the access level (admins through a gated action, `pengetua` directly).
+ * decide the access level (managers through a gated action, read-only viewers
+ * directly).
  */
 export async function getOccupancySummary(): Promise<OccupancySummary> {
   const beds = await prisma.bed.findMany({

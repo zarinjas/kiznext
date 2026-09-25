@@ -12,6 +12,7 @@ import {
   getAllCardBackgrounds,
 } from "@/lib/settings"
 import { getSosSettings } from "@/lib/sos"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
@@ -53,7 +54,7 @@ function GroupHeading({ icon, title, subtitle }: { icon: string; title: string; 
 export default async function UrusTetapanPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  if (session.user.role !== "superadmin" && session.user.role !== "admin_kiz") {
+  if (!ADMIN_ROLES.includes(session.user.role as Role)) {
     redirect(`/${session.user.role}`)
   }
 

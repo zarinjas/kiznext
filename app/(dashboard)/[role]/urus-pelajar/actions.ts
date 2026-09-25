@@ -8,8 +8,7 @@ import { runApplySync, type SyncResult } from "@/lib/bilik-sync"
 
 /**
  * Pull the configured Google Sheet and apply it to the active intake, then
- * refresh the Student Data page. Write action — residence managers only
- * (pengetua sees the page read-only and never gets this button).
+ * refresh the Student Data page. Write action — residence managers only.
  */
 export async function syncNow(): Promise<SyncResult> {
   const session = await auth()

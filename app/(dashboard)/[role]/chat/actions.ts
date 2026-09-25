@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES, type Role } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { ONLINE_WINDOW_MS } from "@/lib/chat-meta"
 import { getResidentRoomLabel } from "@/lib/bilik"
@@ -62,7 +62,7 @@ export async function sendChatMessage(
 
 export async function deleteChatMessage(messageId: string) {
   const session = await requireUser()
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   await deleteChatMessageCore(session.user.id, messageId)
   revalidatePath(`/${session.user.role}/chat`)
 }
@@ -82,7 +82,7 @@ export async function reportChatMessage(messageId: string, reason: string, note?
 /** Moderator dismisses a report without deleting the message. */
 export async function dismissChatReport(reportId: string) {
   const session = await requireUser()
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   await dismissChatReportCore(reportId)
   revalidatePath(`/${session.user.role}/chat`)
 }
@@ -100,7 +100,7 @@ export async function getChatMessages(): Promise<ChatSnapshotView> {
  */
 export async function getChatUserProfile(userId: string): Promise<ChatUserProfileView> {
   const session = await requireUser()
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const user = await prisma.user.findFirst({
     where: { id: userId, deletedAt: null },

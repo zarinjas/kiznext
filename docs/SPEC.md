@@ -53,25 +53,27 @@ Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`, `k
 | Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | profile |
 | Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
-| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — | — | — |
-| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | — | ✓ | — | ✓ | — |
-| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | read-only | — | — | ✓ | — |
-| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | read-only | — | — | — | — |
-| Post / edit announcements | ✓ | ✓ | — | — | — | — | — |
-| Manage digital guides (`urus-panduan`) | ✓ | ✓ | — | — | — | — | — |
-| Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — | — |
-| Manage facilities, parcels | ✓ | ✓ | — | — | — | — | — |
-| Manage KIZ Cafe (`urus-kafe`) | ✓ | ✓ | — | — | — | — | ✓ |
+| Approve bookings (facility + guest house) | ✓ | ✓ | ✓ | — | — | — | — |
+| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | ✓ | ✓ | — | ✓ | — |
+| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | ✓ | — | — | — | — |
+| Post / edit announcements | ✓ | ✓ | ✓ | — | — | — | — |
+| Manage digital guides (`urus-panduan`) | ✓ | ✓ | ✓ | — | — | — | — |
+| Soft-delete chat messages / review reports | ✓ | ✓ | ✓ | — | — | — | — |
+| Manage facilities, parcels | ✓ | ✓ | ✓ | — | — | — | — |
+| Manage KIZ Cafe (`urus-kafe`) | ✓ | ✓ | ✓ | — | — | — | ✓ |
 | Order from KIZ Cafe (`kafe`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
-| App settings (logo) | ✓ | ✓ | — | — | — | — | — |
+| App settings (logo) | ✓ | ✓ | ✓ | — | — | — | — |
 | View-only reporting | ✓ | ✓ | ✓ | — | — | — | — |
 | Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — | — |
 | Set a laundry reminder (`laundry`) | — | — | — | — | ✓ | — | — |
-| Manage laundry machines (`urus-laundry`) | ✓ | ✓ | read-only | — | — | — | — |
+| Manage laundry machines (`urus-laundry`) | ✓ | ✓ | ✓ | — | — | — | — |
 
-`pengetua` (principal) is read-only by design — no approval or edit rights. They
-reach the admin views of guest house, accommodation, and check-in/out in a
-read-only state (no action buttons, no house edits).
+`pengetua` (principal) has full admin access — the same `urus-*` surfaces as
+`superadmin`/`admin_kiz` (approvals, announcements, helpdesk, accommodation,
+guest house, laundry, reports, content, users, settings, AI). The only
+superadmin-only surface is `urus-jemputan` (issuing admin invitations), and only
+a `superadmin` may edit or demote another `superadmin` account.
 
 `fellow` (residential college fellow) is a member role — resident-style home with
 a visible "Fellow" tag, community chat/bookings/eCard — **except** `bilik`
@@ -227,8 +229,8 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `chat` | Community chat — wide two-pane room (chat + community info rail), polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
 | `laundry` | Laundry (`ahli` only) — Machine Status grid + Set Reminder, and My Laundry Reminder (active timer + history). Status is reminder-derived, not sensor-based. Admins are redirected to `urus-laundry`. |
-| `rumah-tamu` | Guest house booking + own bookings + cancel. Admins and `pengetua` are redirected to `urus-rumah-tamu` (admin view only). |
-| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
+| `rumah-tamu` | Guest house booking + own bookings + cancel. Admins (incl. `pengetua`) are redirected to `urus-rumah-tamu`. |
+| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`pengetua`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
 | `hilang` | Lost & Found report form + list. |
 | `kafe` | Smart Ordering — the KIZ Cafe menu (photo + item cards with dietary tags), a cart, and a WhatsApp checkout. The order opens in WhatsApp pre-filled; the app stores it with a `#KIZ-CAFE-NNNN` reference for pickup and one-tap reorder. |
 | `bilik` | Room selection — eligibility gate, window status, visual block/floor/room/bed picker. Desktop grid + detail panel; mobile bottom-sheet + sticky confirm bar. |
@@ -244,18 +246,18 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | Route | Feature |
 |---|---|
 | `urus-pengumuman` | Announcement CRUD + soft delete. |
-| `urus-panduan` | Digital Guide CRUD — upload/replace a PDF (`/api/upload` → `public/uploads/guides/`), auto-detect page count, optional cover image, category, publish/draft, pin, order; soft delete. `superadmin`/`admin_kiz`. |
+| `urus-panduan` | Digital Guide CRUD — upload/replace a PDF (`/api/upload` → `public/uploads/guides/`), auto-detect page count, optional cover image, category, publish/draft, pin, order; soft delete. `superadmin`/`admin_kiz`/`pengetua`. |
 | `urus-pejabat` | Administrative-office CRUD (name/function, featured + gallery photos) and the block panorama image + label positions. |
 | `urus-direktori` | AR Directory destination pins — add/edit/soft-delete a place (name, kind, lat/lng, indoor flag, building) with a live map preview of the pin. |
 | `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |
-| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). `pengetua` gets a read-only view (no action buttons, no house edits). |
-| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. `superadmin`/`admin_kiz`/`staf`/`fellow` (the support desk). |
-| `urus-checkin` | QR counter check-in/out — create sessions, print the QR sheet, view/export records, manual check-in. `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
+| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). |
+| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. `superadmin`/`admin_kiz`/`pengetua`/`staf`/`fellow` (the support desk). |
+| `urus-checkin` | QR counter check-in/out — create sessions, print the QR sheet, view/export records, manual check-in. `superadmin`/`admin_kiz`/`pengetua`/`staf`. |
 | `urus-fasiliti` | Facility CRUD. |
-| `urus-laundry` | Laundry machine CRUD, Out of Service toggle, and force-clear a stuck reminder. `superadmin`/`admin_kiz` manage; `pengetua` read-only. |
+| `urus-laundry` | Laundry machine CRUD, Out of Service toggle, and force-clear a stuck reminder. `superadmin`/`admin_kiz`/`pengetua`. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
-| `urus-kafe` | **Smart Ordering admin** — cafe details (name, WhatsApp number, location, hours, accepting-orders toggle), upload the menu photo, **"Extract menu with AI"** (KIZ-AI vision → reviewable item drafts), edit/publish/remove items, and a live WhatsApp message preview. `superadmin`/`admin_kiz`. |
-| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
+| `urus-kafe` | **Smart Ordering admin** — cafe details (name, WhatsApp number, location, hours, accepting-orders toggle), upload the menu photo, **"Extract menu with AI"** (KIZ-AI vision → reviewable item drafts), edit/publish/remove items, and a live WhatsApp message preview. `superadmin`/`admin_kiz`/`pengetua`. |
+| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`pengetua`/`staf`. |
 | `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
 | `urus-jemputan` | **Superadmin only.** Invite people to self-register by email (one at a time or in bulk), choosing Student or Admin KIZ; manage issued invitations (status, resend, revoke, soft-delete). |
 | `urus-ai` | KIZ-AI admin — chat/embedding providers (Gemini / Ollama), robot mascot + emotion frames, retrieval mode, **Test connection**, knowledge index + re-index, unanswered questions. |

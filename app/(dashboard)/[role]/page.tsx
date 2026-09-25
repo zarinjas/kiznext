@@ -19,7 +19,7 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
   },
   pengetua: {
     title: "Principal Dashboard",
-    description: "College management reports and statistics.",
+    description: "Manage college operations, approvals, and reports.",
   },
   fellow: {
     title: "Fellow Dashboard",

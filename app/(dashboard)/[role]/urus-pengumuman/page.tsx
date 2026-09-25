@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import type { Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
@@ -16,7 +16,7 @@ import { color, radius } from "@/lib/theme"
 export default async function UrusPengumumanPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const announcements = await prisma.announcement.findMany({
     where: { deletedAt: null },

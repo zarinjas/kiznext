@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES, type Role } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { ONBOARDING_GRADIENTS, DEFAULT_ONBOARDING_GRADIENT } from "@/lib/onboarding-meta"
 
@@ -70,7 +70,7 @@ export async function getOnboardingSlides(): Promise<OnboardingSlideView[]> {
 export async function getOnboardingAdminData(): Promise<OnboardingSlideView[]> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const rows = await prisma.onboardingSlide.findMany({
     where: { deletedAt: null },
@@ -82,7 +82,7 @@ export async function getOnboardingAdminData(): Promise<OnboardingSlideView[]> {
 async function requireAdmin(): Promise<Role> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   return session.user.role as Role
 }
 

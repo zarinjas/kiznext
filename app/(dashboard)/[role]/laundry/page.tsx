@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import type { Role } from "@/lib/rbac"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { getLaundrySnapshot } from "@/lib/laundry"
@@ -13,7 +13,7 @@ export default async function LaundryPage() {
   const role = session.user.role as Role
   if (role !== "ahli") {
     // Admins and the principal manage machines; everyone else has no laundry surface.
-    if (role === "superadmin" || role === "admin_kiz" || role === "pengetua") {
+    if (ADMIN_ROLES.includes(role)) {
       redirect(`/${role}/urus-laundry`)
     }
     redirect(`/${role}`)

@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import type { Role } from "@/lib/rbac"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { unlink } from "fs/promises"
 import path from "path"
@@ -33,7 +33,7 @@ const FRAME_MAX_SIZE = 2 * 1024 * 1024
 const FRAME_DIMENSION = 256
 
 function isAiAdmin(session: { user?: { role?: string } | null } | null): boolean {
-  return session?.user?.role === "superadmin" || session?.user?.role === "admin_kiz"
+  return ADMIN_ROLES.includes(session?.user?.role as Role)
 }
 
 async function requireAiAdmin(): Promise<Role> {

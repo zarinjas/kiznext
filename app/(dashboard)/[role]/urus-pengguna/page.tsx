@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, type Role } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES, type Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { UsersClient } from "./users-client"
@@ -12,7 +12,7 @@ import type { StudentCohort } from "@/components/shared/cohort-chip"
 export default async function UrusPenggunaPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
-  requireRole(session.user.role as Role, ["superadmin", "admin_kiz"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const users = await prisma.user.findMany({
     where: { deletedAt: null },

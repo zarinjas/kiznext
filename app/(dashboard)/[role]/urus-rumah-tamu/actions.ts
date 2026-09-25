@@ -2,14 +2,14 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 
 export async function approveGH(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouseBooking.update({
     where: { id: bookingId },
@@ -22,7 +22,7 @@ export async function approveGH(bookingId: string) {
 export async function rejectGH(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouseBooking.update({
     where: { id: bookingId },
@@ -35,7 +35,7 @@ export async function rejectGH(bookingId: string) {
 export async function checkInGH(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouseBooking.update({
     where: { id: bookingId },
@@ -48,7 +48,7 @@ export async function checkInGH(bookingId: string) {
 export async function checkOutGH(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouseBooking.update({
     where: { id: bookingId },
@@ -61,7 +61,7 @@ export async function checkOutGH(bookingId: string) {
 export async function markPaidGH(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.guestHouseBooking.update({
     where: { id: bookingId },
