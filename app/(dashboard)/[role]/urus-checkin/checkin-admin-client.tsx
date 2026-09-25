@@ -130,6 +130,14 @@ function bedOrder(position: string | null): number {
   return 0
 }
 
+/** Most recent signature time (ms) across check-in + check-out — 0 if none. */
+function latestRecordAt(s: ConsolidatedRow): number {
+  const times = [s.checkInAt, s.checkOutAt]
+    .filter((v): v is string => Boolean(v))
+    .map((v) => new Date(v).getTime())
+  return times.length ? Math.max(...times) : 0
+}
+
 /** Block A→Z, then room number small→big, then bed A/B, then name. */
 function compareRows(a: ConsolidatedRow, b: ConsolidatedRow): number {
   const byBlock = blockCompare(a.blockName, b.blockName)
@@ -716,9 +724,13 @@ export function CheckinAdminClient({
   const checkedInCount = filtered.filter((s) => s.checkInAt).length
   const checkedOutCount = filtered.filter((s) => s.checkOutAt).length
 
-  // The table shows only students who actually signed; the export (Excel/CSV/
-  // Print) still uses `filtered` so every student on the roster is listed.
-  const checkedInRows = useMemo(() => filtered.filter((s) => s.hasRecord), [filtered])
+  // The table shows only students who actually signed, newest activity first so
+  // a fresh check-in/check-out lands at the top. The export (Excel/CSV/Print)
+  // still uses `filtered` (block/room order) so every roster student is listed.
+  const checkedInRows = useMemo(
+    () => filtered.filter((s) => s.hasRecord).sort((a, b) => latestRecordAt(b) - latestRecordAt(a)),
+    [filtered],
+  )
 
   const statusOf = (s: ConsolidatedRow) =>
     s.checkOutAt ? "Checked out" : s.checkInAt ? "Checked in" : "Not checked in"
