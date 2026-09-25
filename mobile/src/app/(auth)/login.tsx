@@ -1,11 +1,11 @@
 import { useTheme } from "@shopify/restyle"
 import { APP_NAME, APP_TAGLINE, COLLEGE_WITH_UNIVERSITY, loginSchema } from "@kiz/shared"
-import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useState } from "react"
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { AppLogo } from "@/components/app-logo"
 import { GradientBg } from "@/components/gradient"
 import { ApiError } from "@/lib/api"
 import { resendVerification } from "@/lib/auth-api"
@@ -28,9 +28,10 @@ import {
  *
  * This previously loaded from `${API_BASE_URL}/api/app-icon`, so on venue wifi
  * or a cold backend the very first screen showed an empty box where the brand
- * mark should be. Brand identity must never depend on the network.
+ * mark should be. Brand identity must never depend on the network — the
+ * `AppLogo` component now prefers the admin-uploaded logo but falls back to the
+ * bundled copy, so this holds while still tracking an admin logo change.
  */
-const LOGO = require("../../../assets/images/logo-mark.png")
 
 /**
  * Stable demo accounts, guaranteed by `prisma/seed.ts` to exist and be active
@@ -140,7 +141,7 @@ export default function LoginScreen() {
                   overflow="hidden"
                   padding="m"
                 >
-                  <Image source={LOGO} style={{ width: 64, height: 64 }} contentFit="contain" />
+                  <AppLogo size={64} />
                 </Box>
                 <Box height={14} />
                 <Text variant="title">{APP_NAME}</Text>

@@ -12,6 +12,7 @@ import { router, type Href } from "expo-router"
 import { useTheme } from "@shopify/restyle"
 import { Linking, StyleSheet, View } from "react-native"
 
+import { AppLogo } from "@/components/app-logo"
 import { GradientBg } from "@/components/gradient"
 import { useAuth } from "@/lib/auth-context"
 import { absoluteUrl } from "@/lib/config"
@@ -31,8 +32,6 @@ import {
   type Theme,
 } from "@/ui"
 import { Icon } from "@/ui/icon"
-
-const LOGO = require("../../../../assets/images/logo-mark.png")
 
 /** Matches the server default — used only before the first `/home` resolves. */
 const DEFAULT_OVERLAY: HeroOverlay = { from: "#02141F", to: "#02141F", opacity: 0.55 }
@@ -183,7 +182,7 @@ function Hero({
         <View style={styles.heroTop}>
           <View style={styles.brandRow}>
             <View style={styles.logoWrap}>
-              <Image source={LOGO} style={styles.logo} contentFit="contain" />
+              <AppLogo size={31} />
             </View>
             <View style={styles.brandCopy}>
               <Text style={styles.brandName}>MyKIZ</Text>
@@ -682,7 +681,6 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   brandRow: { flexDirection: "row", alignItems: "center", flex: 1, minWidth: 0, gap: 9 },
   logoWrap: { width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,.94)", alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  logo: { width: 31, height: 31 },
   brandCopy: { flex: 1, minWidth: 0 },
   brandName: { color: "#FFFFFF", fontSize: 16, lineHeight: 19, fontWeight: "800" },
   collegeName: { color: "rgba(255,255,255,.74)", fontSize: 11.5, lineHeight: 16 },
