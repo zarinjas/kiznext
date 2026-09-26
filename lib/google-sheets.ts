@@ -94,6 +94,7 @@ export const SHEET_SA_KEY = "google_service_account"
 export const SHEET_ID_KEY = "google_sheet_id"
 export const SHEET_RANGE_KEY = "google_sheet_range"
 export const SHEET_LAST_SYNCED_KEY = "google_sheet_last_synced_at"
+export const SHEET_LAST_HASH_KEY = "google_sheet_last_hash"
 
 /** Stamp the moment the accommodation sheet was last applied. */
 export async function markSheetSynced(at: Date = new Date()): Promise<void> {
@@ -110,6 +111,21 @@ export async function getSheetLastSyncedAt(): Promise<Date | null> {
   if (!row) return null
   const d = new Date(row.value)
   return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Store the content hash of the last applied sheet (skip unchanged auto-syncs). */
+export async function markSheetHash(hash: string): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { key: SHEET_LAST_HASH_KEY },
+    update: { value: hash },
+    create: { key: SHEET_LAST_HASH_KEY, value: hash },
+  })
+}
+
+/** Content hash of the last applied sheet (null if unknown). */
+export async function getSheetLastHash(): Promise<string | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: SHEET_LAST_HASH_KEY } })
+  return row?.value ?? null
 }
 
 export interface SheetConfig {

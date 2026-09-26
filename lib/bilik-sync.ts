@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { prisma } from "@/lib/db"
 import { parseCsvToObjects } from "@/lib/csv"
 import {
@@ -10,7 +11,7 @@ import {
 } from "@/lib/room-selection"
 import { roomCode, parseRoomNumber } from "@/lib/bilik-format"
 import { ensureBlock, ensureRoom, claimBed, markReservedBeds } from "@/lib/bilik-rooms"
-import { markSheetSynced } from "@/lib/google-sheets"
+import { markSheetSynced, markSheetHash } from "@/lib/google-sheets"
 
 /**
  * Accommodation SYNC — unlike `confirmImport` (which creates a NEW intake), sync
@@ -62,6 +63,16 @@ function buildSyncModel(csvText: string) {
     for (const student of room.students) sheetStudents.set(student.matricId, { name: student.name, room: room.code })
   }
   return { rooms, sheetStudents }
+}
+
+/** Stable hash of everything the sync writes — used to skip unchanged auto-syncs. */
+function hashRooms(rooms: GroupedRoom[]): string {
+  return createHash("sha256").update(JSON.stringify(rooms)).digest("hex")
+}
+
+/** Hash the sync-relevant content of a sheet (rooms + occupants + profile fields). */
+export function hashSyncModel(csvText: string): string {
+  return hashRooms(buildSyncModel(csvText).rooms)
 }
 
 type BedRoomRef = { room: { number: string; block: { name: string } } } | null
@@ -335,6 +346,7 @@ export async function runApplySync(csvText: string): Promise<SyncResult> {
     }, { timeout: 120_000, maxWait: 15_000 })
 
     await markSheetSynced()
+    await markSheetHash(hashRooms(rooms))
     return { ok: true, added, moved, released, removed, roomsSynced }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Sync failed" }
