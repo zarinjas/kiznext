@@ -11,7 +11,16 @@ import { roomCode, parseRoomNumber } from "@/lib/bilik-format"
 import { ensureBlock, ensureRoom, claimBed, markReservedBeds } from "@/lib/bilik-rooms"
 import { runPreviewSync, runApplySync, type SyncPreview, type SyncResult } from "@/lib/bilik-sync"
 import { reconcileIntakeStudents } from "@/lib/registration"
-import { fetchSheetCsv, getSheetConfig, SHEET_SA_KEY, SHEET_ID_KEY, SHEET_RANGE_KEY } from "@/lib/google-sheets"
+import {
+  fetchSheetCsv,
+  getSheetConfig,
+  getSheetLastSyncedAt,
+  getSheetSyncIntervalMinutes,
+  saveSheetSyncInterval,
+  SHEET_SA_KEY,
+  SHEET_ID_KEY,
+  SHEET_RANGE_KEY,
+} from "@/lib/google-sheets"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
 const ADMIN: Role[] = RESIDENCE_MANAGE_ROLES
@@ -359,18 +368,32 @@ export async function applySync(csvText: string): Promise<SyncResult> {
 }
 
 /** Admin view of the Google Sheet config (the key itself is never returned). */
-export async function getSheetConfigView(): Promise<{ hasServiceAccount: boolean; spreadsheetId: string; range: string }> {
+export async function getSheetConfigView(): Promise<{
+  hasServiceAccount: boolean
+  spreadsheetId: string
+  range: string
+  intervalMinutes: number
+  lastSyncedAt: string | null
+}> {
   await requireAdmin()
   const cfg = await getSheetConfig()
+  const lastSyncedAt = await getSheetLastSyncedAt()
   return {
     hasServiceAccount: Boolean(cfg.serviceAccount),
     spreadsheetId: cfg.spreadsheetId ?? "",
     range: cfg.range ?? "",
+    intervalMinutes: await getSheetSyncIntervalMinutes(),
+    lastSyncedAt: lastSyncedAt ? lastSyncedAt.toISOString() : null,
   }
 }
 
 /** Save the Google Sheet sync config. A blank service-account field keeps the existing key. */
-export async function saveSheetConfig(input: { serviceAccount?: string; spreadsheetId: string; range: string }) {
+export async function saveSheetConfig(input: {
+  serviceAccount?: string
+  spreadsheetId: string
+  range: string
+  intervalMinutes?: number
+}) {
   const session = await requireAdmin()
   const upserts = []
   const serviceAccount = input.serviceAccount?.trim()
@@ -398,7 +421,30 @@ export async function saveSheetConfig(input: { serviceAccount?: string; spreadsh
     }),
   )
   await prisma.$transaction(upserts)
+  if (input.intervalMinutes !== undefined) {
+    const minutes = Math.max(0, Math.floor(Number(input.intervalMinutes) || 0))
+    await saveSheetSyncInterval(minutes)
+  }
   revalidatePath(`/${session.user.role}/urus-bilik`)
+}
+
+/** Pull the configured Google Sheet and apply it immediately (one-tap sync). */
+export async function syncNowFromSheet(): Promise<SyncResult & { lastSyncedAt?: string }> {
+  const session = await requireAdmin()
+  try {
+    const csv = await fetchSheetCsv()
+    const result = await runApplySync(csv)
+    if (result.ok) {
+      revalidatePath(`/${session.user.role}/urus-bilik`)
+      revalidatePath("/ahli")
+      revalidatePath("/ahli/bilik")
+      const last = await getSheetLastSyncedAt()
+      return { ...result, lastSyncedAt: last ? last.toISOString() : undefined }
+    }
+    return result
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Sync failed" }
+  }
 }
 
 /** Read the configured Google Sheet and return it as CSV text for a sync preview. */

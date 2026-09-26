@@ -988,6 +988,12 @@ model EligibleStudent {
   // Final check-in/out happens at the counter via the QR-session flow and is
   // recorded in CheckInRecord (signedAt). No accommodation-payment column: fees
   // are settled manually at the UKM Real Estate counter (no payment gateway).
+  /// Admin-only free-text flag for a student with a check-in/out problem. Never
+  /// shown to the student; surfaces in the records list, its filter and the
+  /// admin export ("fail pentadbiran"). Kept on EligibleStudent because the
+  /// sheet sync only writes its own explicit columns, so this survives a sync.
+  remark            String?
+  remarkAt          DateTime? @map("remark_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")

@@ -55,6 +55,8 @@ export default async function UrusCheckinPage({
         select: {
           matricId: true,
           name: true,
+          remark: true,
+          remarkAt: true,
           bed: {
             select: {
               position: true,
@@ -68,6 +70,8 @@ export default async function UrusCheckinPage({
   const rosterData = rosterStudents.map((s) => ({
     matricId: s.matricId,
     name: s.name,
+    remark: s.remark,
+    remarkAt: s.remarkAt ? s.remarkAt.toISOString() : null,
     blockName: s.bed?.room.block.name ?? null,
     roomNumber: s.bed?.room.number ?? null,
     bedPosition: s.bed?.position ?? null,

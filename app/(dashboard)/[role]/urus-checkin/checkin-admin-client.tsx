@@ -38,6 +38,7 @@ import {
   adminLookupStudent,
   adminManualCheckIn,
   adminDeleteCheckInRecord,
+  adminSetStudentRemark,
   getCheckInRecordsVersion,
   uploadCheckinDirectionsImage,
   removeCheckinDirectionsImage,
@@ -79,6 +80,9 @@ interface RecordRow {
 interface RosterEntry {
   matricId: string
   name: string
+  /** Admin-only problem flag (free text), or null. */
+  remark: string | null
+  remarkAt: string | null
   blockName: string | null
   roomNumber: string | null
   bedPosition: string | null
@@ -109,6 +113,11 @@ interface ConsolidatedRow {
   hasRecord: boolean
   /** Session ids the student appears in (for the session filter). */
   sessionIds: string[]
+  /** Admin-only problem flag (free text), or null. Only editable on-roster. */
+  remark: string | null
+  remarkAt: string | null
+  /** True when the student is on the active-intake roster (remark editable). */
+  onRoster: boolean
 }
 
 const UNASSIGNED = "Unassigned"
@@ -175,6 +184,9 @@ function emptyRow(key: string, matricId: string, name: string): ConsolidatedRow 
     checkOutRecordId: null,
     hasRecord: false,
     sessionIds: [],
+    remark: null,
+    remarkAt: null,
+    onRoster: false,
   }
 }
 
@@ -195,6 +207,9 @@ function consolidate(roster: RosterEntry[], records: RecordRow[]): ConsolidatedR
       roomNumber: s.roomNumber ?? "",
       bedPosition: s.bedPosition,
       roomLabel: s.roomLabel,
+      remark: s.remark,
+      remarkAt: s.remarkAt,
+      onRoster: true,
     })
   }
 
@@ -435,8 +450,13 @@ export function CheckinAdminClient({
   // Records filters
   const [sessionFilter, setSessionFilter] = useState<string>("all")
   const [blockFilter, setBlockFilter] = useState<string>("all")
+  const [remarkFilter, setRemarkFilter] = useState<"all" | "with" | "without">("all")
   const [q, setQ] = useState("")
   const [detail, setDetail] = useState<ConsolidatedRow | null>(null)
+
+  // Per-student remark editor (inside the detail dialog).
+  const [remarkDraft, setRemarkDraft] = useState("")
+  const [savingRemark, setSavingRemark] = useState(false)
 
   // Export dialog — scope by block (all or one) then pick a format.
   const [exportOpen, setExportOpen] = useState(false)
@@ -603,6 +623,21 @@ export function CheckinAdminClient({
     }
   }
 
+  async function onSaveRemark() {
+    if (!detail) return
+    setSavingRemark(true)
+    const res = await adminSetStudentRemark(detail.matricId, remarkDraft)
+    setSavingRemark(false)
+    if (res.ok) {
+      const next = { ...detail, remark: remarkDraft.trim() || null, remarkAt: remarkDraft.trim() ? new Date().toISOString() : null }
+      setDetail(next)
+      notify(remarkDraft.trim() ? `Remark saved for ${detail.name}.` : `Remark cleared for ${detail.name}.`)
+      router.refresh()
+    } else {
+      notify(res.error ?? "Couldn't save the remark", "error")
+    }
+  }
+
   const students = useMemo(() => consolidate(roster, records), [roster, records])
 
   const recordCheckInCount = records.filter((r) => r.type === "check_in").length
@@ -614,18 +649,22 @@ export function CheckinAdminClient({
     return [...set].sort(blockCompare)
   }, [students])
 
+  const withRemarkCount = students.filter((s) => hasRemark(s)).length
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return students.filter((s) => {
       if (sessionFilter !== "all" && !s.sessionIds.includes(sessionFilter)) return false
       if (blockFilter !== "all" && s.blockName !== blockFilter) return false
+      if (remarkFilter === "with" && !hasRemark(s)) return false
+      if (remarkFilter === "without" && hasRemark(s)) return false
       if (needle) {
         const hay = `${s.matricId} ${s.name} ${s.roomLabel ?? ""}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
     })
-  }, [students, sessionFilter, blockFilter, q])
+  }, [students, sessionFilter, blockFilter, remarkFilter, q])
 
   const checkedInCount = filtered.filter((s) => s.checkInAt).length
   const checkedOutCount = filtered.filter((s) => s.checkOutAt).length
@@ -641,6 +680,21 @@ export function CheckinAdminClient({
   const statusOf = (s: ConsolidatedRow) =>
     s.checkOutAt ? "Checked out" : s.checkInAt ? "Checked in" : "Not checked in"
 
+  /** A row is "flagged" when the admin left a non-empty remark. */
+  function hasRemark(s: ConsolidatedRow): boolean {
+    return Boolean(s.remark && s.remark.trim())
+  }
+
+  /** Remark flattened to one line for the table/export (keeps it compact). */
+  function remarkText(s: ConsolidatedRow): string {
+    return (s.remark ?? "").replace(/\s*\n+\s*/g, " · ").trim()
+  }
+
+  function openDetail(row: ConsolidatedRow) {
+    setDetail(row)
+    setRemarkDraft(row.remark ?? "")
+  }
+
   /** Short room label for exports ("101" / "101 (Bed A)"), no block prefix. */
   function roomDisplay(s: ConsolidatedRow): string {
     const source = s.roomNumber || s.roomLabel || ""
@@ -650,7 +704,7 @@ export function CheckinAdminClient({
     return bed ? `${code} (Bed ${bed})` : code
   }
 
-  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status"]
+  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status", "Remark"]
   const toRows = (list: ConsolidatedRow[]) =>
     list.map((s, i) => [
       i + 1,
@@ -661,6 +715,7 @@ export function CheckinAdminClient({
       s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
       s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
       statusOf(s),
+      remarkText(s),
     ])
 
   function openExport() {
@@ -714,8 +769,9 @@ export function CheckinAdminClient({
       "Check-in (KL)": s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
       "Check-out (KL)": s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
       Status: statusOf(s),
+      Remark: remarkText(s),
     }))
-    const csv = toCsv(["Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status"], rows)
+    const csv = toCsv(["Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status", "Remark"], rows)
     const label = exportBlock === "all" ? "" : `-${exportBlock}`
     downloadBlob(
       new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" }),
@@ -742,6 +798,7 @@ export function CheckinAdminClient({
           <td>${s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "—"}</td>
           <td>${s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "—"}</td>
           <td class="sig">${sigCell([s.checkInSignatureUrl, s.checkOutSignatureUrl])}</td>
+          <td>${escHtml(remarkText(s) || "—")}</td>
         </tr>`,
       )
       .join("")
@@ -750,7 +807,7 @@ export function CheckinAdminClient({
       "Check-in / Check-out Records",
       `${docHeader(logos, "Check-in / Check-out Records", sub)}
        <div class="muted">Generated ${formatMalaysia(new Date())} · Malaysia time (UTC+8) · ${list.length} student(s)</div>
-       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block</th><th>Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="8">No students.</td></tr>`}</tbody></table>`,
+       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block</th><th>Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th><th>Remark</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="9">No students.</td></tr>`}</tbody></table>`,
     )
     setExportOpen(false)
   }
@@ -797,10 +854,40 @@ export function CheckinAdminClient({
         ),
     },
     {
+      field: "remark",
+      headerName: "Remark",
+      width: 200,
+      valueGetter: (_value, row) => remarkText(row as ConsolidatedRow),
+      renderCell: (p) => {
+        const s = p.row as ConsolidatedRow
+        if (!hasRemark(s)) return <span style={{ color: "var(--mui-palette-text-disabled)" }}>—</span>
+        return (
+          <Box
+            component="span"
+            title={s.remark ?? ""}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.5,
+              maxWidth: "100%",
+              color: color.warning.ink,
+              fontWeight: 600,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <KIcon icon="flag" size={15} />
+            {remarkText(s)}
+          </Box>
+        )
+      },
+    },
+    {
       field: "signature",
       headerName: "Signature",
       width: 110,
-      renderCell: (p) => <Button size="small" onClick={() => setDetail(p.row)}>View</Button>,
+      renderCell: (p) => <Button size="small" onClick={() => openDetail(p.row)}>View</Button>,
     },
   ]
 
@@ -1070,6 +1157,18 @@ export function CheckinAdminClient({
               ))}
             </TextField>
             <TextField
+              select
+              label="Remark"
+              value={remarkFilter}
+              onChange={(e) => setRemarkFilter(e.target.value as "all" | "with" | "without")}
+              size="small"
+              sx={{ minWidth: 165 }}
+            >
+              <MenuItem value="all">All students</MenuItem>
+              <MenuItem value="with">With remark ({withRemarkCount})</MenuItem>
+              <MenuItem value="without">Without remark</MenuItem>
+            </TextField>
+            <TextField
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search matric / name / room…"
@@ -1106,7 +1205,7 @@ export function CheckinAdminClient({
                 ? "Students appear here once they sign at the counter or in the app. Use Export to download the full roster."
                 : "No checked-in students match these filters."
             }
-            onRowClick={(r) => setDetail(r)}
+            onRowClick={(r) => openDetail(r)}
           />
         </Box>
       )}
@@ -1206,6 +1305,57 @@ export function CheckinAdminClient({
                   )}
                 </Box>
               ))}
+
+              {/* Admin-only problem flag for this student. */}
+              <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.75, flexWrap: "wrap" }}>
+                  <KIcon icon="flag" size={16} />
+                  <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Remark</Typography>
+                  {detail.remarkAt && (
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      · updated {formatMalaysia(new Date(detail.remarkAt))}
+                    </Typography>
+                  )}
+                </Box>
+                {readOnly || !detail.onRoster ? (
+                  <Alert severity={hasRemark(detail) ? "warning" : "info"} variant="outlined" sx={{ borderRadius: 2 }}>
+                    {!detail.onRoster
+                      ? "This student isn't on the active intake roster, so a remark can't be saved here."
+                      : hasRemark(detail)
+                        ? detail.remark
+                        : "No remark."}
+                  </Alert>
+                ) : (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                    <TextField
+                      value={remarkDraft}
+                      onChange={(e) => setRemarkDraft(e.target.value)}
+                      placeholder="e.g. Deposit not paid · room condition issue · no key returned"
+                      multiline
+                      minRows={2}
+                      maxRows={5}
+                      fullWidth
+                      slotProps={{ htmlInput: { maxLength: 500 } }}
+                      helperText={`${remarkDraft.length}/500 — admin-only, shown in the records list and the export report.`}
+                    />
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                      {hasRemark(detail) && (
+                        <Button variant="outlined" disabled={savingRemark} onClick={() => setRemarkDraft("")}>
+                          Clear
+                        </Button>
+                      )}
+                      <KButton
+                        icon="save"
+                        loading={savingRemark}
+                        disabled={remarkDraft.trim() === (detail.remark ?? "").trim()}
+                        onClick={onSaveRemark}
+                      >
+                        Save remark
+                      </KButton>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
             </DialogContent>
           </>
         )}

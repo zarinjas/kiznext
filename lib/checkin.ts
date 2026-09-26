@@ -598,6 +598,43 @@ export async function adminDeleteCheckInRecord(recordId: string): Promise<{ ok: 
   return { ok: true }
 }
 
+// ── Admin: per-student remark (check-in/out problem flag) ────────────────────
+
+const REMARK_MAX = 500
+
+/**
+ * Admin: set (or clear) the free-text remark on a student in the active intake.
+ * Used to flag a check-in/out problem that then shows in the records list, its
+ * filter and the admin export. Empty text clears it. Admin-only.
+ */
+export async function adminSetStudentRemark(
+  matricRaw: string,
+  remarkRaw: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const admin = await requireAdmin()
+  const matricId = cleanMatric(matricRaw)
+  if (!matricId) return { ok: false, error: "Missing student." }
+
+  const remark = (remarkRaw ?? "").trim().slice(0, REMARK_MAX)
+
+  const intake = await getActiveIntake()
+  if (!intake) return { ok: false, error: "No active intake — import the student list first." }
+
+  const student = await prisma.eligibleStudent.findFirst({
+    where: { intakeId: intake.id, matricId, deletedAt: null },
+    select: { id: true },
+  })
+  if (!student) return { ok: false, error: "That student isn't on the active KIZ list." }
+
+  await prisma.eligibleStudent.update({
+    where: { id: student.id },
+    data: { remark: remark || null, remarkAt: remark ? nowMalaysia() : null },
+  })
+
+  revalidatePath(`/${admin.user.role}/urus-checkin`)
+  return { ok: true }
+}
+
 // ── Admin: live record version (for the auto-refreshing Records tab) ─────────
 
 /**

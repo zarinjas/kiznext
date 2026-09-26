@@ -50,9 +50,11 @@ import {
   getSheetConfigView,
   saveSheetConfig,
   fetchGoogleSheetCsv,
+  syncNowFromSheet,
   type ImportPreview,
 } from "./actions"
 import type { SyncPreview } from "@/lib/bilik-sync"
+import { formatMalaysia } from "@/lib/timezone"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
 type Gender = "male" | "female"
@@ -486,6 +488,8 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
   const [serviceAccount, setServiceAccount] = useState("")
   const [spreadsheetId, setSpreadsheetId] = useState("")
   const [range, setRange] = useState("")
+  const [intervalMinutes, setIntervalMinutes] = useState("")
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [csv, setCsv] = useState("")
   const [source, setSource] = useState("")
   const [preview, setPreview] = useState<SyncPreview | null>(null)
@@ -498,21 +502,44 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
         setHasKey(cfg.hasServiceAccount)
         setSpreadsheetId(cfg.spreadsheetId)
         setRange(cfg.range)
+        setIntervalMinutes(String(cfg.intervalMinutes))
+        setLastSyncedAt(cfg.lastSyncedAt)
       })
       .catch(() => {})
   }, [])
 
   const saveConfig = () => start(async () => {
     try {
-      await saveSheetConfig({ serviceAccount: serviceAccount.trim() || undefined, spreadsheetId, range })
+      await saveSheetConfig({
+        serviceAccount: serviceAccount.trim() || undefined,
+        spreadsheetId,
+        range,
+        intervalMinutes: intervalMinutes === "" ? undefined : Number(intervalMinutes),
+      })
       setServiceAccount("")
       const cfg = await getSheetConfigView()
       setHasKey(cfg.hasServiceAccount)
       setSpreadsheetId(cfg.spreadsheetId)
       setRange(cfg.range)
-      notify("Google Sheet config saved.")
+      setIntervalMinutes(String(cfg.intervalMinutes))
+      setLastSyncedAt(cfg.lastSyncedAt)
+      notify("Tetapan Google Sheet disimpan.")
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Could not save config", "error")
+      notify(e instanceof Error ? e.message : "Tidak dapat menyimpan tetapan", "error")
+    }
+  })
+
+  const syncNow = () => start(async () => {
+    try {
+      const res = await syncNowFromSheet()
+      if (res.ok) {
+        setLastSyncedAt(res.lastSyncedAt ?? new Date().toISOString())
+        notify(`Penyelarasan selesai — ${res.added ?? 0} ditambah, ${res.moved ?? 0} dipindah, ${res.removed ?? 0} dikeluarkan.`)
+      } else {
+        notify(res.error ?? "Penyelarasan gagal", "error")
+      }
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Penyelarasan gagal", "error")
     }
   })
 
@@ -551,34 +578,50 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
   const apply = () => start(async () => {
     const res = await applySync(csv)
     if (res.ok) {
-      notify(`Sync done — ${res.added ?? 0} added, ${res.moved ?? 0} moved, ${res.removed ?? 0} removed, ${res.roomsSynced ?? 0} rooms synced.`)
+      notify(`Penyelarasan selesai — ${res.added ?? 0} ditambah, ${res.moved ?? 0} dipindah, ${res.removed ?? 0} dikeluarkan, ${res.roomsSynced ?? 0} bilik diselaraskan.`)
       setPreview(null)
       setCsv("")
       setSource("")
     } else {
-      notify(res.error ?? "Sync failed", "error")
+      notify(res.error ?? "Penyelarasan gagal", "error")
     }
   })
 
   return (
     <FormSection
-      title="Sync from Google Sheet"
-      subtitle="Update the active intake in place — students who changed rooms, new students, and room status changes. Nothing is applied until you review the diff and press Apply sync."
+      title="Penyelarasan dari Google Sheet"
+      subtitle="Kemas kini intake aktif secara langsung — pelajar yang bertukar bilik, pelajar baharu, dan perubahan status bilik. Tiada apa-apa diterapkan sehingga anda semak perbezaan dan tekan Terapkan penyelarasan."
       icon="sync"
     >
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-        <b>How sync works:</b> the sheet is the source of truth. A student&apos;s room follows
-        their matric number — a new matric is added, a changed room is moved, and a matric
-        no longer in the sheet is <b>removed from the list</b> (soft-deleted, recoverable).
-        Room type, damaged / reserved status and reserved beds are reconciled too.
+        <b>Cara penyelarasan berfungsi:</b> helaian (sheet) ialah sumber sebenar. Bilik pelajar
+        mengikut nombor matrik — matrik baharu akan ditambah, bilik yang berubah akan dipindah,
+        dan matrik yang tiada dalam helaian akan <b>dikeluarkan daripada senarai</b> (padam lembut,
+        boleh dipulihkan). Jenis bilik, status rosak / tempahan, dan katil tempahan turut diselaraskan.
+      </Alert>
+
+      <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+        <b>Nota:</b> jika nama ada dalam helaian tetapi belum wujud dalam sistem, nama itu hanya
+        akan muncul <b>selepas penyelarasan selesai</b>. Sila tunggu sehingga penyelarasan lengkap
+        sebelum menyemak senarai pelajar.
       </Alert>
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
-        <TextField label="Spreadsheet ID" value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="1AbC...xyz" helperText="The long ID in the sheet URL between /d/ and /edit." />
-        <TextField label="Range / tab" value={range} onChange={(e) => setRange(e.target.value)} placeholder="Sheet1" helperText="Tab name, e.g. Sheet1 (or Sheet1!A1:Z1000)." />
+        <TextField label="Spreadsheet ID" value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="1AbC...xyz" helperText="ID panjang dalam URL helaian, antara /d/ dan /edit." />
+        <TextField label="Range / tab" value={range} onChange={(e) => setRange(e.target.value)} placeholder="Sheet1" helperText="Nama tab, cth. Sheet1 (atau Sheet1!A1:Z1000)." />
       </Box>
       <TextField
-        label={hasKey ? "Service account JSON (leave blank to keep current)" : "Service account JSON"}
+        label="Selang auto-sync (minit)"
+        type="number"
+        value={intervalMinutes}
+        onChange={(e) => setIntervalMinutes(e.target.value)}
+        fullWidth
+        sx={{ mt: 2 }}
+        slotProps={{ htmlInput: { min: 0, step: 1 } }}
+        helperText="0 = matikan. Helaian diselaraskan secara automatik setiap N minit. Perubahan berkuat kuasa serta-merta, tanpa perlu mulakan semula."
+      />
+      <TextField
+        label={hasKey ? "Service account JSON (biarkan kosong untuk kekalkan sedia ada)" : "Service account JSON"}
         value={serviceAccount}
         onChange={(e) => setServiceAccount(e.target.value)}
         placeholder={hasKey ? "•••••• configured ••••••" : '{ "type": "service_account", ... }'}
@@ -586,16 +629,20 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
         minRows={2}
         fullWidth
         sx={{ mt: 2 }}
-        helperText={hasKey ? "A key is already saved. Paste a new one to replace it." : "Paste the whole JSON key file from Google Cloud."}
+        helperText={hasKey ? "Kunci sudah disimpan. Tampal yang baharu untuk menggantikannya." : "Tampal keseluruhan fail kunci JSON dari Google Cloud."}
       />
-      <Box sx={{ mt: 1.5 }}>
-        <KButton size="small" variant="outlined" loading={pending} onClick={saveConfig} icon="save">Save config</KButton>
+      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, mt: 1.5 }}>
+        <KButton size="small" variant="outlined" loading={pending} onClick={saveConfig} icon="save">Simpan tetapan</KButton>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Kali terakhir diselaraskan: <b>{lastSyncedAt ? formatMalaysia(new Date(lastSyncedAt)) : "belum pernah"}</b>
+        </Typography>
       </Box>
 
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
-        <KButton onClick={previewFromSheet} loading={pending} icon="cloud_download">Preview from Google Sheet</KButton>
+        <KButton onClick={syncNow} loading={pending} icon="sync">Selaras sekarang</KButton>
+        <KButton onClick={previewFromSheet} loading={pending} icon="cloud_download" variant="outlined">Pratonton dari Google Sheet</KButton>
         <input ref={inputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-        <KButton variant="outlined" onClick={() => inputRef.current?.click()} icon="upload_file">Preview from CSV</KButton>
+        <KButton variant="outlined" onClick={() => inputRef.current?.click()} icon="upload_file">Pratonton dari CSV</KButton>
       </Box>
 
       {preview && (
@@ -610,16 +657,16 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
           </Bento>
 
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1.5 }}>
-            Source: <b>{source}</b> · intake: <b>{preview.intakeName ?? "—"}</b> · {preview.studentsInSheet} students · {preview.roomsTotal} rooms ({preview.reservedRooms} with reserved beds)
+            Sumber: <b>{source}</b> · intake: <b>{preview.intakeName ?? "—"}</b> · {preview.studentsInSheet} pelajar · {preview.roomsTotal} bilik ({preview.reservedRooms} dengan katil tempahan)
           </Typography>
 
-          <SyncDiffList title="To move" tone={color.info} items={preview.toMove.map((m) => `${m.name} (${m.matricId}): ${m.from} → ${m.to}`)} />
-          <SyncDiffList title="To add" tone={color.success} items={preview.toAdd.map((m) => `${m.name} (${m.matricId}) → ${m.room}`)} />
-          <SyncDiffList title="To remove (no longer in sheet)" tone={color.warning} items={preview.toRemove.map((m) => `${m.name} (${m.matricId})`)} />
+          <SyncDiffList title="Untuk dipindah" tone={color.info} items={preview.toMove.map((m) => `${m.name} (${m.matricId}): ${m.from} → ${m.to}`)} />
+          <SyncDiffList title="Untuk ditambah" tone={color.success} items={preview.toAdd.map((m) => `${m.name} (${m.matricId}) → ${m.room}`)} />
+          <SyncDiffList title="Untuk dikeluarkan (tiada dalam helaian)" tone={color.warning} items={preview.toRemove.map((m) => `${m.name} (${m.matricId})`)} />
 
           <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
-            <KButton onClick={apply} loading={pending} icon="sync">Apply sync</KButton>
-            <KButton variant="outlined" onClick={() => { setPreview(null); setCsv(""); setSource("") }}>Cancel</KButton>
+            <KButton onClick={apply} loading={pending} icon="sync">Terapkan penyelarasan</KButton>
+            <KButton variant="outlined" onClick={() => { setPreview(null); setCsv(""); setSource("") }}>Batal</KButton>
           </Box>
         </Box>
       )}
