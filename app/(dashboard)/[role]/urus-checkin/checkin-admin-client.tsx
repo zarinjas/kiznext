@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Box from "@mui/material/Box"
 import Tabs from "@mui/material/Tabs"
@@ -37,6 +37,7 @@ import {
   adminLookupStudent,
   adminManualCheckIn,
   adminDeleteCheckInRecord,
+  getCheckInRecordsVersion,
   uploadCheckinDirectionsImage,
   removeCheckinDirectionsImage,
 } from "@/lib/checkin"
@@ -349,6 +350,7 @@ function buildPosterHtml(s: SessionRow, logos: PrintLogos) {
 
 export function CheckinAdminClient({
   readOnly,
+  initialTab,
   sessions,
   records,
   roster,
@@ -356,6 +358,7 @@ export function CheckinAdminClient({
   directionsImageUrl,
 }: {
   readOnly: boolean
+  initialTab: number
   sessions: SessionRow[]
   records: RecordRow[]
   roster: RosterEntry[]
@@ -363,9 +366,48 @@ export function CheckinAdminClient({
   directionsImageUrl: string | null
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState(readOnly ? 1 : 0)
+  const [tab, setTab] = useState(initialTab)
   const [toast, setToast] = useState<{ msg: string; sev: "success" | "error" } | null>(null)
   const notify = (msg: string, sev: "success" | "error" = "success") => setToast({ msg, sev })
+
+  // Keep the active tab in the URL (without a navigation) so a browser refresh
+  // stays put. 1 = Records, 0 = Sessions.
+  function changeTab(next: number) {
+    setTab(next)
+    const params = new URLSearchParams(window.location.search)
+    params.set("tab", next === 1 ? "records" : "sessions")
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+  }
+
+  // Auto-refresh the records when a student checks in (QR or in-app) so the
+  // admin is aware without touching Refresh. We poll a cheap version and only
+  // re-render the server page when it actually changed.
+  const recordsVersion = useRef<{ latest: string | null; count: number } | null>(null)
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      if (document.hidden) return
+      try {
+        const next = await getCheckInRecordsVersion()
+        if (!alive) return
+        const prev = recordsVersion.current
+        recordsVersion.current = next
+        if (prev && (prev.count !== next.count || prev.latest !== next.latest)) {
+          if (next.count > prev.count) notify("A student just checked in — the list has been refreshed.")
+          router.refresh()
+        }
+      } catch {
+        // Ignore transient poll failures (e.g. an expired session).
+      }
+    }
+    const id = window.setInterval(poll, 5000)
+    poll()
+    return () => {
+      alive = false
+      window.clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Sessions state
   const [newName, setNewName] = useState("")
@@ -773,7 +815,7 @@ export function CheckinAdminClient({
     <Box>
       <Tabs
         value={tab}
-        onChange={(_, v) => setTab(v)}
+        onChange={(_, v) => changeTab(v)}
         sx={{
           mb: 3,
           minHeight: 40,

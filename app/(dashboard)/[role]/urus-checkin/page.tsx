@@ -12,12 +12,21 @@ import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { CheckinAdminClient } from "./checkin-admin-client"
 
-export default async function UrusCheckinPage() {
+export default async function UrusCheckinPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
   const readOnly = !RESIDENCE_MANAGE_ROLES.includes(session.user.role as Role)
+
+  // Keep the selected tab in the URL so a page refresh stays on it. Read-only
+  // roles only have the Records tab.
+  const { tab } = await searchParams
+  const initialTab = readOnly ? 1 : tab === "records" ? 1 : 0
 
   const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl, intake] = await Promise.all([
     prisma.checkInSession.findMany({
@@ -109,6 +118,7 @@ export default async function UrusCheckinPage() {
       />
       <CheckinAdminClient
         readOnly={readOnly}
+        initialTab={initialTab}
         sessions={sessionsData}
         records={recordsData}
         roster={rosterData}
