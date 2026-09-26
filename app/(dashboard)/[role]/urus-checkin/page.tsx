@@ -23,10 +23,10 @@ export default async function UrusCheckinPage({
 
   const readOnly = !RESIDENCE_MANAGE_ROLES.includes(session.user.role as Role)
 
-  // Keep the selected tab in the URL so a page refresh stays on it. Read-only
-  // roles only have the Records tab.
+  // The selected tab lives in the URL, so the tab links double as navigation
+  // and a page refresh stays put. Read-only roles only have the Records tab.
   const { tab } = await searchParams
-  const initialTab = readOnly ? 1 : tab === "records" ? 1 : 0
+  const activeTab = readOnly ? 1 : tab === "records" ? 1 : 0
 
   const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl, intake] = await Promise.all([
     prisma.checkInSession.findMany({
@@ -118,7 +118,8 @@ export default async function UrusCheckinPage({
       />
       <CheckinAdminClient
         readOnly={readOnly}
-        initialTab={initialTab}
+        role={session.user.role}
+        activeTab={activeTab}
         sessions={sessionsData}
         records={recordsData}
         roster={rosterData}

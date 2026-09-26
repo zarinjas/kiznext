@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Box from "@mui/material/Box"
 import Tabs from "@mui/material/Tabs"
 import Tab from "@mui/material/Tab"
@@ -350,7 +351,8 @@ function buildPosterHtml(s: SessionRow, logos: PrintLogos) {
 
 export function CheckinAdminClient({
   readOnly,
-  initialTab,
+  role,
+  activeTab,
   sessions,
   records,
   roster,
@@ -358,7 +360,8 @@ export function CheckinAdminClient({
   directionsImageUrl,
 }: {
   readOnly: boolean
-  initialTab: number
+  role: string
+  activeTab: number
   sessions: SessionRow[]
   records: RecordRow[]
   roster: RosterEntry[]
@@ -366,18 +369,8 @@ export function CheckinAdminClient({
   directionsImageUrl: string | null
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState(initialTab)
   const [toast, setToast] = useState<{ msg: string; sev: "success" | "error" } | null>(null)
   const notify = (msg: string, sev: "success" | "error" = "success") => setToast({ msg, sev })
-
-  // Keep the active tab in the URL (without a navigation) so a browser refresh
-  // stays put. 1 = Records, 0 = Sessions.
-  function changeTab(next: number) {
-    setTab(next)
-    const params = new URLSearchParams(window.location.search)
-    params.set("tab", next === 1 ? "records" : "sessions")
-    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
-  }
 
   // Auto-refresh the records when a student checks in (QR or in-app) so the
   // admin is aware without touching Refresh. We poll a cheap version and only
@@ -814,8 +807,7 @@ export function CheckinAdminClient({
   return (
     <Box>
       <Tabs
-        value={tab}
-        onChange={(_, v) => changeTab(v)}
+        value={activeTab}
         sx={{
           mb: 3,
           minHeight: 40,
@@ -824,11 +816,29 @@ export function CheckinAdminClient({
           "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 600 },
         }}
       >
-        {!readOnly && <Tab label="Sessions" value={0} icon={<KIcon icon="qr_code_2" size={18} />} iconPosition="start" />}
-        <Tab label="Records" value={1} icon={<KIcon icon="fact_check" size={18} />} iconPosition="start" />
+        {!readOnly && (
+          <Tab
+            component={Link}
+            href={`/${role}/urus-checkin?tab=sessions`}
+            label="Sessions"
+            value={0}
+            icon={<KIcon icon="qr_code_2" size={18} />}
+            iconPosition="start"
+            sx={{ textDecoration: "none" }}
+          />
+        )}
+        <Tab
+          component={Link}
+          href={`/${role}/urus-checkin?tab=records`}
+          label="Records"
+          value={1}
+          icon={<KIcon icon="fact_check" size={18} />}
+          iconPosition="start"
+          sx={{ textDecoration: "none" }}
+        />
       </Tabs>
 
-      {tab === 0 && !readOnly && (
+      {activeTab === 0 && !readOnly && (
         <Box>
           <Bento sx={{ mb: 2 }}>
             <BentoItem span={4} spanXs={2}>
@@ -1018,7 +1028,7 @@ export function CheckinAdminClient({
         </Box>
       )}
 
-      {tab === 1 && (
+      {activeTab === 1 && (
         <Box>
           <Bento sx={{ mb: 2 }}>
             <BentoItem span={4} spanXs={2}>
