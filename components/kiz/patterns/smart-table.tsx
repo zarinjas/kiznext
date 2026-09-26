@@ -17,6 +17,8 @@ interface Props<T extends GridRowModel> {
   density?: "compact" | "standard"
   hideFooter?: boolean
   onRowClick?: (row: T) => void
+  /** Tint a row (soft warning) to flag it, e.g. a student with a remark. */
+  isRowHighlighted?: (row: T) => boolean
 }
 
 /**
@@ -33,6 +35,7 @@ export function SmartTable<T extends GridRowModel>({
   density = "standard",
   hideFooter = true,
   onRowClick,
+  isRowHighlighted,
 }: Props<T>) {
   const theme = useMuiTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
@@ -46,15 +49,16 @@ export function SmartTable<T extends GridRowModel>({
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
         {rows.map((row) => {
           const key = getRowId ? getRowId(row) : (row.id as string)
+          const flagged = isRowHighlighted?.(row) ?? false
           return (
             <Box
               key={key}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               sx={{
                 border: "1px solid",
-                borderColor: "divider",
+                borderColor: flagged ? color.warning.main : "divider",
                 borderRadius: 2,
-                backgroundColor: "background.paper",
+                backgroundColor: flagged ? color.warning.soft : "background.paper",
                 p: 2,
                 display: "flex",
                 flexDirection: "column",
@@ -95,6 +99,7 @@ export function SmartTable<T extends GridRowModel>({
         hideFooter={hideFooter}
         disableRowSelectionOnClick
         autoHeight
+        getRowClassName={(p) => (isRowHighlighted?.(p.row as T) ? "kiz-row-flagged" : "")}
         onRowClick={onRowClick ? (params) => onRowClick(params.row as T) : undefined}
         sx={{
           border: "none",
@@ -111,6 +116,9 @@ export function SmartTable<T extends GridRowModel>({
           "& .MuiDataGrid-row.Mui-selected, & .MuiDataGrid-row.Mui-selected:hover": {
             backgroundColor: color.brand[50],
           },
+          "& .MuiDataGrid-row.kiz-row-flagged": { backgroundColor: color.warning.soft },
+          "& .MuiDataGrid-row.kiz-row-flagged:hover": { backgroundColor: color.warning.soft },
+          "& .MuiDataGrid-row.kiz-row-flagged .MuiDataGrid-cell": { borderColor: color.warning.main },
           "& .MuiDataGrid-root": { border: "none" },
         }}
       />

@@ -814,7 +814,30 @@ export function CheckinAdminClient({
 
   const columns: GridColDef[] = [
     { field: "matricId", headerName: "Matric", width: 120 },
-    { field: "name", headerName: "Name", width: 210 },
+    {
+      field: "name",
+      headerName: "Name",
+      width: 230,
+      renderCell: (p) => {
+        const s = p.row as ConsolidatedRow
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+            {hasRemark(s) && (
+              <Box
+                component="span"
+                title="Has a remark"
+                sx={{ display: "inline-flex", color: color.warning.ink, flexShrink: 0 }}
+              >
+                <KIcon icon="flag" size={16} filled />
+              </Box>
+            )}
+            <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {s.name}
+            </Box>
+          </Box>
+        )
+      },
+    },
     {
       field: "blockName",
       headerName: "Block",
@@ -1206,6 +1229,7 @@ export function CheckinAdminClient({
                 : "No checked-in students match these filters."
             }
             onRowClick={(r) => openDetail(r)}
+            isRowHighlighted={(r) => hasRemark(r)}
           />
         </Box>
       )}
