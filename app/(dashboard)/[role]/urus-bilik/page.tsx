@@ -1,10 +1,12 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_MANAGE_ROLES, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { areAllocationsPublished, getOccupancySummary, getRoomFees } from "@/lib/bilik"
 import { nowMalaysia } from "@/lib/room-selection"
 import { roomAssignmentLabel } from "@/lib/bilik-format"
+import { classifyCohort, resolveCurrentPrefix } from "@/lib/student-cohort"
+import type { StudentCohort } from "@/components/shared/cohort-chip"
 import { getCheckInStatusForMatrics } from "@/lib/checkin"
 import { UrusBilikClient } from "./urus-bilik-client"
 import { getOccupancy } from "./actions"
@@ -14,10 +16,10 @@ export default async function UrusBilikPage() {
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
-  const readOnly = session.user.role === "pengetua"
+  const readOnly = !RESIDENCE_MANAGE_ROLES.includes(session.user.role as Role)
 
-  // `getOccupancy` is a gated Server Action; `pengetua` may only read, so use
-  // the shared read-only helper directly instead of the admin-gated action.
+  // `getOccupancy` is a gated Server Action; a read-only viewer falls back to
+  // the shared helper directly instead of the admin-gated action.
   const occupancy = readOnly ? await getOccupancySummary() : await getOccupancy()
 
   const [window, intakes, blocks, allocationsPublished, fees] = await Promise.all([
@@ -63,6 +65,7 @@ export default async function UrusBilikPage() {
 
   // Serialize to plain objects for the client component.
   const checkInStatus = await getCheckInStatusForMatrics(students.map((s) => s.matricId))
+  const currentPrefix = resolveCurrentPrefix(students.map((s) => s.matricId))
 
   const blocksData = blocks.map((b) => ({
     id: b.id,
@@ -110,6 +113,7 @@ export default async function UrusBilikPage() {
     nationality: s.nationality,
     faculty: s.faculty,
     yearOfStudy: s.yearOfStudy,
+    cohort: (classifyCohort(s.matricId, currentPrefix, s.yearOfStudy) ?? "unknown") as StudentCohort,
     currentCollege: s.currentCollege,
     merit: s.merit,
     isB40: s.isB40,

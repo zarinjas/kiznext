@@ -52,6 +52,11 @@ const toneByStatus: Record<string, StatusTone> = {
   coming_soon: "warning",
   bookable: "info",
   shared: "neutral",
+  // laundry machine state (derived from reminders)
+  no_active: "neutral",
+  laundry_active: "warning",
+  timer_ended: "neutral",
+  out_of_service: "danger",
 }
 
 const labelByStatus: Record<string, string> = {
@@ -94,6 +99,11 @@ const labelByStatus: Record<string, string> = {
   coming_soon: "Coming soon",
   bookable: "Bookable",
   shared: "Shared",
+  // laundry machine state
+  no_active: "No Active Reminder",
+  laundry_active: "Active Reminder",
+  timer_ended: "Timer Ended",
+  out_of_service: "Out of Service",
 }
 
 export function statusTone(status: string): StatusTone {

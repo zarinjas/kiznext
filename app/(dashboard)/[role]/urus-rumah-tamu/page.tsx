@@ -23,8 +23,9 @@ export default async function UrusRumahTamuPage({
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, GUEST_HOUSE_ROLES)
 
-  // The principal gets a read-only view — no approvals, no house edits.
-  const readOnly = session.user.role === "pengetua"
+  // Every role that reaches this page can manage; kept as a guard for any
+  // future read-only guest-house role.
+  const readOnly = !GUEST_HOUSE_ROLES.includes(session.user.role as Role)
 
   const { tab } = await searchParams
   const showGuestHouses = tab === "guest-houses"

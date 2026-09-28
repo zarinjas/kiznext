@@ -1,0 +1,65 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+.env
+
+# expo export verification output
+dist-verify/
+
+# Firebase admin SDK service account (SECRET — contains a private key, never commit)
+fcm-service-account.json
+*-firebase-adminsdk-*.json
+
+# App Store Connect credentials for `eas submit` (SECRET — never commit)
+.env.submit
+
+# iOS signing credentials for the `production-local` build profile (SECRET)
+certs/
+credentials.json
+
+# App Store Connect API keys and other secrets (SECRET)
+secrets/
+AuthKey_*.p8
+
+# NOTE: google-services.json is intentionally NOT ignored — it holds only
+# public identifiers and must be committed so EAS Build can configure FCM.

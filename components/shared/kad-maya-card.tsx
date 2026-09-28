@@ -26,9 +26,9 @@ interface Props {
 }
 
 /**
- * KadMayaCard — every role now uses the same institutional card layout. Students
- * keep the official "Digital Student Card" wording; other roles show their role
- * label in the status badge and a "Staff ID" label.
+ * KadMayaCard — every role uses the same Digital Resident ID layout. Students
+ * show their allocated room + session; fellows show the block they look after;
+ * other roles show their role label instead.
  */
 export async function KadMayaCard({
   name,
@@ -47,12 +47,13 @@ export async function KadMayaCard({
   qrDataUrl,
 }: Props) {
   const isStudent = role === "ahli"
+  const isFellow = role === "fellow"
 
   return (
     <StudentCardFace
       name={name}
       matricId={matricId}
-      blockName={isStudent ? block : null}
+      blockName={isStudent || isFellow ? block : null}
       roomNumber={isStudent ? roomNumber : null}
       bed={isStudent ? bed : null}
       session={isStudent ? session : null}

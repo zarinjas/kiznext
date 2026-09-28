@@ -59,6 +59,16 @@ else
   printf 'NEXT_PUBLIC_SITE_URL=https://mykiz.my\n' >> "$ENV_FILE"
   echo "   -> set NEXT_PUBLIC_SITE_URL=https://mykiz.my"
 fi
+
+# Accommodation sheet auto-sync: poll every N minutes so admins don't have to
+# press "Sync now". Set to 0 to disable. Only added when not already present, so
+# an operator-chosen value is preserved across deploys.
+if grep -qE '^ACCOMMODATION_SYNC_INTERVAL_MINUTES=' "$ENV_FILE"; then
+  echo "   -> ACCOMMODATION_SYNC_INTERVAL_MINUTES already set ($(grep -E '^ACCOMMODATION_SYNC_INTERVAL_MINUTES=' "$ENV_FILE" | cut -d= -f2-))"
+else
+  printf 'ACCOMMODATION_SYNC_INTERVAL_MINUTES=10\n' >> "$ENV_FILE"
+  echo "   -> set ACCOMMODATION_SYNC_INTERVAL_MINUTES=10"
+fi
 chown "$RUNUSER:$RUNUSER" "$ENV_FILE"
 
 echo "==> [3/7] npm ci (skipped when package-lock.json is unchanged)"

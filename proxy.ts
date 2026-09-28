@@ -61,6 +61,18 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }
 
+  // The cafe operator is locked to the cafe surfaces — they cannot open the
+  // rest of the app even by typing a URL.
+  if (token && (token as { role?: string }).role === "kafe") {
+    const allowed =
+      pathname === "/kafe" ||
+      pathname === "/dashboard" ||
+      ["/kafe/urus-kafe", "/kafe/kafe", "/kafe/profile", "/kafe/kad-maya"].some(
+        (p) => pathname === p || pathname.startsWith(`${p}/`),
+      )
+    if (!allowed) return NextResponse.redirect(new URL("/kafe/urus-kafe", req.url))
+  }
+
   return NextResponse.next({ request: { headers } })
 }
 

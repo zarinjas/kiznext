@@ -32,6 +32,9 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kiznext
       - run: npx next typegen
       - run: npx tsc --noEmit
+      # The icon font is a committed subset — fail if the source references an
+      # icon that isn't in it, so a new icon can never ship as raw text again.
+      - run: npm run check:icons
 
   deploy:
     needs: typecheck

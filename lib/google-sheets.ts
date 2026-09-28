@@ -93,6 +93,63 @@ export async function fetchSpreadsheetGrid(opts: {
 export const SHEET_SA_KEY = "google_service_account"
 export const SHEET_ID_KEY = "google_sheet_id"
 export const SHEET_RANGE_KEY = "google_sheet_range"
+export const SHEET_LAST_SYNCED_KEY = "google_sheet_last_synced_at"
+export const SHEET_LAST_HASH_KEY = "google_sheet_last_hash"
+export const SHEET_INTERVAL_KEY = "accommodation_sync_interval_minutes"
+
+/**
+ * Auto-sync poll interval in minutes: the AppSetting wins over the env var, so
+ * an admin can change it from the UI without a server restart. `0` = disabled.
+ */
+export async function getSheetSyncIntervalMinutes(): Promise<number> {
+  const row = await prisma.appSetting.findUnique({ where: { key: SHEET_INTERVAL_KEY } })
+  if (row) {
+    const n = Number(row.value)
+    if (Number.isFinite(n)) return n
+  }
+  const env = Number(process.env.ACCOMMODATION_SYNC_INTERVAL_MINUTES ?? "0")
+  return Number.isFinite(env) ? env : 0
+}
+
+export async function saveSheetSyncInterval(minutes: number): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { key: SHEET_INTERVAL_KEY },
+    update: { value: String(minutes) },
+    create: { key: SHEET_INTERVAL_KEY, value: String(minutes) },
+  })
+}
+
+/** Stamp the moment the accommodation sheet was last applied. */
+export async function markSheetSynced(at: Date = new Date()): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { key: SHEET_LAST_SYNCED_KEY },
+    update: { value: at.toISOString() },
+    create: { key: SHEET_LAST_SYNCED_KEY, value: at.toISOString() },
+  })
+}
+
+/** When the accommodation sheet was last applied (null if never). */
+export async function getSheetLastSyncedAt(): Promise<Date | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: SHEET_LAST_SYNCED_KEY } })
+  if (!row) return null
+  const d = new Date(row.value)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Store the content hash of the last applied sheet (skip unchanged auto-syncs). */
+export async function markSheetHash(hash: string): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { key: SHEET_LAST_HASH_KEY },
+    update: { value: hash },
+    create: { key: SHEET_LAST_HASH_KEY, value: hash },
+  })
+}
+
+/** Content hash of the last applied sheet (null if unknown). */
+export async function getSheetLastHash(): Promise<string | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: SHEET_LAST_HASH_KEY } })
+  return row?.value ?? null
+}
 
 export interface SheetConfig {
   serviceAccount: string | null

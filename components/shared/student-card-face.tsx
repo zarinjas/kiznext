@@ -3,18 +3,20 @@ import Typography from "@mui/material/Typography"
 import { color, elevation, font, radius } from "@/lib/theme"
 
 /**
- * StudentCardFace — official institutional KIZ Digital Student Card for the
- * "ahli" (student) role, modelled on the UKM residential-college ID layout.
+ * StudentCardFace — official institutional KIZ Digital Resident ID, modelled on
+ * the UKM residential-college ID layout. Used by every role; the background and
+ * the residence line differ per role.
  *
  * Content hierarchy (top → bottom):
  *   1. Two logos in a top row — UKM (left) and KIZ (right).
- *   2. "KOLEJ IBU ZAIN" main heading + "myKIZ DIGITAL STUDENT CARD" subheading.
- *   3. A green "ACTIVE STUDENT" status badge.
+ *   2. "KOLEJ IBU ZAIN" main heading + "DIGITAL RESIDENT CARD" subheading.
+ *   3. A green "ACTIVE STUDENT" status badge (or the role label for staff).
  *   4. A large centred passenger-style photo (rounded corners + soft shadow).
- *   5. The student's name in bold uppercase.
- *   6. The Student ID (matric number), centred below the name — no box.
- *   7. A short centred divider bar (~40%), then the residence lines:
- *      "Block K18A · Room 101 · Bed A" and "Residential Session 2026/2027".
+ *   5. The resident's name in bold uppercase.
+ *   6. The ID (matric number), centred below the name — no box.
+ *   7. A short centred divider bar (~40%), then the residence line:
+ *      students show "Block K18A · Room 101 · Bed A" + session; fellows show
+ *      the block they look after; staff/principal show nothing.
  *   8. The QR code (no container) near the bottom.
  *   9. A small "Valid until" date beneath the QR — the room check-in date
  *      plus six months (one semester); hidden when there is no check-in.
@@ -159,7 +161,7 @@ export function StudentCardFace({
               color: color.ink[500],
             }}
           >
-            {isStudent ? "myKIZ Digital Student Card" : "myKIZ Digital ID Card"}
+            Digital Resident Card
           </Typography>
         </Box>
 
@@ -277,8 +279,10 @@ export function StudentCardFace({
           </Typography>
         </Box>
 
-        {/* 7. Residence lines: short centred divider, then block · room · bed + session */}
-        {isStudent && hasResidence && (
+        {/* 7. Residence lines: short centred divider, then block · room · bed + session.
+            Students show their allocated room; fellows show the block they look
+            after; staff/principal leave it empty. */}
+        {hasResidence && (
           <Box sx={{ flexShrink: 0, mt: "4px", display: "flex", flexDirection: "column", alignItems: "center" }}>
             <Box sx={{ width: "40%", height: "1px", backgroundColor: "divider" }} />
             {roomLine && (

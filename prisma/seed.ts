@@ -162,12 +162,40 @@ async function main() {
   const officeData = [
     {
       name: "Pejabat Pentadbiran KIZ",
-      description: "College administration — registration, resident matters, forms, and booking approvals.",
+      nameEn: "KIZ Administration Office",
+      description: "For residential and student-related matters.",
+      categoryLabel: "Student & College Matters",
+      categoryIcon: "school",
+      categoryTone: "success",
+      services: [
+        "Check-in and check-out",
+        "Room and resident matters",
+        "College forms and letters",
+        "Facility booking enquiries",
+        "General KIZ enquiries",
+      ],
+      location: "Ground Floor · KIZ Lobby",
+      hoursLabel: "Monday–Friday · 8:00 AM–5:00 PM",
+      phone: "03-8921 4000",
       sortOrder: 1,
     },
     {
       name: "Pejabat UKM Real Estate",
-      description: "UKM Real Estate — property, facility, and building management matters.",
+      nameEn: "UKM Real Estate Office",
+      description: "For accommodation, payment and property-related matters.",
+      categoryLabel: "Accommodation & Property",
+      categoryIcon: "apartment",
+      categoryTone: "info",
+      services: [
+        "Accommodation agreements",
+        "Accommodation payments",
+        "Payment receipts",
+        "Maintenance and property matters",
+        "Other UKM Real Estate services",
+      ],
+      location: "Ground Floor · KIZ Lobby",
+      hoursLabel: "Monday–Friday · 8:00 AM–5:00 PM",
+      phone: "03-8921 4000",
       sortOrder: 2,
     },
   ]
@@ -175,7 +203,7 @@ async function main() {
   for (const o of officeData) {
     await prisma.office.upsert({
       where: { name: o.name },
-      update: {},
+      update: o,
       create: o,
     })
   }
@@ -847,6 +875,54 @@ async function main() {
   }
   console.log("Upcoming activities seeded")
 
+  // ── KIZ Cafe smart ordering ───────────────────────────────────────────────
+  // Cafe identity lives in AppSettings (never overwrite an admin's edits) plus
+  // a small starter menu so the dashboard highlight + ordering flow are
+  // demoable right after seeding.
+  const cafeDay = { closed: false, open: "07:30", close: "22:00" }
+  const cafeSchedule = {
+    mon: { ...cafeDay },
+    tue: { ...cafeDay },
+    wed: { ...cafeDay },
+    thu: { ...cafeDay },
+    fri: { ...cafeDay },
+    sat: { ...cafeDay, open: "08:00", close: "18:00" },
+    sun: { ...cafeDay, closed: true },
+  }
+  const cafeSettings: [string, string][] = [
+    ["cafe_name", "KIZ Cafe"],
+    ["cafe_phone", "60123456789"],
+    ["cafe_location", "KIZ Cafeteria, Ground Floor"],
+    ["cafe_schedule", JSON.stringify(cafeSchedule)],
+    ["cafe_closed_dates", JSON.stringify([])],
+    ["cafe_tagline", "Order from your phone and skip the queue — KIZ-AI read our menu, so ordering takes seconds."],
+    ["cafe_active", "1"],
+  ]
+  for (const [key, value] of cafeSettings) {
+    await prisma.appSetting.upsert({ where: { key }, update: {}, create: { key, value } })
+  }
+
+  const cafeItems = [
+    { name: "Nasi Lemak Ayam", price: 6.5, category: "Makanan", description: "Coconut rice, sambal, fried chicken & egg.", dietary: ["halal", "spicy"] },
+    { name: "Mee Goreng Mamak", price: 5.5, category: "Makanan", description: "Spicy fried noodles with tofu & egg.", dietary: ["halal", "spicy"] },
+    { name: "Chicken Rice", price: 7.0, category: "Set Meal", description: "Roasted chicken, fragrant rice & soup.", dietary: ["halal"] },
+    { name: "Vegetarian Fried Rice", price: 5.0, category: "Set Meal", description: "Wok-fried rice with garden vegetables.", dietary: ["vegetarian"] },
+    { name: "Teh Tarik", price: 2.5, category: "Minuman", description: "Pulled milk tea.", dietary: ["halal"] },
+    { name: "Kopi O Ais", price: 2.2, category: "Minuman", description: "Iced black coffee.", dietary: [] },
+    { name: "Air Sirap Limau", price: 2.8, category: "Minuman", description: "Rose syrup with lime.", dietary: [] },
+    { name: "Kuih Muih (3 pcs)", price: 3.0, category: "Snek", description: "Assorted local kuih.", dietary: ["halal"] },
+    { name: "Cekodok Pisang", price: 2.0, category: "Snek", description: "Fried banana fritters.", dietary: ["halal"] },
+  ]
+  let cafeSort = 0
+  for (const item of cafeItems) {
+    const existing = await prisma.cafeItem.findFirst({ where: { name: item.name, deletedAt: null } })
+    if (!existing) {
+      await prisma.cafeItem.create({ data: { ...item, published: true, sortOrder: cafeSort } })
+    }
+    cafeSort++
+  }
+  console.log("KIZ Cafe menu seeded")
+
   // ── Room selection (bilik) ────────────────────────────────────────────────
   // Residence blocks (gender-restricted), rooms + auto beds, an active intake,
   // and an open selection window so the picker is demoable right after seeding.
@@ -1165,6 +1241,22 @@ async function main() {
     create: { key: "bilik_allocations_published", value: "false" },
   })
 
+  // SOS emergency-call routing numbers (office hours → office, after hours →
+  // duty fellow). Seeded idempotently so the SOS button works out of the box;
+  // admins change them in /urus-tetapan without a reseed.
+  const sosSettings = [
+    { key: "sos_office_phone", value: "03-8921 4000" },
+    { key: "sos_fellow_phone", value: "012-345 6789" },
+    { key: "sos_fellow_name", value: "Duty Fellow (on-call)" },
+  ]
+  for (const s of sosSettings) {
+    const existing = await prisma.appSetting.findUnique({ where: { key: s.key } })
+    if (!existing) {
+      await prisma.appSetting.create({ data: s })
+    }
+  }
+  console.log("SOS routing settings seeded")
+
   // Open accommodation application window: opened yesterday, closes in 7 days.
   const existingWindow = await prisma.selectionWindow.findFirst({ where: { isActive: true } })
   if (!existingWindow) {
@@ -1180,6 +1272,29 @@ async function main() {
     })
     console.log("Selection window seeded (open now)")
   }
+
+  // Laundry machines — reminder-based status (no machine API). Seeded
+  // idempotently by name so reseeds don't duplicate them.
+  const laundryMachines = [
+    { name: "Machine 1", location: "Laundry Room, Block K18A", sortOrder: 1 },
+    { name: "Machine 2", location: "Laundry Room, Block K18A", sortOrder: 2 },
+    { name: "Machine 3", location: "Laundry Room, Block K18A", sortOrder: 3 },
+    { name: "Machine 4", location: "Laundry Room, Block K18A", sortOrder: 4 },
+    { name: "Machine 5", location: "Laundry Room, Block K18A", sortOrder: 5 },
+    { name: "Machine 6", location: "Laundry Room, Block K18A", sortOrder: 6 },
+  ]
+  for (const machine of laundryMachines) {
+    const existing = await prisma.laundryMachine.findFirst({ where: { name: machine.name } })
+    if (existing) {
+      await prisma.laundryMachine.update({
+        where: { id: existing.id },
+        data: { location: machine.location, sortOrder: machine.sortOrder, deletedAt: null },
+      })
+    } else {
+      await prisma.laundryMachine.create({ data: machine })
+    }
+  }
+  console.log(`Laundry machines seeded (${laundryMachines.length})`)
 }
 
 main()

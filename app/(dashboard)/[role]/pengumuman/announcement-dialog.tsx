@@ -5,6 +5,7 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Button from "@mui/material/Button"
 import { KIcon } from "@/components/kiz/primitives/icon"
+import { RichText } from "@/components/kiz/primitives/rich-text"
 import { ReactionPills } from "./reaction-pills"
 import type { AnnouncementCard } from "./announcement-feed"
 import { announcementTagMeta, type AnnouncementReactionType } from "@/lib/announcement-meta"
@@ -143,18 +144,15 @@ export function AnnouncementDialog({ announcement, open, canInteract, busy, onRe
             </Typography>
           )}
 
-          <Typography
-            variant="body1"
+          <RichText
+            html={a.content}
             sx={{
               color: "text.secondary",
               whiteSpace: "pre-wrap",
-              overflowWrap: "anywhere",
               fontSize: { xs: 14.5, sm: 15.5 },
               lineHeight: 1.65,
             }}
-          >
-            {a.content}
-          </Typography>
+          />
 
           {a.attachmentType === "image" && a.attachmentUrl && (
             <Box

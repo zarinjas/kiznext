@@ -14,6 +14,9 @@ enum Role {
   fellow
   ahli
   staf
+  /// Cafe operator — manages the KIZ Cafe (settings + menu) and views its
+  /// orders, nothing else. Created by an admin, never self-registered.
+  kafe
 }
 
 /// Self-service registration state machine. `unverified` = email link not yet
@@ -38,6 +41,10 @@ model User {
   roomNumber      String?       @map("room_number")
   residentCardQr  String        @map("resident_card_qr")
   phone           String?
+  /// Office held within a role. Only meaningful for `pengetua`: null / "pengetua"
+  /// = Principal, "timbalan_pengetua" = Deputy Principal. Same permissions either
+  /// way — this only changes the label shown on the Digital Resident ID.
+  position        String?
   avatarUrl       String?       @map("avatar_url")
   ecardRegisteredAt DateTime?   @map("ecard_registered_at")
   lastSeenAt      DateTime?     @map("last_seen_at")
@@ -72,8 +79,57 @@ model User {
   manualCheckInRecords   CheckInRecord[]    @relation("ManualCheckInRecords")
   uploadedGuides         Guide[]            @relation("UploadedGuides")
   guideReads             GuideRead[]
+  mobileSessions         MobileSession[]
+  deviceTokens           DeviceToken[]
+  laundryReminders       LaundryReminder[]
+  sentNotifications      Notification[]          @relation("SentNotifications")
+  receivedNotifications  NotificationRecipient[] @relation("ReceivedNotifications")
+  cafeOrders             CafeOrder[]
 
   @@map("users")
+}
+
+/// A signed-in mobile app session. The mobile client holds an opaque bearer
+/// token; the DB only ever stores its SHA-256 hash (same pattern as the email
+/// verification / invitation tokens). Sliding expiry: every authenticated
+/// request bumps `lastUsedAt` and pushes `expiresAt` forward. Soft-deleted on
+/// sign-out so a stolen token can be revoked server-side.
+model MobileSession {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  platform   String    @default("unknown")
+  deviceName String?   @map("device_name")
+  expiresAt  DateTime  @map("expires_at")
+  lastUsedAt DateTime  @default(now()) @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("mobile_sessions")
+}
+
+/// Expo push token registered by a device. One user may have several (phone +
+/// tablet). Upserted on each app launch; soft-deleted on sign-out or when Expo
+/// reports the token is no longer valid.
+model DeviceToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  token      String    @unique
+  platform   String    @default("unknown")
+  deviceName String?   @map("device_name")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("device_tokens")
 }
 
 /// Direction of a check-in counter session and its records. A `check_in`
@@ -237,7 +293,20 @@ model Block {
 model Office {
   id            String   @id @default(uuid())
   name          String   @unique
+  /// English display title shown on the student office cards. Falls back to `name`.
+  nameEn        String?  @map("name_en")
   description   String?
+  /// Category chip shown above the card title (e.g. "Student & College Matters").
+  categoryLabel String?  @map("category_label")
+  categoryIcon  String?  @map("category_icon")
+  categoryTone  String?  @map("category_tone")
+  /// "Go here for" bullet list of services handled by this office.
+  services      String[] @default([])
+  /// Where the office is, e.g. "Ground Floor · KIZ Lobby".
+  location      String?  @map("location")
+  /// Human hours label, e.g. "Monday–Friday · 8:00 AM–5:00 PM".
+  hoursLabel    String?  @map("hours_label")
+  phone         String?  @map("phone")
   featuredImage String?  @map("featured_image")
   gallery       String[] @map("gallery")
   sortOrder     Int      @default(0) @map("sort_order")
@@ -919,6 +988,12 @@ model EligibleStudent {
   // Final check-in/out happens at the counter via the QR-session flow and is
   // recorded in CheckInRecord (signedAt). No accommodation-payment column: fees
   // are settled manually at the UKM Real Estate counter (no payment gateway).
+  /// Admin-only free-text flag for a student with a check-in/out problem. Never
+  /// shown to the student; surfaces in the records list, its filter and the
+  /// admin export ("fail pentadbiran"). Kept on EligibleStudent because the
+  /// sheet sync only writes its own explicit columns, so this survives a sync.
+  remark            String?
+  remarkAt          DateTime? @map("remark_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
@@ -1109,4 +1184,207 @@ model Faq {
 
   @@index([category])
   @@map("faqs")
+}
+
+// ── Laundry (reminder-based machine status) ─────────────────────────────────
+// No machine API exists, so a machine's live status is derived from the
+// reminders residents set: no_active / active / timer_ended / out_of_service.
+// `out_of_service` is the only admin-set state; everything else is computed
+// from the latest reminder's `endsAt` (see `lib/laundry.ts`). No cron needed.
+
+enum LaundryMachineStatus {
+  available
+  out_of_service
+}
+
+/// Why a reminder stopped before/after its natural end.
+enum LaundryReminderEndReason {
+  cancelled
+  /// A newer reminder on the same machine replaced it.
+  superseded
+  /// An admin force-cleared the machine.
+  cleared
+}
+
+model LaundryMachine {
+  id        String               @id @default(uuid())
+  name      String
+  /// Free-text location label, e.g. "Laundry Room, Block K18A".
+  location  String?
+  imageUrl  String?              @map("image_url")
+  status    LaundryMachineStatus @default(available)
+  sortOrder Int                  @default(0) @map("sort_order")
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+  deletedAt DateTime?            @map("deleted_at")
+
+  reminders LaundryReminder[]
+
+  @@map("laundry_machines")
+}
+
+model LaundryReminder {
+  id              String                    @id @default(uuid())
+  machineId       String                    @map("machine_id")
+  userId          String                    @map("user_id")
+  durationMinutes Int                       @map("duration_minutes")
+  /// KL wall-clock start (Asia/Kuala_Lumpur via `nowMalaysia()`).
+  startedAt       DateTime                  @map("started_at")
+  endsAt          DateTime                  @map("ends_at")
+  /// Set when cancelled / superseded / cleared — null while running.
+  endedAt         DateTime?                 @map("ended_at")
+  endedReason     LaundryReminderEndReason? @map("ended_reason")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  deletedAt       DateTime?                 @map("deleted_at")
+
+  machine LaundryMachine @relation(fields: [machineId], references: [id])
+  user    User           @relation(fields: [userId], references: [id])
+
+  @@index([machineId])
+  @@index([userId])
+  @@map("laundry_reminders")
+}
+
+// ── Push notifications (broadcast) ──────────────────────────────────────────
+// Admin-composed messages fanned out to residents over three channels: an
+// in-app inbox row, an Expo push notification (which the Expo Push Service
+// delivers through APNs / FCM), and email (Resend). One `Notification` is the
+// campaign; one `NotificationRecipient` per targeted user carries that user's
+// read + delivery state.
+
+/// Who a broadcast targets. `all` = every active user, `role` = everyone in
+/// `audienceRole`, `selected` = the users whose recipient rows exist.
+enum NotificationAudience {
+  all
+  role
+  selected
+}
+
+model Notification {
+  id             String               @id @default(uuid())
+  title          String
+  body           String
+  /// Optional in-app deep link opened when the notification is tapped,
+  /// e.g. "/ahli/tempahan". Also passed to the push payload as `data.link`.
+  link           String?
+  audience       NotificationAudience @default(all)
+  /// Set only when `audience` is `role`.
+  audienceRole   Role?                @map("audience_role")
+  /// Enabled channels — any of "in_app" | "push" | "email".
+  channels       String[]             @default([])
+  sentById       String               @map("sent_by")
+  recipientCount Int                  @default(0) @map("recipient_count")
+  pushSentCount  Int                  @default(0) @map("push_sent_count")
+  emailSentCount Int                  @default(0) @map("email_sent_count")
+  failedCount    Int                  @default(0) @map("failed_count")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  deletedAt      DateTime?            @map("deleted_at")
+
+  sentBy     User                   @relation("SentNotifications", fields: [sentById], references: [id])
+  recipients NotificationRecipient[]
+
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// Per-user delivery + read state for one broadcast.
+model NotificationRecipient {
+  id             String    @id @default(uuid())
+  notificationId String    @map("notification_id")
+  userId         String    @map("user_id")
+  /// When the recipient opened the notification in-app (null = unread).
+  readAt         DateTime? @map("read_at")
+  pushedAt       DateTime? @map("pushed_at")
+  emailedAt      DateTime? @map("emailed_at")
+  pushError      String?   @map("push_error")
+  emailError     String?   @map("email_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_recipients")
+}
+
+// ── Smart Ordering (KIZ Cafe) ───────────────────────────────────────────────
+// The cafe uploads a photo of its menu; KIZ-AI's vision model reads it into
+// `CafeItem` rows (draft until an admin reviews + publishes). Students build a
+// cart and hand the order off to WhatsApp — the cafe receives a normal WhatsApp
+// message, so there is no cafe-side app and no payment gateway (settled at
+// pickup). See `lib/cafe.ts` + `lib/cafe-ai.ts`.
+
+/// One orderable item on the cafe menu. AI-extracted rows start `published =
+/// false` so they can't reach students until an admin confirms them.
+model CafeItem {
+  id          String   @id @default(uuid())
+  name        String
+  price       Float
+  /// Grouping shown as a chip on the member menu, e.g. "Makanan" / "Minuman".
+  category    String   @default("Makanan")
+  description String?
+  /// Dietary tags — keys from `lib/cafe-meta.ts` (halal / vegetarian / spicy / …).
+  dietary     String[] @default([])
+  imageUrl    String?  @map("image_url")
+  isAvailable Boolean  @default(true) @map("is_available")
+  published   Boolean  @default(false)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@index([published])
+  @@map("cafe_items")
+}
+
+/// A student's cafe order. Payment is settled face-to-face (no gateway). The
+/// line items are snapshotted as JSON so "My Orders" and one-tap reorder keep
+/// working even after the menu changes. `whatsappSentAt` is set when the student
+/// opens the prefilled WhatsApp deep link.
+model CafeOrder {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  /// Human-friendly pickup reference, e.g. "KIZ-CAFE-0021".
+  refCode        String    @unique @map("ref_code")
+  /// Snapshot frozen at order time: [{ name, price, qty }].
+  items          Json      @map("items")
+  subtotal       Float
+  /// Requested pickup time, free text ("12:45 PM" / "After class").
+  pickupTime     String?   @map("pickup_time")
+  note           String?
+  whatsappSentAt DateTime? @map("whatsapp_sent_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("cafe_orders")
+}
+
+/// Admin-editable welcome slides shown once on the mobile app's first launch.
+/// `gradient` is a key from `packages/shared/src/onboarding-meta.ts`.
+model OnboardingSlide {
+  id              String    @id @default(uuid())
+  title           String
+  body            String?
+  imageUrl        String?   @map("image_url")
+  gradient        String    @default("teal")
+  /// Overlay strength (0–100) of the gradient over the slide image.
+  gradientOpacity Int       @default(60) @map("gradient_opacity")
+  buttonLabel     String?   @map("button_label")
+  sortOrder       Int       @default(0) @map("sort_order")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  @@index([sortOrder])
+  @@map("onboarding_slides")
 }

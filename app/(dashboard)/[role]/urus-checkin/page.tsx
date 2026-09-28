@@ -2,7 +2,7 @@ import QRCode from "qrcode"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
-import { requireRole, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
+import { requireRole, RESIDENCE_MANAGE_ROLES, RESIDENCE_VIEW_ROLES, type Role } from "@/lib/rbac"
 import { siteUrl } from "@/lib/site-url"
 import { getAppLogoUrl, getStudentCardLogos } from "@/lib/settings"
 import { getCheckinDirectionsImage } from "@/lib/checkin"
@@ -12,12 +12,21 @@ import Box from "@mui/material/Box"
 import { PageHeader } from "@/components/kiz/patterns/page-header"
 import { CheckinAdminClient } from "./checkin-admin-client"
 
-export default async function UrusCheckinPage() {
+export default async function UrusCheckinPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   requireRole(session.user.role as Role, RESIDENCE_VIEW_ROLES)
 
-  const readOnly = session.user.role === "pengetua"
+  const readOnly = !RESIDENCE_MANAGE_ROLES.includes(session.user.role as Role)
+
+  // The selected tab lives in the URL, so the tab links double as navigation
+  // and a page refresh stays put. Read-only roles only have the Records tab.
+  const { tab } = await searchParams
+  const activeTab = readOnly ? 1 : tab === "records" ? 1 : 0
 
   const [sessions, records, appLogoUrl, cardLogos, directionsImageUrl, intake] = await Promise.all([
     prisma.checkInSession.findMany({
@@ -46,6 +55,8 @@ export default async function UrusCheckinPage() {
         select: {
           matricId: true,
           name: true,
+          remark: true,
+          remarkAt: true,
           bed: {
             select: {
               position: true,
@@ -59,6 +70,8 @@ export default async function UrusCheckinPage() {
   const rosterData = rosterStudents.map((s) => ({
     matricId: s.matricId,
     name: s.name,
+    remark: s.remark,
+    remarkAt: s.remarkAt ? s.remarkAt.toISOString() : null,
     blockName: s.bed?.room.block.name ?? null,
     roomNumber: s.bed?.room.number ?? null,
     bedPosition: s.bed?.position ?? null,
@@ -109,6 +122,8 @@ export default async function UrusCheckinPage() {
       />
       <CheckinAdminClient
         readOnly={readOnly}
+        role={session.user.role}
+        activeTab={activeTab}
         sessions={sessionsData}
         records={recordsData}
         roster={rosterData}

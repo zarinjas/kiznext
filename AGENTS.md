@@ -27,10 +27,12 @@ Status: MVP feature-complete, not production-ready.
 | Auth | Auth.js v5 (next-auth beta), Credentials provider (matricId + bcrypt), JWT strategy |
 | File storage | Local filesystem under `public/uploads/` |
 | Chat realtime | Client polling every 3s against a Server Action (no Pusher/WebSocket) |
+| Cafe ordering | WhatsApp `wa.me` deep link — the order is pre-filled and the student presses send (no WhatsApp Business API). Menu photos are digitised by the existing AI vision provider (`generateJson` + `image`). No new library. |
 | PDF / QR | `pdf-lib` (generate) / `qrcode` / `pdfjs-dist` (render PDFs in the Digital Guide flipbook — approved exception to the no-new-libs rule; worker served by `/api/pdf-worker`) |
 | Google Sheets | `googleapis` — service-account **read-only** pull of the accepted-list sheet for the accommodation sync (approved exception to the no-new-libs rule). |
 | Maps (AR mini-map) | `leaflet` + `@types/leaflet` — client-only, dynamically imported, free OpenStreetMap tiles for the AR Directory mini-map (approved exception to the no-new-libs rule). |
 | Deployment | Not decided. Note: local-filesystem uploads will not survive a stateless host. |
+| Mobile | Separate Expo app in `mobile/` (SDK 57, Expo Router, `@shopify/restyle`). Talks to the web app's `/api/v1/*` REST layer with bearer tokens. Pure shared code lives in `packages/shared` (imported as `@kiz/shared`). See `mobile/README.md`. |
 
 > Do not add libraries outside this list. If one seems necessary, stop and ask.
 
@@ -80,11 +82,12 @@ pills are `radius.pill`, never `999` as a number.
 
 `superadmin` (full) · `admin_kiz` (approvals, announcements, helpdesk) ·
 `pengetua` (read-only admin views) · `staf` (helpdesk inbox + accommodation /
-check-in management) · `fellow` (helpdesk inbox) · `ahli` (student).
+check-in management) · `fellow` (helpdesk inbox) · `ahli` (student) · `kafe`
+(cafe operator — KIZ Cafe only, admin-created).
 
 Role groups live in `lib/rbac.ts` (`ADMIN_ROLES`, `SUPPORT_ROLES`,
-`GUEST_HOUSE_ROLES`, `RESIDENCE_MANAGE_ROLES`, `RESIDENCE_VIEW_ROLES`) — reuse
-them instead of writing inline role lists.
+`GUEST_HOUSE_ROLES`, `RESIDENCE_MANAGE_ROLES`, `RESIDENCE_VIEW_ROLES`,
+`CAFE_MANAGE_ROLES`) — reuse them instead of writing inline role lists.
 
 Access matrix in `docs/SPEC.md`. `admin_ukmre` is post-MVP — adding it means a new
 enum value plus an `approvedById` check, no schema restructure.
@@ -119,6 +122,10 @@ in `lib/theme/tokens.ts` — change it there and the whole app follows.
 /components/shared           app components (kad-maya card, availability calendar)
 /lib/theme                   design tokens + MUI theme (single source of truth)
 /lib                         auth, db, rbac, timezone, office-hours, pdf, settings
+/lib/mobile-auth.ts          bearer-token sessions + route helpers for /api/v1
+/app/api/v1                  REST layer consumed by the mobile app
+/mobile                      Expo React Native app (own package.json, not a workspace)
+/packages/shared             pure code shared by web + mobile (@kiz/shared)
 /prisma                      schema.prisma, seed.ts
 /docs                        SPEC.md, STATUS.md
 /proxy.ts                    auth guard (Next.js `proxy` middleware at repo root)
@@ -136,6 +143,17 @@ npx prisma generate        # regenerate client
 npx prisma db push         # push schema (dev)
 npx prisma studio          # database UI
 npx tsc --noEmit           # type check
+```
+
+Mobile (`cd mobile` first; its own project, not a workspace):
+
+```bash
+npm start                  # Expo dev server
+npm run ios | android      # run on a simulator/emulator
+npm run typecheck          # tsc --noEmit
+npm run lint               # expo lint
+npx expo export --platform ios   # prove the Metro bundle resolves
+npx eas-cli@latest build --profile development --platform ios
 ```
 
 ## Working agreements

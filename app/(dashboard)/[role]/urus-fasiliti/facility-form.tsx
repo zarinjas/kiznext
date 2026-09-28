@@ -13,6 +13,7 @@ import Alert from "@mui/material/Alert"
 import { createFacility, updateFacility, type FacilityFormData } from "./actions"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KButton } from "@/components/kiz/primitives/k-button"
+import { FormGrid } from "@/components/kiz/patterns/form-section"
 import { color } from "@/lib/theme"
 import type { FacilitySection, FacilityStatus } from "@/app/generated/prisma/client"
 
@@ -244,14 +245,12 @@ export function FacilityForm({ role: _role, blocks, categories, initialData, onC
           </Box>
         </Box>
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+        <FormGrid columns={2}>
           <TextField id="price" name="price" label="Price (RM) — leave empty if free" type="number" slotProps={{ htmlInput: { step: "0.01", min: 0 } }} defaultValue={initialData?.price?.toString() ?? ""} placeholder="0.00" />
           <TextField id="capacity" name="capacity" label="Capacity (people)" type="number" slotProps={{ htmlInput: { min: 1 } }} defaultValue={initialData?.capacity?.toString() ?? ""} placeholder="e.g. 50" />
-        </Box>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
           <TextField id="timeSlotDuration" name="timeSlotDuration" label="Slot Duration (minutes)" type="number" slotProps={{ htmlInput: { min: 15, step: 15 } }} defaultValue={initialData?.timeSlotDuration?.toString() ?? "60"} placeholder="60" />
           <TextField id="maxPerDay" name="maxPerDay" label="Max Bookings Per Day" type="number" slotProps={{ htmlInput: { min: 1 } }} defaultValue={initialData?.maxPerDay?.toString() ?? "3"} placeholder="3" />
-        </Box>
+        </FormGrid>
 
         <FormControlLabel
           control={<Switch name="requiresApproval" defaultChecked={initialData?.requiresApproval ?? true} sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: color.brand[600] }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: color.brand[600] } }} />}

@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import { prisma } from "@/lib/db"
-import type { Role } from "@/lib/rbac"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { KIcon } from "@/components/kiz/primitives/icon"
@@ -23,7 +23,7 @@ export default async function GuideReaderPage({
 
   const guide = await prisma.guide.findFirst({ where: { id, deletedAt: null } })
   if (!guide) notFound()
-  if (!guide.published && role !== "admin_kiz" && role !== "superadmin") notFound()
+  if (!guide.published && !ADMIN_ROLES.includes(role)) notFound()
 
   // Opening the reader marks the guide as read — clears its "New" badge.
   await prisma.guideRead.upsert({

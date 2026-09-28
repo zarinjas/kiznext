@@ -21,9 +21,10 @@ import {
   reindexKnowledgeAction,
   clearUnanswered,
   testAiConnection,
+  listOpenrouterModels,
 } from "@/lib/ai/admin-actions"
 import { buildFaqTemplateXlsx } from "@/lib/ai/faq-template"
-import type { UnansweredRow, AiTestResult } from "@/lib/ai/types"
+import type { UnansweredRow, AiTestResult, OpenrouterModel } from "@/lib/ai/types"
 import type { ConciergeFrames } from "@/lib/ai/config"
 
 interface Props {
@@ -38,6 +39,10 @@ interface Props {
   initialOllamaUrl: string
   initialOllamaModel: string
   initialOllamaEmbedModel: string
+  openrouterApiKeySet: boolean
+  openrouterApiKeyFromEnv: boolean
+  initialOpenrouterBaseUrl: string
+  initialOpenrouterModel: string
   avatarUrl: string | null
   frames: ConciergeFrames
   knowledgeCount: number
@@ -58,6 +63,10 @@ export function AiSettingsForm({
   initialOllamaUrl,
   initialOllamaModel,
   initialOllamaEmbedModel,
+  openrouterApiKeySet,
+  openrouterApiKeyFromEnv,
+  initialOpenrouterBaseUrl,
+  initialOpenrouterModel,
   avatarUrl,
   frames,
   knowledgeCount,
@@ -78,7 +87,14 @@ export function AiSettingsForm({
   const [ollamaUrl, setOllamaUrl] = useState(initialOllamaUrl)
   const [ollamaModel, setOllamaModel] = useState(initialOllamaModel)
   const [ollamaEmbedModel, setOllamaEmbedModel] = useState(initialOllamaEmbedModel)
+  const [openrouterKey, setOpenrouterKey] = useState("")
+  const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState(initialOpenrouterBaseUrl)
+  const [openrouterModel, setOpenrouterModel] = useState(initialOpenrouterModel)
   const [removeKey, setRemoveKey] = useState(false)
+  const [removeOpenrouterKey, setRemoveOpenrouterKey] = useState(false)
+  const [models, setModels] = useState<OpenrouterModel[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState("")
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -91,6 +107,8 @@ export function AiSettingsForm({
 
   const needsGemini = chatProvider === "gemini" || embedProvider === "gemini"
   const needsOllama = chatProvider === "ollama" || embedProvider === "ollama"
+  const needsOpenrouter = chatProvider === "openrouter"
+  const selectedOpenrouter = models.find((m) => m.id === openrouterModel)
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -110,11 +128,17 @@ export function AiSettingsForm({
         ollamaUrl,
         ollamaModel,
         ollamaEmbedModel,
+        openrouterApiKey: openrouterKey,
+        removeOpenrouterKey,
+        openrouterBaseUrl,
+        openrouterModel,
       })
       if (result.success) {
         setSuccess("KIZ-AI settings saved.")
         setApiKey("")
+        setOpenrouterKey("")
         setRemoveKey(false)
+        setRemoveOpenrouterKey(false)
         router.refresh()
       } else {
         setError(result.error ?? "Couldn't save — try again.")
@@ -133,6 +157,21 @@ export function AiSettingsForm({
       setTest(await testAiConnection())
     } finally {
       setTesting(false)
+    }
+  }
+
+  async function handleLoadModels() {
+    setModelsError("")
+    setModelsLoading(true)
+    try {
+      const res = await listOpenrouterModels()
+      if (res.success && res.models) {
+        setModels(res.models)
+      } else {
+        setModelsError(res.error ?? "Couldn't load models.")
+      }
+    } finally {
+      setModelsLoading(false)
     }
   }
 
@@ -218,8 +257,8 @@ export function AiSettingsForm({
 
   return (
     <FormSection
-      title="KIZ-AI (Gemini + Ollama)"
-      subtitle="Run chat and embeddings on Google Gemini and/or a local Ollama server. Keys are stored on this server only."
+      title="KIZ-AI (Gemini + OpenRouter + Ollama)"
+      subtitle="Run chat on Google Gemini, OpenRouter (free vision models) or a local Ollama server, and embeddings on Gemini or Ollama. Keys are stored on this server only."
       icon="smart_toy"
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -287,6 +326,7 @@ export function AiSettingsForm({
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
             <TextField select label="Chat provider" value={chatProvider} onChange={(e) => setChatProvider(e.target.value)} fullWidth>
               <MenuItem value="gemini">Google Gemini</MenuItem>
+              <MenuItem value="openrouter">OpenRouter (cloud)</MenuItem>
               <MenuItem value="ollama">Ollama (local)</MenuItem>
             </TextField>
             <TextField select label="Embedding provider" value={embedProvider} onChange={(e) => setEmbedProvider(e.target.value)} fullWidth>
@@ -336,7 +376,7 @@ export function AiSettingsForm({
                 </Box>
               )}
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                <TextField label="Gemini chat model" value={model} onChange={(e) => setModel(e.target.value)} helperText="e.g. gemini-2.0-flash" fullWidth />
+                <TextField label="Gemini chat model" value={model} onChange={(e) => setModel(e.target.value)} helperText="e.g. gemini-3.6-flash" fullWidth />
                 <TextField
                   label="Gemini embedding model"
                   value={embedModel}
@@ -371,6 +411,108 @@ export function AiSettingsForm({
             </>
           )}
 
+          {needsOpenrouter && (
+            <>
+              <TextField
+                label="OpenRouter API key"
+                type="password"
+                value={openrouterKey}
+                onChange={(e) => {
+                  setOpenrouterKey(e.target.value)
+                  if (e.target.value && removeOpenrouterKey) setRemoveOpenrouterKey(false)
+                }}
+                placeholder={openrouterApiKeySet ? "Saved — leave blank to keep it" : "sk-or-…"}
+                autoComplete="off"
+                fullWidth
+                disabled={removeOpenrouterKey}
+                helperText={
+                  removeOpenrouterKey
+                    ? "The stored key will be removed when you save."
+                    : openrouterApiKeyFromEnv
+                      ? "Using OPENROUTER_API_KEY from the server .env. Paste a key here to override it."
+                      : openrouterApiKeySet
+                        ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
+                        : "Create a key at openrouter.ai → Keys. Models ending in :free cost $0."
+                }
+              />
+              {openrouterApiKeySet && !openrouterApiKeyFromEnv && !removeOpenrouterKey && (
+                <Box>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setRemoveOpenrouterKey(true)
+                      setOpenrouterKey("")
+                    }}
+                    startIcon={<KIcon icon="delete" size={15} />}
+                    sx={{ color: color.danger.main, textTransform: "none" }}
+                  >
+                    Remove API key
+                  </Button>
+                </Box>
+              )}
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                <TextField
+                  label="OpenRouter base URL"
+                  value={openrouterBaseUrl}
+                  onChange={(e) => setOpenrouterBaseUrl(e.target.value)}
+                  helperText="Default: https://openrouter.ai/api/v1"
+                  fullWidth
+                />
+                <TextField
+                  label="OpenRouter chat model"
+                  value={openrouterModel}
+                  onChange={(e) => setOpenrouterModel(e.target.value)}
+                  helperText="e.g. qwen/qwen2.5-vl-72b-instruct:free (must be vision-capable for KIZ Lens)"
+                  fullWidth
+                />
+              </Box>
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleLoadModels}
+                  disabled={modelsLoading}
+                  startIcon={modelsLoading ? <CircularProgress size={14} /> : <KIcon icon="download" size={15} />}
+                  sx={{ textTransform: "none" }}
+                >
+                  {modelsLoading ? "Loading…" : "Load free models"}
+                </Button>
+                {models.length > 0 && (
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {models.length} free model{models.length === 1 ? "" : "s"} ·{" "}
+                    {models.filter((m) => m.vision).length} vision-capable
+                  </Typography>
+                )}
+              </Box>
+              {modelsError && <Alert severity="error">{modelsError}</Alert>}
+              {models.length > 0 && (
+                <TextField
+                  select
+                  label="Free OpenRouter models"
+                  value={selectedOpenrouter ? openrouterModel : ""}
+                  onChange={(e) => setOpenrouterModel(e.target.value)}
+                  fullWidth
+                  helperText="Picked from your OpenRouter account. A vision-capable model is needed for KIZ Lens (AR translate)."
+                >
+                  {models.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>
+                      {m.name}
+                      {m.vision ? " · vision" : ""}
+                      {m.structured ? " · structured" : ""}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+              {selectedOpenrouter && !selectedOpenrouter.vision && (
+                <Alert severity="warning">
+                  This model isn&apos;t vision-capable — chat will work, but KIZ Lens (AR translate) needs a
+                  vision model such as a Qwen-VL or Llama vision model.
+                </Alert>
+              )}
+            </>
+          )}
+
           <TextField
             select
             label="Retrieval mode"
@@ -389,6 +531,14 @@ export function AiSettingsForm({
           {test && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
               <Alert severity={test.chat.ok ? "success" : "error"}>Chat: {test.chat.detail}</Alert>
+              <Alert severity={test.json.ok ? "success" : "error"}>
+                JSON output: {test.json.detail}
+                {!test.json.ok && " — KIZ-AI needs a model that can return JSON."}
+              </Alert>
+              <Alert severity={test.vision.ok ? "success" : "warning"}>
+                Vision: {test.vision.detail}
+                {!test.vision.ok && " — KIZ Lens (AR translate) needs a vision-capable model."}
+              </Alert>
               <Alert severity={test.embed.ok ? "success" : "warning"}>Embeddings: {test.embed.detail}</Alert>
             </Box>
           )}

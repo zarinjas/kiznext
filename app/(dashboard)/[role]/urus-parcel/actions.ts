@@ -2,14 +2,14 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 
 export async function markArrived(matricId: string, description: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const user = await prisma.user.findUnique({ where: { matricId } })
   if (!user || user.deletedAt) throw new Error("Student not found")
@@ -29,7 +29,7 @@ export async function markArrived(matricId: string, description: string) {
 export async function markCollected(parcelId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.parcel.update({
     where: { id: parcelId },

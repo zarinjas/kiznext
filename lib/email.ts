@@ -260,6 +260,119 @@ function buildPasswordResetHtml({
   })
 }
 
+// ── Broadcast notification email ─────────────────────────────────────────────
+
+export interface BroadcastMailRecipient {
+  to: string
+  name: string
+}
+
+export interface BroadcastMailResult {
+  sent: string[]
+  failed: { email: string; error: string }[]
+  /** False when no Resend key is configured (dev logs instead of sending). */
+  configured: boolean
+}
+
+/**
+ * Sends one broadcast notification email per recipient, chunked through
+ * Resend's batch API (max 100 per call). The same body goes to everyone; only
+ * the greeting is personalised. Without an API key in dev the recipients are
+ * written to the server log so the flow stays testable offline.
+ */
+export async function sendBroadcastEmails({
+  recipients,
+  title,
+  body,
+  link,
+}: {
+  recipients: BroadcastMailRecipient[]
+  title: string
+  body: string
+  link?: string | null
+}): Promise<BroadcastMailResult> {
+  const result: BroadcastMailResult = { sent: [], failed: [], configured: true }
+
+  if (recipients.length === 0) return result
+
+  const client = await resendClient()
+  if (!client) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info(
+        `[email:dev] broadcast "${title}" → ${recipients.map((r) => r.to).join(", ")}` +
+          (link ? ` (${link})` : "")
+      )
+      result.sent = recipients.map((r) => r.to)
+      return result
+    }
+    result.configured = false
+    result.failed = recipients.map((r) => ({ email: r.to, error: "Email is not configured." }))
+    return result
+  }
+
+  const from = await sender()
+  const origin = appOrigin()
+  const absoluteLink = link ? (link.startsWith("http") ? link : `${origin}${link}`) : null
+
+  const subject = title.length > 120 ? `${title.slice(0, 117)}…` : title
+  const messages = recipients.map((r) => ({
+    from,
+    to: r.to,
+    subject,
+    html: buildBroadcastHtml({ name: r.name, title, body, link: absoluteLink }),
+  }))
+
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100)
+    try {
+      const res = (await client.batch.send(chunk, { batchValidation: "permissive" })) as {
+        data?: { data?: { id: string }[]; errors?: { index: number; message: string }[] } | null
+        error?: { message: string } | null
+      }
+      if (res.error) {
+        for (const m of chunk) result.failed.push({ email: String(m.to), error: res.error.message })
+        continue
+      }
+      const errors = res.data?.errors ?? []
+      chunk.forEach((m, index) => {
+        const err = errors.find((e) => e.index === index)
+        if (err) result.failed.push({ email: String(m.to), error: err.message })
+        else result.sent.push(String(m.to))
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Send failed"
+      for (const m of chunk) result.failed.push({ email: String(m.to), error: message })
+    }
+  }
+
+  return result
+}
+
+function buildBroadcastHtml({
+  name,
+  title,
+  body,
+  link,
+}: {
+  name: string
+  title: string
+  body: string
+  link: string | null
+}): string {
+  // Preserve the admin's line breaks without allowing raw HTML injection.
+  const bodyHtml = escapeHtml(body).replace(/\r?\n/g, "<br />")
+
+  return renderEmailShell({
+    heading: title,
+    bodyHtml: `Hi ${escapeHtml(name)},<br /><br />${bodyHtml}`,
+    cta: link ? { label: "Open in KIZ Super App", url: link } : undefined,
+    footerHtml: `
+      <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#8a8f98;">
+        You're receiving this because you're part of Kolej Ibu Zain. Need help? Contact the KIZ management office.
+      </p>`,
+  })
+}
+
 // ── Shared shell ─────────────────────────────────────────────────────────────
 
 /**

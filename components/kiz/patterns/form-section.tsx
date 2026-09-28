@@ -5,6 +5,43 @@ import Typography from "@mui/material/Typography"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { radius } from "@/lib/theme"
 
+/**
+ * FormGrid — the one responsive layout for form fields.
+ *
+ * Collapses to a single column on phones, two on tablets, then the requested
+ * column count on desktop — so every form keeps the same rhythm instead of
+ * each screen hand-rolling its own grid template. Pair with `gap` from the
+ * spacing scale; never set per-field margins.
+ */
+export function FormGrid({
+  columns = 2,
+  gap = 2,
+  children,
+  sx,
+}: {
+  columns?: 1 | 2 | 3 | 4
+  gap?: number
+  children: React.ReactNode
+  sx?: object
+}) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap,
+        gridTemplateColumns: {
+          xs: "minmax(0, 1fr)",
+          sm: columns >= 2 ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)",
+          md: `repeat(${columns}, minmax(0, 1fr))`,
+        },
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
+  )
+}
+
 /** FormSection — grouped form block with a quiet header. */
 export function FormSection({
   title,

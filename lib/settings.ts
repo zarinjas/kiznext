@@ -6,18 +6,30 @@ import { revalidatePath } from "next/cache"
 import { unlink } from "fs/promises"
 import path from "path"
 import { saveUpload } from "@/lib/image-upload"
+import { ADMIN_ROLES, type Role } from "@/lib/rbac"
 
 const MAX_SIZE = 2 * 1024 * 1024
 const LOGO_KEY = "app_logo"
 const LOGIN_BACKGROUND_KEY = "login_background"
 const LOGIN_BACKGROUND_MAX_SIZE = 12 * 1024 * 1024
+/** Wide banner behind the member hero on the desktop website. */
 const DASHBOARD_HERO_BG_KEY = "dashboard_hero_bg"
+/** Separate banner for the mobile app hero — a different aspect ratio, so the
+ *  website image looked badly cropped on phones. */
+const DASHBOARD_HERO_BG_APP_KEY = "dashboard_hero_bg_app"
 const DASHBOARD_HERO_BG_MAX_SIZE = 12 * 1024 * 1024
+const DASHBOARD_HERO_OVERLAY_KEY = "dashboard_hero_overlay"
+const SHOWCASE_LENS_BG_KEY = "showcase_lens_bg"
+const SHOWCASE_WAYFINDER_BG_KEY = "showcase_wayfinder_bg"
+const SHOWCASE_BG_MAX_SIZE = 8 * 1024 * 1024
 const DASHBOARD_POSTER_KEY = "dashboard_poster"
 const DASHBOARD_POSTER_MAX_SIZE = 12 * 1024 * 1024
 
 const CARD_BG_MAX_SIZE = 4 * 1024 * 1024
 const STUDENT_CARD_BG_KEY = "student_card_bg"
+const FELLOW_CARD_BG_KEY = "fellow_card_bg"
+/** Principal, Deputy Principal, staff and admins share this card background. */
+const STAFF_CARD_BG_KEY = "staff_card_bg"
 const STUDENT_CARD_UKM_LOGO_KEY = "student_card_ukm_logo"
 const STUDENT_CARD_KIZ_LOGO_KEY = "student_card_kiz_logo"
 /** Superadmin-set residential session shown on the student card, e.g. "2026/2027". */
@@ -59,7 +71,7 @@ export async function getLoginBackgroundUrl(): Promise<string | null> {
 export async function uploadAppLogo(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -102,7 +114,7 @@ export async function uploadAppLogo(formData: FormData): Promise<{ success: bool
 export async function removeAppLogo(): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -121,7 +133,7 @@ export async function removeAppLogo(): Promise<{ success: boolean; error?: strin
   }
 }
 
-/** Student Digital Card design — admin-configurable background image. */
+/** Digital Resident ID design — admin-configurable background image + logos. */
 export interface StudentCardDesign {
   backgroundUrl: string | null
   /** UKM crest — left logo slot on the card. */
@@ -130,6 +142,25 @@ export interface StudentCardDesign {
   kizLogoUrl: string | null
   /** "Residential Session" line shown on the card, e.g. "2026/2027". */
   session: string | null
+}
+
+/**
+ * Which uploaded background a role uses. Students keep their own design,
+ * fellows get a dedicated one, and everyone else (principal, deputy principal,
+ * staff, admins) shares a third.
+ */
+export type CardDesignSlot = "student" | "fellow" | "staff"
+
+const CARD_BG_KEYS: Record<CardDesignSlot, string> = {
+  student: STUDENT_CARD_BG_KEY,
+  fellow: FELLOW_CARD_BG_KEY,
+  staff: STAFF_CARD_BG_KEY,
+}
+
+function cardSlotForRole(role: string): CardDesignSlot {
+  if (role === "ahli") return "student"
+  if (role === "fellow") return "fellow"
+  return "staff"
 }
 
 /** Resolve the uploaded student-card logos, falling UI-side to a monogram tile. */
@@ -162,7 +193,7 @@ export async function setResidentialSession(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
     const clean = value.trim()
@@ -182,12 +213,30 @@ export async function setResidentialSession(
 }
 
 export async function getStudentCardDesign(): Promise<StudentCardDesign> {
+  return getCardDesign("ahli")
+}
+
+/**
+ * Resolve the Digital Resident ID design for a role — picks the right uploaded
+ * background (student / fellow / shared staff) plus the shared logos + session.
+ */
+export async function getCardDesign(role: string): Promise<StudentCardDesign> {
   const [bg, logos, session] = await Promise.all([
-    getAppSetting(STUDENT_CARD_BG_KEY),
+    getAppSetting(CARD_BG_KEYS[cardSlotForRole(role)]),
     getStudentCardLogos(),
     getResidentialSession(),
   ])
   return { backgroundUrl: bg ?? null, ...logos, session }
+}
+
+/** All three uploaded card backgrounds, for the admin settings form. */
+export async function getAllCardBackgrounds(): Promise<Record<CardDesignSlot, string | null>> {
+  const [student, fellow, staff] = await Promise.all([
+    getAppSetting(STUDENT_CARD_BG_KEY),
+    getAppSetting(FELLOW_CARD_BG_KEY),
+    getAppSetting(STAFF_CARD_BG_KEY),
+  ])
+  return { student: student ?? null, fellow: fellow ?? null, staff: staff ?? null }
 }
 
 export async function uploadStudentCardLogo(
@@ -200,7 +249,7 @@ export async function uploadStudentCardLogo(
 
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -246,7 +295,7 @@ export async function removeStudentCardLogo(
   const settingKey = slot === "ukm" ? STUDENT_CARD_UKM_LOGO_KEY : STUDENT_CARD_KIZ_LOGO_KEY
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -265,12 +314,14 @@ export async function removeStudentCardLogo(
   }
 }
 
-export async function uploadStudentCardBackground(
+export async function uploadCardBackground(
+  slot: CardDesignSlot,
   formData: FormData
 ): Promise<{ success: boolean; error?: string; url?: string }> {
+  const settingKey = CARD_BG_KEYS[slot]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -279,7 +330,7 @@ export async function uploadStudentCardBackground(
       return { success: false, error: "No file selected" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key: settingKey } })
     if (existing?.value) {
       const oldPath = path.join(process.cwd(), "public", existing.value)
       try { await unlink(oldPath) } catch {}
@@ -288,7 +339,7 @@ export async function uploadStudentCardBackground(
     let url: string
     try {
       const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
-        prefix: "student-card-bg",
+        prefix: `${slot}-card-bg`,
         maxBytes: CARD_BG_MAX_SIZE,
       })
       url = result.url
@@ -297,44 +348,47 @@ export async function uploadStudentCardBackground(
     }
 
     await prisma.appSetting.upsert({
-      where: { key: STUDENT_CARD_BG_KEY },
+      where: { key: settingKey },
       update: { value: url },
-      create: { key: STUDENT_CARD_BG_KEY, value: url },
+      create: { key: settingKey, value: url },
     })
 
     revalidatePath("/", "layout")
     return { success: true, url }
   } catch (err) {
-    return actionError("uploadStudentCardBackground", err)
+    return actionError(`uploadCardBackground:${slot}`, err)
   }
 }
 
-export async function removeStudentCardBackground(): Promise<{ success: boolean; error?: string }> {
+export async function removeCardBackground(
+  slot: CardDesignSlot
+): Promise<{ success: boolean; error?: string }> {
+  const settingKey = CARD_BG_KEYS[slot]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: STUDENT_CARD_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key: settingKey } })
     if (existing?.value) {
       const filePath = path.join(process.cwd(), "public", existing.value)
       try { await unlink(filePath) } catch {}
     }
 
-    await prisma.appSetting.deleteMany({ where: { key: STUDENT_CARD_BG_KEY } })
+    await prisma.appSetting.deleteMany({ where: { key: settingKey } })
 
     revalidatePath("/", "layout")
     return { success: true }
   } catch (err) {
-    return actionError("removeStudentCardBackground", err)
+    return actionError(`removeCardBackground:${slot}`, err)
   }
 }
 
 export async function uploadLoginBackground(formData: FormData): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -369,7 +423,7 @@ export async function uploadLoginBackground(formData: FormData): Promise<{ succe
 export async function removeLoginBackground(): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -391,16 +445,26 @@ export async function removeLoginBackground(): Promise<{ success: boolean; error
 // unset, the hero falls back to the default soft gradient. On mobile the image
 // is anchored bottom-right so the designed focal point stays in view.
 
-export async function getDashboardHeroBackground(): Promise<string | null> {
-  return getAppSetting(DASHBOARD_HERO_BG_KEY)
+/** Which surface's hero banner a read/write targets. */
+export type HeroSurface = "web" | "app"
+
+const HERO_BG_KEYS: Record<HeroSurface, string> = {
+  web: DASHBOARD_HERO_BG_KEY,
+  app: DASHBOARD_HERO_BG_APP_KEY,
+}
+
+export async function getDashboardHeroBackground(surface: HeroSurface = "web"): Promise<string | null> {
+  return getAppSetting(HERO_BG_KEYS[surface])
 }
 
 export async function uploadDashboardHeroBackground(
+  surface: HeroSurface,
   formData: FormData
 ): Promise<{ success: boolean; error?: string; url?: string }> {
+  const key = HERO_BG_KEYS[surface]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -409,46 +473,209 @@ export async function uploadDashboardHeroBackground(
       return { success: false, error: "No file selected" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
     if (existing?.value) {
       const oldPath = path.join(process.cwd(), "public", existing.value)
       try { await unlink(oldPath) } catch {}
     }
 
     const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
-      prefix: "dashboard-hero",
+      prefix: `dashboard-hero-${surface}`,
       maxBytes: DASHBOARD_HERO_BG_MAX_SIZE,
     })
 
     await prisma.appSetting.upsert({
-      where: { key: DASHBOARD_HERO_BG_KEY },
+      where: { key },
       update: { value: result.url },
-      create: { key: DASHBOARD_HERO_BG_KEY, value: result.url },
+      create: { key, value: result.url },
     })
 
     revalidatePath("/", "layout")
     return { success: true, url: result.url }
   } catch (err) {
-    return actionError("uploadDashboardHeroBackground", err)
+    return actionError(`uploadDashboardHeroBackground:${surface}`, err)
   }
 }
 
-export async function removeDashboardHeroBackground(): Promise<{ success: boolean; error?: string }> {
+export async function removeDashboardHeroBackground(
+  surface: HeroSurface
+): Promise<{ success: boolean; error?: string }> {
+  const key = HERO_BG_KEYS[surface]
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
-    const existing = await prisma.appSetting.findUnique({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
     if (existing?.value) {
       try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
     }
-    await prisma.appSetting.deleteMany({ where: { key: DASHBOARD_HERO_BG_KEY } })
+    await prisma.appSetting.deleteMany({ where: { key } })
     revalidatePath("/", "layout")
     return { success: true }
   } catch (err) {
-    return actionError("removeDashboardHeroBackground", err)
+    return actionError(`removeDashboardHeroBackground:${surface}`, err)
+  }
+}
+
+// ── Dashboard hero overlay gradient ─────────────────────────────────────────
+// A dark scrim gradient drawn over the hero banner image so the white greeting
+// text stays legible regardless of the photo. Admin-configurable: two hex stops
+// plus an opacity. Defaults to the near-black navy the hero shipped with.
+
+export interface HeroOverlay {
+  /** First gradient stop (top-left). */
+  from: string
+  /** Second gradient stop (bottom-right). */
+  to: string
+  /** 0–1 overlay opacity. */
+  opacity: number
+}
+
+const DEFAULT_HERO_OVERLAY: HeroOverlay = {
+  from: "#02141F",
+  to: "#02141F",
+  opacity: 0.55,
+}
+
+const HEX_RE = /^#([0-9a-fA-F]{6})$/
+
+function isHex(value: unknown): value is string {
+  return typeof value === "string" && HEX_RE.test(value)
+}
+
+/** Read the overlay, falling back to the default and tolerating bad values. */
+export async function getDashboardHeroOverlay(): Promise<HeroOverlay> {
+  const raw = await getAppSetting(DASHBOARD_HERO_OVERLAY_KEY)
+  if (!raw) return DEFAULT_HERO_OVERLAY
+  try {
+    const parsed = JSON.parse(raw) as Partial<HeroOverlay>
+    const from = isHex(parsed.from) ? parsed.from : DEFAULT_HERO_OVERLAY.from
+    const to = isHex(parsed.to) ? parsed.to : DEFAULT_HERO_OVERLAY.to
+    const opacity =
+      typeof parsed.opacity === "number" && parsed.opacity >= 0 && parsed.opacity <= 1
+        ? parsed.opacity
+        : DEFAULT_HERO_OVERLAY.opacity
+    return { from, to, opacity }
+  } catch {
+    return DEFAULT_HERO_OVERLAY
+  }
+}
+
+export async function setDashboardHeroOverlay(
+  overlay: HeroOverlay
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
+      return { success: false, error: "Unauthorized" }
+    }
+    if (!isHex(overlay.from) || !isHex(overlay.to)) {
+      return { success: false, error: "Pick a valid hex colour (e.g. #02141F)." }
+    }
+    const opacity = Math.max(0, Math.min(1, overlay.opacity ?? DEFAULT_HERO_OVERLAY.opacity))
+
+    await prisma.appSetting.upsert({
+      where: { key: DASHBOARD_HERO_OVERLAY_KEY },
+      update: { value: JSON.stringify({ from: overlay.from, to: overlay.to, opacity }) },
+      create: { key: DASHBOARD_HERO_OVERLAY_KEY, value: JSON.stringify({ from: overlay.from, to: overlay.to, opacity }) },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("setDashboardHeroOverlay", err)
+  }
+}
+
+// ── AI & AR showcase card backgrounds ────────────────────────────────────────
+// The two promoted cards on the mobile dashboard ("KIZ Lens" and "AR Wayfinder")
+// render a brand gradient by default; admins can override either with an image.
+
+export type ShowcaseSlot = "lens" | "wayfinder"
+
+export interface ShowcaseBackgrounds {
+  lens: string | null
+  wayfinder: string | null
+}
+
+function showcaseKey(slot: ShowcaseSlot): string {
+  return slot === "lens" ? SHOWCASE_LENS_BG_KEY : SHOWCASE_WAYFINDER_BG_KEY
+}
+
+export async function getShowcaseBackgrounds(): Promise<ShowcaseBackgrounds> {
+  const [lens, wayfinder] = await Promise.all([
+    getAppSetting(SHOWCASE_LENS_BG_KEY),
+    getAppSetting(SHOWCASE_WAYFINDER_BG_KEY),
+  ])
+  return { lens, wayfinder }
+}
+
+export async function uploadShowcaseBackground(
+  slot: ShowcaseSlot,
+  formData: FormData
+): Promise<{ success: boolean; error?: string; url?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
+      return { success: false, error: "Unauthorized" }
+    }
+    if (slot !== "lens" && slot !== "wayfinder") {
+      return { success: false, error: "Unknown card." }
+    }
+
+    const file = formData.get("background") as File | null
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file selected" }
+    }
+
+    const key = showcaseKey(slot)
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+
+    const result = await saveUpload(Buffer.from(await file.arrayBuffer()), {
+      prefix: `showcase-${slot}`,
+      maxBytes: SHOWCASE_BG_MAX_SIZE,
+    })
+
+    await prisma.appSetting.upsert({
+      where: { key },
+      update: { value: result.url },
+      create: { key, value: result.url },
+    })
+
+    revalidatePath("/", "layout")
+    return { success: true, url: result.url }
+  } catch (err) {
+    return actionError("uploadShowcaseBackground", err)
+  }
+}
+
+export async function removeShowcaseBackground(
+  slot: ShowcaseSlot
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth()
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
+      return { success: false, error: "Unauthorized" }
+    }
+    if (slot !== "lens" && slot !== "wayfinder") {
+      return { success: false, error: "Unknown card." }
+    }
+
+    const key = showcaseKey(slot)
+    const existing = await prisma.appSetting.findUnique({ where: { key } })
+    if (existing?.value) {
+      try { await unlink(path.join(process.cwd(), "public", existing.value)) } catch {}
+    }
+    await prisma.appSetting.deleteMany({ where: { key } })
+    revalidatePath("/", "layout")
+    return { success: true }
+  } catch (err) {
+    return actionError("removeShowcaseBackground", err)
   }
 }
 
@@ -465,7 +692,7 @@ export async function uploadDashboardPoster(
 ): Promise<{ success: boolean; error?: string; url?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -501,7 +728,7 @@ export async function uploadDashboardPoster(
 export async function removeDashboardPoster(): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await auth()
-    if (!session?.user || (session.user.role !== "superadmin" && session.user.role !== "admin_kiz")) {
+    if (!session?.user || !ADMIN_ROLES.includes(session.user.role as Role)) {
       return { success: false, error: "Unauthorized" }
     }
 
@@ -528,7 +755,7 @@ export interface ResendConfig {
 }
 
 function isResendAdmin(session: { user?: { role?: string } | null } | null): boolean {
-  return session?.user?.role === "superadmin" || session?.user?.role === "admin_kiz"
+  return ADMIN_ROLES.includes(session?.user?.role as Role)
 }
 
 export async function getResendConfig(): Promise<ResendConfig> {

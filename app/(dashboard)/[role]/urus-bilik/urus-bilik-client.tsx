@@ -25,9 +25,10 @@ import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { Bento, BentoItem, MetricTile } from "@/components/kiz/patterns/bento"
-import { FormSection } from "@/components/kiz/patterns/form-section"
+import { FormSection, FormGrid } from "@/components/kiz/patterns/form-section"
 import { seatTone, color, radius } from "@/lib/theme"
 import { bedWord } from "@/lib/bilik-format"
+import { CohortChip, CohortFilterChips, type StudentCohort } from "@/components/shared/cohort-chip"
 import {
   previewImport,
   confirmImport,
@@ -49,9 +50,11 @@ import {
   getSheetConfigView,
   saveSheetConfig,
   fetchGoogleSheetCsv,
+  syncNowFromSheet,
   type ImportPreview,
 } from "./actions"
 import type { SyncPreview } from "@/lib/bilik-sync"
+import { formatMalaysia } from "@/lib/timezone"
 import type { OccupancySummary } from "@/components/shared/bilik/types"
 
 type Gender = "male" | "female"
@@ -85,6 +88,7 @@ interface StudentData {
   nationality: string
   faculty: string | null
   yearOfStudy: string | null
+  cohort: StudentCohort
   currentCollege: string | null
   merit: number | null
   isB40: boolean
@@ -484,6 +488,8 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
   const [serviceAccount, setServiceAccount] = useState("")
   const [spreadsheetId, setSpreadsheetId] = useState("")
   const [range, setRange] = useState("")
+  const [intervalMinutes, setIntervalMinutes] = useState("")
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [csv, setCsv] = useState("")
   const [source, setSource] = useState("")
   const [preview, setPreview] = useState<SyncPreview | null>(null)
@@ -496,21 +502,44 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
         setHasKey(cfg.hasServiceAccount)
         setSpreadsheetId(cfg.spreadsheetId)
         setRange(cfg.range)
+        setIntervalMinutes(String(cfg.intervalMinutes))
+        setLastSyncedAt(cfg.lastSyncedAt)
       })
       .catch(() => {})
   }, [])
 
   const saveConfig = () => start(async () => {
     try {
-      await saveSheetConfig({ serviceAccount: serviceAccount.trim() || undefined, spreadsheetId, range })
+      await saveSheetConfig({
+        serviceAccount: serviceAccount.trim() || undefined,
+        spreadsheetId,
+        range,
+        intervalMinutes: intervalMinutes === "" ? undefined : Number(intervalMinutes),
+      })
       setServiceAccount("")
       const cfg = await getSheetConfigView()
       setHasKey(cfg.hasServiceAccount)
       setSpreadsheetId(cfg.spreadsheetId)
       setRange(cfg.range)
-      notify("Google Sheet config saved.")
+      setIntervalMinutes(String(cfg.intervalMinutes))
+      setLastSyncedAt(cfg.lastSyncedAt)
+      notify("Tetapan Google Sheet disimpan.")
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Could not save config", "error")
+      notify(e instanceof Error ? e.message : "Tidak dapat menyimpan tetapan", "error")
+    }
+  })
+
+  const syncNow = () => start(async () => {
+    try {
+      const res = await syncNowFromSheet()
+      if (res.ok) {
+        setLastSyncedAt(res.lastSyncedAt ?? new Date().toISOString())
+        notify(`Penyelarasan selesai — ${res.added ?? 0} ditambah, ${res.moved ?? 0} dipindah, ${res.removed ?? 0} dikeluarkan.`)
+      } else {
+        notify(res.error ?? "Penyelarasan gagal", "error")
+      }
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Penyelarasan gagal", "error")
     }
   })
 
@@ -549,34 +578,50 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
   const apply = () => start(async () => {
     const res = await applySync(csv)
     if (res.ok) {
-      notify(`Sync done — ${res.added ?? 0} added, ${res.moved ?? 0} moved, ${res.removed ?? 0} removed, ${res.roomsSynced ?? 0} rooms synced.`)
+      notify(`Penyelarasan selesai — ${res.added ?? 0} ditambah, ${res.moved ?? 0} dipindah, ${res.removed ?? 0} dikeluarkan, ${res.roomsSynced ?? 0} bilik diselaraskan.`)
       setPreview(null)
       setCsv("")
       setSource("")
     } else {
-      notify(res.error ?? "Sync failed", "error")
+      notify(res.error ?? "Penyelarasan gagal", "error")
     }
   })
 
   return (
     <FormSection
-      title="Sync from Google Sheet"
-      subtitle="Update the active intake in place — students who changed rooms, new students, and room status changes. Nothing is applied until you review the diff and press Apply sync."
+      title="Penyelarasan dari Google Sheet"
+      subtitle="Kemas kini intake aktif secara langsung — pelajar yang bertukar bilik, pelajar baharu, dan perubahan status bilik. Tiada apa-apa diterapkan sehingga anda semak perbezaan dan tekan Terapkan penyelarasan."
       icon="sync"
     >
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-        <b>How sync works:</b> the sheet is the source of truth. A student&apos;s room follows
-        their matric number — a new matric is added, a changed room is moved, and a matric
-        no longer in the sheet is <b>removed from the list</b> (soft-deleted, recoverable).
-        Room type, damaged / reserved status and reserved beds are reconciled too.
+        <b>Cara penyelarasan berfungsi:</b> helaian (sheet) ialah sumber sebenar. Bilik pelajar
+        mengikut nombor matrik — matrik baharu akan ditambah, bilik yang berubah akan dipindah,
+        dan matrik yang tiada dalam helaian akan <b>dikeluarkan daripada senarai</b> (padam lembut,
+        boleh dipulihkan). Jenis bilik, status rosak / tempahan, dan katil tempahan turut diselaraskan.
+      </Alert>
+
+      <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+        <b>Nota:</b> jika nama ada dalam helaian tetapi belum wujud dalam sistem, nama itu hanya
+        akan muncul <b>selepas penyelarasan selesai</b>. Sila tunggu sehingga penyelarasan lengkap
+        sebelum menyemak senarai pelajar.
       </Alert>
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
-        <TextField label="Spreadsheet ID" value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="1AbC...xyz" helperText="The long ID in the sheet URL between /d/ and /edit." />
-        <TextField label="Range / tab" value={range} onChange={(e) => setRange(e.target.value)} placeholder="Sheet1" helperText="Tab name, e.g. Sheet1 (or Sheet1!A1:Z1000)." />
+        <TextField label="Spreadsheet ID" value={spreadsheetId} onChange={(e) => setSpreadsheetId(e.target.value)} placeholder="1AbC...xyz" helperText="ID panjang dalam URL helaian, antara /d/ dan /edit." />
+        <TextField label="Range / tab" value={range} onChange={(e) => setRange(e.target.value)} placeholder="Sheet1" helperText="Nama tab, cth. Sheet1 (atau Sheet1!A1:Z1000)." />
       </Box>
       <TextField
-        label={hasKey ? "Service account JSON (leave blank to keep current)" : "Service account JSON"}
+        label="Selang auto-sync (minit)"
+        type="number"
+        value={intervalMinutes}
+        onChange={(e) => setIntervalMinutes(e.target.value)}
+        fullWidth
+        sx={{ mt: 2 }}
+        slotProps={{ htmlInput: { min: 0, step: 1 } }}
+        helperText="0 = matikan. Helaian diselaraskan secara automatik setiap N minit. Perubahan berkuat kuasa serta-merta, tanpa perlu mulakan semula."
+      />
+      <TextField
+        label={hasKey ? "Service account JSON (biarkan kosong untuk kekalkan sedia ada)" : "Service account JSON"}
         value={serviceAccount}
         onChange={(e) => setServiceAccount(e.target.value)}
         placeholder={hasKey ? "•••••• configured ••••••" : '{ "type": "service_account", ... }'}
@@ -584,16 +629,20 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
         minRows={2}
         fullWidth
         sx={{ mt: 2 }}
-        helperText={hasKey ? "A key is already saved. Paste a new one to replace it." : "Paste the whole JSON key file from Google Cloud."}
+        helperText={hasKey ? "Kunci sudah disimpan. Tampal yang baharu untuk menggantikannya." : "Tampal keseluruhan fail kunci JSON dari Google Cloud."}
       />
-      <Box sx={{ mt: 1.5 }}>
-        <KButton size="small" variant="outlined" loading={pending} onClick={saveConfig} icon="save">Save config</KButton>
+      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, mt: 1.5 }}>
+        <KButton size="small" variant="outlined" loading={pending} onClick={saveConfig} icon="save">Simpan tetapan</KButton>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Kali terakhir diselaraskan: <b>{lastSyncedAt ? formatMalaysia(new Date(lastSyncedAt)) : "belum pernah"}</b>
+        </Typography>
       </Box>
 
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
-        <KButton onClick={previewFromSheet} loading={pending} icon="cloud_download">Preview from Google Sheet</KButton>
+        <KButton onClick={syncNow} loading={pending} icon="sync">Selaras sekarang</KButton>
+        <KButton onClick={previewFromSheet} loading={pending} icon="cloud_download" variant="outlined">Pratonton dari Google Sheet</KButton>
         <input ref={inputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-        <KButton variant="outlined" onClick={() => inputRef.current?.click()} icon="upload_file">Preview from CSV</KButton>
+        <KButton variant="outlined" onClick={() => inputRef.current?.click()} icon="upload_file">Pratonton dari CSV</KButton>
       </Box>
 
       {preview && (
@@ -608,16 +657,16 @@ function SyncSection({ notify }: { notify: (m: string, s?: "success" | "error") 
           </Bento>
 
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1.5 }}>
-            Source: <b>{source}</b> · intake: <b>{preview.intakeName ?? "—"}</b> · {preview.studentsInSheet} students · {preview.roomsTotal} rooms ({preview.reservedRooms} with reserved beds)
+            Sumber: <b>{source}</b> · intake: <b>{preview.intakeName ?? "—"}</b> · {preview.studentsInSheet} pelajar · {preview.roomsTotal} bilik ({preview.reservedRooms} dengan katil tempahan)
           </Typography>
 
-          <SyncDiffList title="To move" tone={color.info} items={preview.toMove.map((m) => `${m.name} (${m.matricId}): ${m.from} → ${m.to}`)} />
-          <SyncDiffList title="To add" tone={color.success} items={preview.toAdd.map((m) => `${m.name} (${m.matricId}) → ${m.room}`)} />
-          <SyncDiffList title="To remove (no longer in sheet)" tone={color.warning} items={preview.toRemove.map((m) => `${m.name} (${m.matricId})`)} />
+          <SyncDiffList title="Untuk dipindah" tone={color.info} items={preview.toMove.map((m) => `${m.name} (${m.matricId}): ${m.from} → ${m.to}`)} />
+          <SyncDiffList title="Untuk ditambah" tone={color.success} items={preview.toAdd.map((m) => `${m.name} (${m.matricId}) → ${m.room}`)} />
+          <SyncDiffList title="Untuk dikeluarkan (tiada dalam helaian)" tone={color.warning} items={preview.toRemove.map((m) => `${m.name} (${m.matricId})`)} />
 
           <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
-            <KButton onClick={apply} loading={pending} icon="sync">Apply sync</KButton>
-            <KButton variant="outlined" onClick={() => { setPreview(null); setCsv(""); setSource("") }}>Cancel</KButton>
+            <KButton onClick={apply} loading={pending} icon="sync">Terapkan penyelarasan</KButton>
+            <KButton variant="outlined" onClick={() => { setPreview(null); setCsv(""); setSource("") }}>Batal</KButton>
           </Box>
         </Box>
       )}
@@ -957,22 +1006,22 @@ function BuildingTab({
       {activeBlock && <FormSection title={`${activeBlock.name} rooms`} subtitle={`${activeRooms.length} rooms. Tick rooms first if you want to change more than one status.`} icon="meeting_room" action={<Box sx={{ display: "flex", gap: 1 }}><KButton size="small" variant="outlined" icon="edit" onClick={() => setEditing(activeBlock)}>Edit block</KButton><KButton size="small" variant="outlined" icon="add" onClick={() => setShowAdd((value) => !value)}>{showAdd ? "Hide add rooms" : "Add rooms"}</KButton></Box>}>
         {selectedRoomIds.length > 0 && <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.25, mb: 2, p: 1.5, borderRadius: 2, border: "1px solid", borderColor: color.warning.main, backgroundColor: color.warning.soft }}>
           <Typography variant="body2" sx={{ flex: "1 1 200px", minWidth: 0 }}><b>{selectedRoomIds.length} room{selectedRoomIds.length === 1 ? "" : "s"} selected.</b> Change all selected rooms to:</Typography>
-          <TextField select size="small" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as RoomStatus)} sx={{ minWidth: 150, flex: "0 0 auto", "& .MuiInputBase-input": { py: 0.55, fontSize: 13 } }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField>
+          <TextField select size="small" value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as RoomStatus)} sx={{ minWidth: 150, flex: "0 0 auto" }}><MenuItem value="available">Available</MenuItem><MenuItem value="maintenance">Maintenance</MenuItem><MenuItem value="closed">Closed</MenuItem></TextField>
           <KButton size="small" loading={pending} onClick={applyBulkStatus}>Apply</KButton>
         </Box>}
         {activeRooms.length === 0 ? <KEmpty compact icon="meeting_room" title="No rooms in this block" body="Use Add rooms to create the first room or generate a whole floor." /> : <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", sm: "repeat(3,minmax(0,1fr))", md: "repeat(4,minmax(0,1fr))" } }}>{activeRooms.map((room) => <RoomInventoryCard key={room.id} room={room} selected={selectedRoomIds.includes(room.id)} onToggle={() => toggleRoom(room.id)} onStatus={(status) => start(async () => { await setRoomStatus(room.id, status); notify(`${room.number} is now ${status}.`) })} onType={(type) => start(async () => { try { await updateRoomType(room.id, type); notify(`${room.number} is now a ${type === "single" ? "single" : "twin"} room.`) } catch (e) { notify(e instanceof Error ? e.message : "Could not change room type", "error") } })} onDelete={() => onDeleteRoom(activeBlock, room)} onManage={() => setManageRoom(room)} />)}</Box>}
       </FormSection>}
       {showAdd && <Box>
       <FormSection title="Add a block" subtitle="Only use this when a new residence block is opened." icon="add_home">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
-          <TextField label="Block name" placeholder="e.g. K20A" value={newName} onChange={(e) => setNewName(e.target.value)} />
+        <FormGrid columns={4}>
+          <TextField size="small" label="Block name" placeholder="e.g. K20A" value={newName} onChange={(e) => setNewName(e.target.value)} />
           <TextField select size="small" label="Gender" value={newGender} onChange={(e) => setNewGender(e.target.value as Gender)}>
             <MenuItem value="male">Male</MenuItem>
             <MenuItem value="female">Female</MenuItem>
           </TextField>
           <TextField type="number" size="small" label="Floors" value={newFloors} onChange={(e) => setNewFloors(Number(e.target.value))} />
           <TextField type="number" size="small" label="Sort order" value={newSort} onChange={(e) => setNewSort(Number(e.target.value))} />
-        </Box>
+        </FormGrid>
         <Box sx={{ mt: 2 }}>
           <KButton loading={pending} icon="add" onClick={addBlock}>
             Add block
@@ -981,16 +1030,16 @@ function BuildingTab({
       </FormSection>
 
       <FormSection title="Add one room" subtitle="Beds are created automatically. The room number is the full code (block · floor · room) and the floor is read from it." icon="add_business">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" } }}>
+        <FormGrid columns={3}>
           <TextField select size="small" label="Block" value={roomBlock} onChange={(e) => setRoomBlock(e.target.value)}>
             {blocks.length === 0 ? <MenuItem value="" disabled>No blocks yet</MenuItem> : blocks.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
           </TextField>
-          <TextField label="Room number" placeholder={activeBlock ? `e.g. ${activeBlock.name}-101` : "e.g. K18A-101"} helperText="Code or just the number — e.g. K18A-101 or 101 for floor 1, room 01." value={roomNumber} onChange={(e) => setRoomNumber(e.target.value)} />
+          <TextField size="small" label="Room number" placeholder={activeBlock ? `e.g. ${activeBlock.name}-101` : "e.g. K18A-101"} helperText="Code or just the number — e.g. K18A-101 or 101 for floor 1, room 01." value={roomNumber} onChange={(e) => setRoomNumber(e.target.value)} />
           <TextField select size="small" label="Type" value={roomType} onChange={(e) => setRoomType(e.target.value as RoomType)}>
             <MenuItem value="single">Single</MenuItem>
             <MenuItem value="double">Double</MenuItem>
           </TextField>
-        </Box>
+        </FormGrid>
         <Box sx={{ mt: 2 }}>
           <KButton loading={pending} icon="add" onClick={addRoom} disabled={!roomBlock}>
             Add room
@@ -999,7 +1048,7 @@ function BuildingTab({
       </FormSection>
 
       <FormSection title="Add many rooms at once" subtitle="Use this for a new floor. The system creates the rooms and beds automatically with full codes." icon="grid_on">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
+        <FormGrid columns={4}>
           <TextField select size="small" label="Block" value={genBlock} onChange={(e) => setGenBlock(e.target.value)}>
             {blocks.length === 0 ? <MenuItem value="" disabled>No blocks yet</MenuItem> : blocks.map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
           </TextField>
@@ -1009,7 +1058,7 @@ function BuildingTab({
             <MenuItem value="single">Single</MenuItem>
             <MenuItem value="double">Double</MenuItem>
           </TextField>
-        </Box>
+        </FormGrid>
         <Box sx={{ mt: 2 }}>
           <KButton
             loading={pending}
@@ -1242,12 +1291,14 @@ function formatContractDate(iso: string | null): string | null {
 
 function StudentListTab({ students }: { students: StudentData[] }) {
   const [filter, setFilter] = useState<"all" | "registered" | "not_registered" | "no_room">("all")
+  const [cohortFilter, setCohortFilter] = useState<"all" | StudentCohort>("all")
   const [search, setSearch] = useState("")
 
   const filtered = students.filter((s) => {
     if (filter === "registered" && !s.isRegistered) return false
     if (filter === "not_registered" && s.isRegistered) return false
     if (filter === "no_room" && s.room) return false
+    if (cohortFilter !== "all" && s.cohort !== cohortFilter) return false
     if (search && !`${s.matricId} ${s.name} ${s.faculty ?? ""} ${s.room ?? ""}`.toLowerCase().includes(search.toLowerCase()))
       return false
     return true
@@ -1347,6 +1398,9 @@ function StudentListTab({ students }: { students: StudentData[] }) {
           </Box>
         ))}
       </Box>
+      <Box sx={{ mb: 2 }}>
+        <CohortFilterChips value={cohortFilter} onChange={setCohortFilter} allLabel="Semua cohort" />
+      </Box>
 
       {filtered.length === 0 ? (
         <KEmpty icon="group" title="Tiada pelajar" body="Tiada pelajar sepadan dengan carian atau filter, atau tiada intake aktif." />
@@ -1357,6 +1411,7 @@ function StudentListTab({ students }: { students: StudentData[] }) {
               <TableRow>
                 <TableCell>Matric</TableCell>
                 <TableCell>Nama</TableCell>
+                <TableCell>Cohort</TableCell>
                 <TableCell>Fakulti</TableCell>
                 <TableCell>Bilik · Katil</TableCell>
                 <TableCell>Rakan sebilik</TableCell>
@@ -1375,6 +1430,7 @@ function StudentListTab({ students }: { students: StudentData[] }) {
                       <Typography variant="body2">{s.name}</Typography>
                       <Typography variant="caption" sx={{ color: "text.secondary" }}>{s.gender} · {s.nationality}</Typography>
                     </TableCell>
+                    <TableCell><CohortChip cohort={s.cohort} /></TableCell>
                     <TableCell>{s.faculty ?? "—"}</TableCell>
                     <TableCell>
                       {s.room ? (
@@ -1423,6 +1479,7 @@ function StudentsTab({
   notify: (m: string, s?: "success" | "error") => void
 }) {
   const [filter, setFilter] = useState<"all" | "applied" | "no_application" | "single" | "double" | "flexible" | "allocated">("all")
+  const [cohortFilter, setCohortFilter] = useState<"all" | StudentCohort>("all")
   const [search, setSearch] = useState("")
   const [detail, setDetail] = useState<StudentData | null>(null)
   // "now" snapshot set after mount so SSR and the first client render agree —
@@ -1443,6 +1500,7 @@ function StudentsTab({
     if (filter === "double" && s.applicationType !== "double") return false
     if (filter === "flexible" && s.applicationType !== "flexible") return false
     if (filter === "allocated" && !s.room) return false
+    if (cohortFilter !== "all" && s.cohort !== cohortFilter) return false
     if (search && !`${s.matricId} ${s.name}`.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
@@ -1477,6 +1535,9 @@ function StudentsTab({
           </Box>
         ))}
       </Box>
+      <Box sx={{ mb: 2 }}>
+        <CohortFilterChips value={cohortFilter} onChange={setCohortFilter} allLabel="Semua cohort" />
+      </Box>
 
       {!deadlinePassed && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
@@ -1505,7 +1566,12 @@ function StudentsTab({
               {filtered.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>{s.matricId}</TableCell>
-                  <TableCell>{s.name}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                      <span>{s.name}</span>
+                      <CohortChip cohort={s.cohort} />
+                    </Box>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="caption" sx={{ display: "block" }}>{s.gender} · {s.race ?? "—"}</Typography>
                     <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{s.religion ?? "—"} · {s.nationality}</Typography>
@@ -1649,7 +1715,7 @@ function AssignControl({
         size="small"
         value={bedId}
         onChange={(e) => setBedId(e.target.value)}
-        sx={{ minWidth: 160, "& .MuiInputBase-input": { fontSize: 12, py: 0.5 } }}
+        sx={{ minWidth: 160 }}
         placeholder="Bed"
       >
         {beds.length === 0 ? (

@@ -130,10 +130,13 @@ export const theme = createTheme({
           borderRadius: radius.input,
           backgroundColor: t.palette.background.paper,
           fontSize: "0.875rem",
+          transition: "box-shadow 140ms ease, border-color 140ms ease",
           "& .MuiOutlinedInput-notchedOutline": { borderColor: t.palette.divider },
           "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: color.borderStrong },
           "&.Mui-focused": { boxShadow: elevation.ring },
-          "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: t.palette.text.primary, borderWidth: 1 },
+          // MD3: the focused outline is 2px (the unfocused hairline stays 1px).
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: t.palette.text.primary, borderWidth: 2 },
+          "&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: t.palette.error.main },
         }),
       },
     },
@@ -141,10 +144,46 @@ export const theme = createTheme({
       defaultProps: {
         // Always shrink the label to the notch — prevents it from ever
         // sitting on top of a `placeholder`, since many forms use both.
+        // (MUI only auto-shrinks on focus/value.) Keep this here so TextField
+        // can also open the outline notch; MuiInputLabel below is the
+        // belt-and-braces default for labels rendered outside a TextField.
         slotProps: { inputLabel: { shrink: true } },
       },
     },
-    MuiInputLabel: { styleOverrides: { root: { fontSize: "0.875rem" } } },
+    MuiInputLabel: {
+      defaultProps: { shrink: true },
+      styleOverrides: {
+        root: ({ theme: t }) => ({
+          fontSize: "0.875rem",
+          fontWeight: 500,
+          color: t.palette.text.secondary,
+          // Give the floating label an opaque chip so the outline can never
+          // cut through the glyphs — even if the notch is closed or narrow.
+          "&.MuiInputLabel-shrink": {
+            paddingInline: "4px",
+            borderRadius: "4px",
+            backgroundColor: t.palette.background.paper,
+            // Shift left by the padding so the label text stays aligned with
+            // the notch text (MUI lays the legend text out at 13px).
+            transform: "translate(10px, -9px) scale(0.75)",
+          },
+          "&.MuiInputLabel-sizeSmall.MuiInputLabel-shrink": {
+            transform: "translate(10px, -9px) scale(0.75)",
+          },
+        }),
+      },
+    },
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: ({ theme: t }) => ({
+          margin: "4px 14px 0",
+          fontSize: "0.75rem",
+          lineHeight: 1.45,
+          color: t.palette.text.secondary,
+          "&.Mui-error": { color: t.palette.error.main },
+        }),
+      },
+    },
     MuiChip: {
       styleOverrides: {
         root: { borderRadius: radius.pill, fontWeight: 550, fontSize: "0.75rem" },

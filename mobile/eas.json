@@ -1,0 +1,48 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mykiz.my",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mykiz.my",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mykiz.my",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+      }
+    },
+    "production-local": {
+      "extends": "production",
+      "credentialsSource": "local"
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal"
+      },
+      "ios": {
+        "appleId": "cyberokettechnology@gmail.com",
+        "ascAppId": "6815929833"
+      }
+    }
+  }
+}

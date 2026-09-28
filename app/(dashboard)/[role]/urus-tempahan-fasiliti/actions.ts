@@ -2,14 +2,14 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 
 export async function approveFacility(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.facilityBooking.update({
     where: { id: bookingId },
@@ -22,7 +22,7 @@ export async function approveFacility(bookingId: string) {
 export async function rejectFacility(bookingId: string) {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   await prisma.facilityBooking.update({
     where: { id: bookingId },

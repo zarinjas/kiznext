@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
@@ -8,6 +9,7 @@ import { Surface } from "@/components/kiz/primitives/list-group"
 import { StatusChip } from "@/components/kiz/primitives/status-chip"
 import { OfficeOpenBadge } from "@/components/shared/office-open-badge"
 import { ticketRef } from "@/lib/helpdesk-meta"
+import { formatRemaining } from "@/lib/laundry-meta"
 import { color, radius } from "@/lib/theme"
 import type {
   ImportantNoticeView,
@@ -15,6 +17,7 @@ import type {
   HelpdeskSummaryView,
   EmergencyContactView,
   LivingGuideView,
+  LaundryWidgetView,
 } from "@/lib/dashboard"
 
 /**
@@ -246,6 +249,49 @@ function ContactsCard({ contacts }: { contacts: EmergencyContactView[] }) {
   )
 }
 
+function laundryClock(iso: string): string {
+  return new Intl.DateTimeFormat("en-MY", {
+    timeZone: "Asia/Kuala_Lumpur",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(iso))
+}
+
+function LaundryCard({ machineName, endsAt, href }: { machineName: string; endsAt: string; href: string }) {
+  const [now, setNow] = useState<number | null>(null)
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const endMs = new Date(endsAt).getTime()
+  const remaining = now === null ? null : endMs - now
+  const isRunning = remaining !== null && remaining > 0
+
+  return (
+    <WidgetCard
+      icon="local_laundry_service"
+      title="Laundry"
+      tint={{ main: color.brand[600], soft: color.brand[50], ink: color.brand[700] }}
+      footer={
+        <Link href={href} style={{ textDecoration: "none" }}>
+          <Typography variant="caption" sx={{ color: color.brand[700], fontWeight: 650, display: "inline-flex", alignItems: "center", gap: 0.25 }}>
+            Open laundry <KIcon icon="arrow_forward" size={13} />
+          </Typography>
+        </Link>
+      }
+    >
+      <Typography sx={{ fontSize: 14, fontWeight: 650, lineHeight: 1.35, ...clamp(1) }}>{machineName}</Typography>
+      <Typography variant="caption" sx={{ color: isRunning ? "warning.main" : "text.secondary", fontWeight: isRunning ? 650 : 400, display: "block", mt: 0.5 }}>
+        {isRunning && remaining !== null ? `${formatRemaining(remaining)} · ` : ""}
+        {isRunning ? "ends" : "ended"} at {laundryClock(endsAt)}
+      </Typography>
+    </WidgetCard>
+  )
+}
+
 function GuidesCard({ guides }: { guides: LivingGuideView[] }) {
   return (
     <WidgetCard icon="menu_book" title="Life at KIZ" tint={{ main: color.success.main, soft: color.success.soft, ink: color.success.ink }}>
@@ -300,6 +346,7 @@ export function HomeWidgets({
   officeOpen,
   emergencyContacts,
   livingGuides,
+  laundry,
 }: {
   role: string
   importantNotice: ImportantNoticeView | null
@@ -308,6 +355,7 @@ export function HomeWidgets({
   officeOpen: boolean
   emergencyContacts: EmergencyContactView[]
   livingGuides: LivingGuideView[]
+  laundry: LaundryWidgetView | null
 }) {
   return (
     <Box
@@ -319,6 +367,7 @@ export function HomeWidgets({
     >
       {importantNotice && <NoticeCard notice={importantNotice} href={`/${role}/pengumuman`} />}
       {nextEvents.length > 0 && <EventsCard events={nextEvents} href={`/${role}/pengumuman`} />}
+      {laundry && <LaundryCard machineName={laundry.machineName} endsAt={laundry.endsAt} href={`/${role}/laundry`} />}
       {officeOpen && !helpdesk && <AskOfficeCard href={`/${role}/helpdesk`} />}
       {helpdesk && <HelpdeskCard ticket={helpdesk} href={`/${role}/helpdesk`} officeOpen={officeOpen} />}
       {emergencyContacts.length > 0 && <ContactsCard contacts={emergencyContacts} />}

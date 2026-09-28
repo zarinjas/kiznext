@@ -40,8 +40,8 @@ export interface SaveUploadOptions {
  * The upload is never trusted: the real format is sniffed from the content
  * (via sharp, not the browser's `file.type`), and the whole file must decode
  * cleanly before anything is persisted. Web-safe rasters (jpeg/png/webp/gif)
- * are written through unchanged; exotic phone/camera formats (HEIC, TIFF,
- * BMP, AVIF…) are re-encoded to jpeg (or png when they carry alpha) so the
+ * are written through unchanged; exotic phone/camera formats (TIFF, BMP,
+ * AVIF…) are re-encoded to jpeg (or png when they carry alpha) so the
  * stored file is always something the browser preview can render — this is
  * what previously produced "corrupt" / broken images from iPhone uploads.
  *
@@ -88,6 +88,15 @@ async function normalizeUpload(
     return { buffer: input, ext: "pdf" }
   }
 
+  // The Linux libvips used in production has no HEVC decoder, so iPhone HEIC
+  // photos fail deep inside sharp with a confusing "isn't a readable image".
+  // Detect the container up front and give an actionable message instead.
+  if (detectHeicBrand(input)) {
+    throw new UploadError(
+      "This photo is in HEIC format, which isn't supported here. On iPhone, set Settings → Camera → Formats to \"Most Compatible\", or pick a JPG/PNG photo.",
+    )
+  }
+
   let format: string | undefined
   try {
     const meta = await sharp(input, { failOn: "error", limitInputPixels: MAX_PIXELS }).metadata()
@@ -113,9 +122,9 @@ async function normalizeUpload(
     return { buffer: input, ext: PASSTHROUGH_EXT[format] }
   }
 
-  // Everything else sharp can decode (HEIC/HEIF, TIFF, BMP, AVIF, …) is
-  // re-encoded into a browser-safe format. `.rotate()` also bakes in the
-  // EXIF orientation so phone photos never show up sideways.
+  // Everything else sharp can decode (TIFF, BMP, AVIF, …) is re-encoded into a
+  // browser-safe format. `.rotate()` also bakes in the EXIF orientation so
+  // phone photos never show up sideways.
   let hasAlpha = false
   try {
     hasAlpha = !!(await sharp(input, { failOn: "error", limitInputPixels: MAX_PIXELS }).metadata())
@@ -133,4 +142,29 @@ async function normalizeUpload(
   } catch {
     throw new UploadError("That file isn't a readable image.")
   }
+}
+
+/** HEVC-based HEIF brands — the ones production libvips cannot decode. */
+const HEIC_BRANDS = new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs"])
+
+/**
+ * True when the buffer is an ISO-BMFF/HEIF file whose major or compatible
+ * brand is an HEVC-based HEIC variant (AVIF, which sharp can decode, is not
+ * matched).
+ */
+function detectHeicBrand(input: Buffer): boolean {
+  if (input.length < 12 || input.subarray(4, 8).toString("latin1") !== "ftyp") {
+    return false
+  }
+  if (HEIC_BRANDS.has(input.subarray(8, 12).toString("latin1"))) {
+    return true
+  }
+  const boxSize = input.readUInt32BE(0)
+  const end = Math.min(boxSize, input.length)
+  for (let offset = 16; offset + 4 <= end; offset += 4) {
+    if (HEIC_BRANDS.has(input.subarray(offset, offset + 4).toString("latin1"))) {
+      return true
+    }
+  }
+  return false
 }

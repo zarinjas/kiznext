@@ -19,7 +19,7 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
   },
   pengetua: {
     title: "Principal Dashboard",
-    description: "College management reports and statistics.",
+    description: "Manage college operations, approvals, and reports.",
   },
   fellow: {
     title: "Fellow Dashboard",
@@ -32,6 +32,10 @@ const welcomeMessages: Record<Role, { title: string; description: string }> = {
   staf: {
     title: "Staff Dashboard",
     description: "Book facilities, check announcements, and more.",
+  },
+  kafe: {
+    title: "KIZ Cafe Dashboard",
+    description: "Manage your cafe and view orders.",
   },
 }
 
@@ -54,6 +58,9 @@ export default async function RoleDashboardPage({
   const userRole = session.user.role as string
   if (role !== userRole) redirect(`/${userRole}`)
 
+  // The cafe operator has a single-purpose dashboard.
+  if (userRole === "kafe") redirect(`/${userRole}/urus-kafe`)
+
   // Students (ahli), staff (staf) and fellows all get the resident-style member
   // home. Only students can apply for accommodation, so the room reminder is
   // ahli-only (handled inside `getResidentHomeData`).
@@ -72,7 +79,7 @@ export default async function RoleDashboardPage({
         matricId: session.user.matricId ?? "",
         role,
       }),
-      getDashboardHeroBackground(),
+      getDashboardHeroBackground("web"),
       getDashboardPoster(),
     ])
 

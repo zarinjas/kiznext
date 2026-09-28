@@ -21,6 +21,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Auth & Profile | Login with matric ID + password. Role-based dashboard. Editable profile. |
 | Kad Maya | Digital resident card with a QR code, for identification at the gate/office. |
 | Facility Booking | Browse college facilities, view availability, book a time slot, admin approves. Approved bookings get a PDF slip. |
+| Laundry | Reminder-based machine status. No laundry-machine API exists, so each machine's live status is inferred from the reminders residents set: **No Active Reminder** → **Active Reminder** (timer running) → **Timer Ended** (finished, inside a grace window) or **Out of Service** (admin closed it). Students pick a machine, set a cycle duration (30/45/60/custom), and get a running timer; a newer reminder replaces the running one. Admins manage the machine list, mark a machine out of service, and clear stuck reminders. |
 | Guest House Booking | Admins configure the guest houses (name, description, photos, price, capacity, max stay). Students pick a guest house and book it daily/weekly/monthly; admin approves, then check-in/check-out. Payment marked manually. |
 | Helpdesk | Per-student support threads with two channels: **Live Chat** (quick questions, no form) and **Support Ticket** (structured, tracked requests/applications, e.g. room change). Admin inbox splits the two; chat thread, assign, close, and out-of-hours auto-reply are shared. |
 | KIZ-AI Concierge | A Gemini/Ollama-powered robot (`KIZ-AI`, admin-uploaded mascot with **3 emotions × 3 animated frames** — idle/thinking/happy — plus a name) that answers resident questions from the app's own content via retrieval-augmented generation (announcements, facilities, offices, guest houses, events, contacts, and an **admin-curated FAQ knowledge base**). Chat and embeddings can use different providers, and retrieval falls back to keyword search. Replies cite their sources and follow the asker's language. When it can't answer, it offers a one-tap handoff to the KIZ office, creating a pre-filled helpdesk request. Every unanswered question is logged so staff can turn it into a FAQ — the feedback loop that keeps improving answers. |
@@ -31,6 +32,7 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 | Lost & Found | Community-reported lost/found items with a photo. |
 | Accommodation Applications | Accepted students (imported from eKolej via CSV) request a single room, a same-gender double-room roommate by matric ID, or flexible placement during an admin-defined window. Students never choose or see physical rooms; admins allocate final rooms after review. See `ROOM-SELECTION.md`. |
 | Directory | AR Directory — pick a destination and a camera-compass arrow + live distance guide you to it (outdoor GPS/compass; indoor rooms are pinned by lat/lng inside the single-floor admin building). Admin manages the destination pins. |
+| Smart Ordering (KIZ Cafe) | The campus cafe has no app of its own. The cafe uploads a photo of its menu; **KIZ-AI's vision model reads it into orderable items** (the admin reviews + publishes them, or adds items by hand). Students build a cart and hand the order off to **WhatsApp** — a `wa.me` deep link pre-filled with an itemised receipt and a `#KIZ-CAFE-NNNN` pickup reference, so the cafe receives a normal WhatsApp message and there is no payment gateway (paid at pickup). Orders are stored for history + one-tap reorder, and a highlight card promotes the feature on the member dashboard. **Opening hours are a per-weekday schedule** (open/close per day, any day marked closed) plus a **closed-dates list for holidays**, so the cafe can open mornings or evenings and shut for cuti — a master "accepting orders" switch pauses everything. A dedicated **`kafe` role** lets the operator manage the cafe and view its orders and nothing else. |
 | App Settings | Superadmin uploads the app logo shown in the shell. |
 | Invitations | Superadmin invites people (student or admin) to self-register by email — one at a time or in bulk. An invited student whose matric is already on the active intake is marked a resident and activated on registration; admin invitations never need an intake match. |
 
@@ -44,28 +46,34 @@ Primary users: students (`ahli`) and college admins (`admin_kiz`).
 
 ## 3. Roles & access
 
-Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`.
+Enum `Role`: `superadmin`, `admin_kiz`, `pengetua`, `fellow`, `ahli`, `staf`, `kafe`.
 
-| Capability | superadmin | admin_kiz | pengetua | fellow | ahli | staf |
-|---|---|---|---|---|---|---|
-| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Approve bookings (facility + guest house) | ✓ | ✓ | — | — | — | — |
-| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | — | ✓ | — | ✓ |
-| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | read-only | — | — | ✓ |
-| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | read-only | — | — | — |
-| Post / edit announcements | ✓ | ✓ | — | — | — | — |
-| Manage digital guides (`urus-panduan`) | ✓ | ✓ | — | — | — | — |
-| Soft-delete chat messages / review reports | ✓ | ✓ | — | — | — | — |
-| Manage facilities, parcels | ✓ | ✓ | — | — | — | — |
-| App settings (logo) | ✓ | ✓ | — | — | — | — |
-| View-only reporting | ✓ | ✓ | ✓ | — | — | — |
-| Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — |
+| Capability | superadmin | admin_kiz | pengetua | fellow | ahli | staf | kafe |
+|---|---|---|---|---|---|---|---|
+| Own profile, Kad Maya, directory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | profile |
+| Submit bookings / tickets / reports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Read announcements & community chat | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Approve bookings (facility + guest house) | ✓ | ✓ | ✓ | — | — | — | — |
+| Answer & close helpdesk tickets (`urus-helpdesk`) | ✓ | ✓ | ✓ | ✓ | — | ✓ | — |
+| Manage accommodation (`urus-bilik`) & check-in/out (`urus-checkin`) | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| Manage guest house (`urus-rumah-tamu`) | ✓ | ✓ | ✓ | — | — | — | — |
+| Post / edit announcements | ✓ | ✓ | ✓ | — | — | — | — |
+| Manage digital guides (`urus-panduan`) | ✓ | ✓ | ✓ | — | — | — | — |
+| Soft-delete chat messages / review reports | ✓ | ✓ | ✓ | — | — | — | — |
+| Manage facilities, parcels | ✓ | ✓ | ✓ | — | — | — | — |
+| Manage KIZ Cafe (`urus-kafe`) | ✓ | ✓ | ✓ | — | — | — | ✓ |
+| Order from KIZ Cafe (`kafe`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| App settings (logo) | ✓ | ✓ | ✓ | — | — | — | — |
+| View-only reporting | ✓ | ✓ | ✓ | — | — | — | — |
+| Submit an accommodation application (`bilik`) | — | — | — | — | ✓ | — | — |
+| Set a laundry reminder (`laundry`) | — | — | — | — | ✓ | — | — |
+| Manage laundry machines (`urus-laundry`) | ✓ | ✓ | ✓ | — | — | — | — |
 
-`pengetua` (principal) is read-only by design — no approval or edit rights. They
-reach the admin views of guest house, accommodation, and check-in/out in a
-read-only state (no action buttons, no house edits).
+`pengetua` (principal) has full admin access — the same `urus-*` surfaces as
+`superadmin`/`admin_kiz` (approvals, announcements, helpdesk, accommodation,
+guest house, laundry, reports, content, users, settings, AI). The only
+superadmin-only surface is `urus-jemputan` (issuing admin invitations), and only
+a `superadmin` may edit or demote another `superadmin` account.
 
 `fellow` (residential college fellow) is a member role — resident-style home with
 a visible "Fellow" tag, community chat/bookings/eCard — **except** `bilik`
@@ -86,6 +94,13 @@ reply/close), full **accommodation** (`urus-bilik`) and **check-in/out**
 
 `admin_ukmre` (external guest-house operator) is post-MVP: add the enum value and
 route guest-house approvals to it. No schema restructure needed.
+
+`kafe` (cafe operator) is a single-purpose account for the campus cafe. It reaches
+**only** `urus-kafe` (cafe settings + menu + orders) plus its own profile / Digital
+Resident ID — every other route is blocked in `proxy.ts`, and `navForRole` returns
+a bespoke one-item menu. It is created by an admin via user management
+(`urus-pengguna`); it never self-registers. `CAFE_MANAGE_ROLES` (in `lib/rbac.ts`)
+is `superadmin` / `admin_kiz` / `kafe`.
 
 ### Registration & verification
 
@@ -136,6 +151,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `HelpdeskChannel` | live, ticket |
 | `LostFoundStatus` | lost, found, claimed |
 | `GuideCategory` | orientation, rules, program, other |
+| `LaundryMachineStatus` | available, out_of_service |
+| `LaundryReminderEndReason` | cancelled, superseded, cleared |
 
 ### Models
 
@@ -160,6 +177,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `User` | users | + `lastSeenAt` — presence heartbeat for the community-chat online count |
 | `Parcel` | parcels | `userId`, `description`, `status` (plain String: `arrived`/`collected`), `notifiedAt`, `collectedAt` |
 | `LostFoundItem` | lost_found_items | `reportedBy`, `itemName`, `photoUrl`, `status`, `locationFound` |
+| `LaundryMachine` | laundry_machines | `name`, `location` (free text), `imageUrl`, `status` (enum `available`/`out_of_service`), `sortOrder`. Admin CRUD at `urus-laundry`. A shared fallback photo lives in `AppSetting` `laundry_default_image` (uploaded at `urus-laundry`; square 800×800 px recommended). |
+| `LaundryReminder` | laundry_reminders | `machineId`, `userId`, `durationMinutes`, `startedAt`/`endsAt` (KL), `endedAt`/`endedReason` (null while running). The latest non-ended reminder drives a machine's derived state (see `lib/laundry-meta.ts`). |
 | `AppSetting` | app_settings | `key` unique / `value`. Only key in use: `app_logo`. No `createdAt`/`deletedAt`. |
 | `VerificationToken` | verification_tokens | single-use email-verify links. `userId`, `tokenHash` unique (SHA-256 of the raw token — never stored), `expiresAt`, `usedAt`. Soft-deleted when consumed. |
 | `Invitation` | invitations | superadmin-issued self-registration invite. `email`, `role` (ahli/admin_kiz), optional `matricId`/`name`, `tokenHash` unique (SHA-256, 14-day expiry), `resident` (matric matched the active intake), `acceptedAt`/`acceptedById`, `revokedAt`, `lastSentAt`, `sentCount`, `invitedById`. |
@@ -173,6 +192,8 @@ Postgres via Prisma 7. Generated client lives in `app/generated/prisma`
 | `AiKnowledge` | ai_knowledge | KIZ-AI retrieval index over app content. `sourceType` (announcement/facility/office/content/guesthouse/event/faq), `sourceId`, `title`, `content`, `embedding` (JSON `number[]`), `hash` (sha256, skip-unchanged), `href` (citation route suffix). Rebuilt by an admin "Re-index" action. |
 | `AiUnansweredLog` | ai_unanswered_log | Questions KIZ-AI couldn't answer: `userId`, `question`, `bestScore`, `ticketId` (set when escalated), `resolved`. Powers the admin "top unanswered" feedback loop. |
 | `Faq` | faqs | Admin-curated Q&A that KIZ-AI answers (the "training" surface — no fine-tuning): `category`, `question`, `answer`, `keywords` (alt phrasings/BM/ZH), `language`, `published`, `sortOrder`. Importable/exportable as CSV. Published + answered rows are indexed into `ai_knowledge`. |
+| `CafeItem` | cafe_items | A single orderable item on the KIZ Cafe menu. AI-extracted rows start `published = false` (draft) until an admin reviews them. `name`, `price`, `category`, `description`, `dietary` (String[] — halal/vegetarian/spicy/contains_nuts), `imageUrl`, `isAvailable`, `published`, `sortOrder`. Admin CRUD at `urus-kafe`. |
+| `CafeOrder` | cafe_orders | A student's cafe order. `refCode` unique (`KIZ-CAFE-NNNN`), `items` (JSON snapshot `[{ name, price, qty }]`), `subtotal`, `pickupTime`, `note`, `whatsappSentAt` (set when the student opens the WhatsApp deep link). Powers "My Orders" + one-tap reorder; payment is settled at pickup. |
 
 New enums: `Gender` (male/female), `RoomType` (single/double), `RoomApplicationType`
 (single/double/flexible), `RoomApplicationStatus`, `RoomStatus`
@@ -207,9 +228,11 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | `panduan`, `panduan/[id]` | Digital Guide library (category tabs, New badge) and the PDF reader — a flipbook (two-page spread on desktop, single page on mobile) with prev/next, keyboard/swipe, and a Download button. All roles. |
 | `chat` | Community chat — wide two-pane room (chat + community info rail), polls every 3s. |
 | `tempahan-fasiliti` | Facility booking — list, availability calendar, booking form. |
-| `rumah-tamu` | Guest house booking + own bookings + cancel. Admins and `pengetua` are redirected to `urus-rumah-tamu` (admin view only). |
-| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
+| `laundry` | Laundry (`ahli` only) — Machine Status grid + Set Reminder, and My Laundry Reminder (active timer + history). Status is reminder-derived, not sensor-based. Admins are redirected to `urus-laundry`. |
+| `rumah-tamu` | Guest house booking + own bookings + cancel. Admins (incl. `pengetua`) are redirected to `urus-rumah-tamu`. |
+| `helpdesk`, `helpdesk/[ticketId]` | Ticket list, new ticket, chat thread. The support desk (`superadmin`/`admin_kiz`/`pengetua`/`staf`/`fellow`) is redirected to `urus-helpdesk`. |
 | `hilang` | Lost & Found report form + list. |
+| `kafe` | Smart Ordering — the KIZ Cafe menu (photo + item cards with dietary tags), a cart, and a WhatsApp checkout. The order opens in WhatsApp pre-filled; the app stores it with a `#KIZ-CAFE-NNNN` reference for pickup and one-tap reorder. |
 | `bilik` | Room selection — eligibility gate, window status, visual block/floor/room/bed picker. Desktop grid + detail panel; mobile bottom-sheet + sticky confirm bar. |
 | `parcel` | My parcels. Currently behind a hardcoded "coming soon" banner. |
 | `kad-maya` | Digital ID card for every role, QR generated server-side from matric ID. Same layout for all; students show room/session, non-students show their role label (Admin KIZ / Staff / Fellow / Principal). |
@@ -223,16 +246,18 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
 | Route | Feature |
 |---|---|
 | `urus-pengumuman` | Announcement CRUD + soft delete. |
-| `urus-panduan` | Digital Guide CRUD — upload/replace a PDF (`/api/upload` → `public/uploads/guides/`), auto-detect page count, optional cover image, category, publish/draft, pin, order; soft delete. `superadmin`/`admin_kiz`. |
+| `urus-panduan` | Digital Guide CRUD — upload/replace a PDF (`/api/upload` → `public/uploads/guides/`), auto-detect page count, optional cover image, category, publish/draft, pin, order; soft delete. `superadmin`/`admin_kiz`/`pengetua`. |
 | `urus-pejabat` | Administrative-office CRUD (name/function, featured + gallery photos) and the block panorama image + label positions. |
 | `urus-direktori` | AR Directory destination pins — add/edit/soft-delete a place (name, kind, lat/lng, indoor flag, building) with a live map preview of the pin. |
 | `urus-tempahan-fasiliti` | Approve / reject / cancel facility bookings, PDF link. |
-| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). `pengetua` gets a read-only view (no action buttons, no house edits). |
-| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. `superadmin`/`admin_kiz`/`staf`/`fellow` (the support desk). |
-| `urus-checkin` | QR counter check-in/out — create sessions, print the QR sheet, view/export records, manual check-in. `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
+| `urus-rumah-tamu` | Approve / reject / check-in / check-out / mark paid, plus a **Bookings / Guest Houses** tab (add / edit / soft-delete the guest houses students book via `?tab=guest-houses`). |
+| `urus-helpdesk`, `urus-helpdesk/[ticketId]` | Ticket queue, reply, assign, close. `superadmin`/`admin_kiz`/`pengetua`/`staf`/`fellow` (the support desk). |
+| `urus-checkin` | QR counter check-in/out — create sessions, print the QR sheet, view/export records, manual check-in. `superadmin`/`admin_kiz`/`pengetua`/`staf`. |
 | `urus-fasiliti` | Facility CRUD. |
+| `urus-laundry` | Laundry machine CRUD, Out of Service toggle, and force-clear a stuck reminder. `superadmin`/`admin_kiz`/`pengetua`. |
 | `urus-parcel` | Register arrived parcel by matric ID, mark collected. |
-| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`staf` manage; `pengetua` read-only. |
+| `urus-kafe` | **Smart Ordering admin** — cafe details (name, WhatsApp number, location, hours, accepting-orders toggle), upload the menu photo, **"Extract menu with AI"** (KIZ-AI vision → reviewable item drafts), edit/publish/remove items, and a live WhatsApp message preview. `superadmin`/`admin_kiz`/`pengetua`. |
+| `urus-bilik` | Room selection admin — 5 tabs: CSV intake import + preview, selection window, building (blocks/floors/rooms/maintenance), live occupancy monitor, students (selected/not, manual post-deadline assign). `superadmin`/`admin_kiz`/`pengetua`/`staf`. |
 | `urus-tetapan` | App settings — upload / remove logo; student-card design; Resend email config (API key + From address). |
 | `urus-jemputan` | **Superadmin only.** Invite people to self-register by email (one at a time or in bulk), choosing Student or Admin KIZ; manage issued invitations (status, resend, revoke, soft-delete). |
 | `urus-ai` | KIZ-AI admin — chat/embedding providers (Gemini / Ollama), robot mascot + emotion frames, retrieval mode, **Test connection**, knowledge index + re-index, unanswered questions. |
@@ -272,5 +297,12 @@ the session role — `/dashboard` redirects to `/{role}`. Admin routes use the
   `lib/settings.ts` handles logo uploads with a 2 MB cap and a MIME allowlist
   (png/jpeg/webp/svg). The generic route has neither.
 - **Chat realtime.** Client polls a Server Action every 3s. No WebSocket layer.
+- **Laundry status.** Derived, never stored: `lib/laundry-meta.ts` maps the latest
+  non-deleted reminder + `machine.status` + a configurable grace window
+  (`AppSetting` `laundry_timer_grace_minutes`, default 30) to
+  `no_active`/`laundry_active`/`timer_ended`/`out_of_service`. No cron. The member
+  client polls a Server Action every 20s and ticks the countdown locally; a newer
+  reminder supersedes whatever was running (residents chose overwrite over queueing)
+  and each student holds at most one active reminder.
 - **Seed.** `npm run seed` creates sample users, blocks, facilities, bookings, and
   announcements. Login IDs are in `prisma/seed.ts`.

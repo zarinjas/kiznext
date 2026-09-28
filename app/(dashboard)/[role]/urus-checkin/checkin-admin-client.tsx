@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Box from "@mui/material/Box"
 import Tabs from "@mui/material/Tabs"
 import Tab from "@mui/material/Tab"
@@ -28,6 +29,7 @@ import { formatMalaysia } from "@/lib/timezone"
 import { bedLabel, parseRoomNumber, roomCodeShort } from "@/lib/bilik-format"
 import { toCsv } from "@/lib/csv"
 import { buildXlsx } from "@/lib/xlsx"
+import { docHeader, printHtml, escHtml, type PrintLogos } from "@/lib/print-doc"
 import {
   createCheckInSession,
   updateCheckInSession,
@@ -36,6 +38,8 @@ import {
   adminLookupStudent,
   adminManualCheckIn,
   adminDeleteCheckInRecord,
+  adminSetStudentRemark,
+  getCheckInRecordsVersion,
   uploadCheckinDirectionsImage,
   removeCheckinDirectionsImage,
 } from "@/lib/checkin"
@@ -76,6 +80,9 @@ interface RecordRow {
 interface RosterEntry {
   matricId: string
   name: string
+  /** Admin-only problem flag (free text), or null. */
+  remark: string | null
+  remarkAt: string | null
   blockName: string | null
   roomNumber: string | null
   bedPosition: string | null
@@ -106,6 +113,11 @@ interface ConsolidatedRow {
   hasRecord: boolean
   /** Session ids the student appears in (for the session filter). */
   sessionIds: string[]
+  /** Admin-only problem flag (free text), or null. Only editable on-roster. */
+  remark: string | null
+  remarkAt: string | null
+  /** True when the student is on the active-intake roster (remark editable). */
+  onRoster: boolean
 }
 
 const UNASSIGNED = "Unassigned"
@@ -128,6 +140,14 @@ function roomSortValue(row: ConsolidatedRow): number {
 function bedOrder(position: string | null): number {
   if (position === "right") return 1
   return 0
+}
+
+/** Most recent signature time (ms) across check-in + check-out — 0 if none. */
+function latestRecordAt(s: ConsolidatedRow): number {
+  const times = [s.checkInAt, s.checkOutAt]
+    .filter((v): v is string => Boolean(v))
+    .map((v) => new Date(v).getTime())
+  return times.length ? Math.max(...times) : 0
 }
 
 /** Block A→Z, then room number small→big, then bed A/B, then name. */
@@ -164,6 +184,9 @@ function emptyRow(key: string, matricId: string, name: string): ConsolidatedRow 
     checkOutRecordId: null,
     hasRecord: false,
     sessionIds: [],
+    remark: null,
+    remarkAt: null,
+    onRoster: false,
   }
 }
 
@@ -184,6 +207,9 @@ function consolidate(roster: RosterEntry[], records: RecordRow[]): ConsolidatedR
       roomNumber: s.roomNumber ?? "",
       bedPosition: s.bedPosition,
       roomLabel: s.roomLabel,
+      remark: s.remark,
+      remarkAt: s.remarkAt,
+      onRoster: true,
     })
   }
 
@@ -312,136 +338,6 @@ function Pill({ tone, children }: { tone: PillTone; children: React.ReactNode })
   )
 }
 
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-}
-
-interface PrintLogos {
-  ukmLogoUrl: string | null
-  appLogoUrl: string | null
-}
-
-const PRINT_STYLES = `
-  @page { size: A4 portrait; margin: 12mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  html, body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0F172A; }
-  .muted { color: #64748B; font-size: 12px; }
-
-  /* ── Document header (shared) ── */
-  .doc-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 18px; border: 1px solid #C7E6CE; background: linear-gradient(120deg, #EAF7EE 0%, #F1FAF2 55%, #F7FBF3 100%); }
-  .doc-header .logos { display: flex; align-items: center; gap: 16px; }
-  .doc-header .logos img { height: 54px; width: auto; max-width: 150px; object-fit: contain; }
-  .doc-header .brandtext { text-align: right; }
-  .doc-header h1 { font-size: 19px; letter-spacing: -0.02em; color: #004B23; }
-  .rule { height: 3px; width: 100%; background: linear-gradient(90deg, #004B23, #91C953); border-radius: 999px; margin: 12px 0 20px; }
-
-  /* ── Badges ── */
-  .badge { display: inline-block; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 800; letter-spacing: 0.10em; }
-  .badge.check_in { background: linear-gradient(135deg, #0B6B33, #004B23); color: #fff; }
-  .badge.check_out { background: linear-gradient(135deg, #F59E0B, #D97706); color: #fff; }
-
-  /* ── Records report ── */
-  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
-  th, td { border: 1px solid #E2E8F0; padding: 6px 8px; text-align: left; vertical-align: middle; }
-  th { background: #F1F5F9; }
-  .sig img { height: 34px; object-fit: contain; }
-
-  /* ── Poster ── */
-  .poster { text-align: center; }
-  .poster .poster-title { font-size: 38px; letter-spacing: -0.035em; line-height: 1.05; margin: 14px 0 8px; color: #0F172A; }
-  .poster .session { display: inline-block; font-size: 14px; font-weight: 700; color: #0B6B33; background: #EAF7EE; border: 1px solid #C7E6CE; border-radius: 999px; padding: 5px 14px; }
-  .poster .qr-wrap { margin: 20px auto 4px; width: 110mm; padding: 8mm; border-radius: 24px; background: #fff; border: 2px solid #A9D9B5; box-shadow: 0 0 0 7px #EAF7EE; }
-  .poster .qr-wrap img { display: block; width: 100%; height: auto; }
-  .poster .scan-hint { font-size: 15px; color: #475569; font-weight: 600; margin: 20px 0 22px; }
-  .poster .steps { text-align: left; max-width: 162mm; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 18px; padding: 20px 24px; background: linear-gradient(180deg, #F8FAFC, #FFFFFF); }
-  .poster .steps h3 { font-size: 15px; color: #004B23; margin-bottom: 12px; }
-  .poster .steps ol { list-style: none; counter-reset: step; padding: 0; }
-  .poster .steps li { position: relative; padding-left: 36px; margin: 11px 0; font-size: 14px; color: #334155; }
-  .poster .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: -2px; width: 24px; height: 24px; border-radius: 999px; background: linear-gradient(135deg, #0B6B33, #004B23); color: #fff; font-size: 12px; font-weight: 800; line-height: 24px; text-align: center; }
-  .poster .steps li b { color: #0F172A; }
-  .poster .zh { margin-top: 14px; font-size: 13px; color: #64748B; }
-  .poster .footer { margin-top: 8px; color: #94A3B8; font-size: 12px; }
-`
-
-/** Build the shared A4 document header with the UKM + myKIZ logos. */
-function docHeader(logos: PrintLogos, rightTitle: string, rightSub: string): string {
-  const logoImgs = [
-    logos.ukmLogoUrl ? `<img src="${escHtml(logos.ukmLogoUrl)}" alt="UKM" />` : "",
-    logos.appLogoUrl ? `<img src="${escHtml(logos.appLogoUrl)}" alt="myKIZ" />` : "",
-  ].join("")
-  return `<div class="doc-header">
-    <div class="logos">${logoImgs || '<span class="muted">KOLEJ IBU ZAIN</span>'}</div>
-    <div class="brandtext"><h1>${escHtml(rightTitle)}</h1><div class="muted">${escHtml(rightSub)}</div></div>
-  </div>
-  <div class="rule"></div>`
-}
-
-/**
- * Print an HTML fragment at A4 using a hidden same-origin iframe. More reliable
- * than window.open (no popup blocker) and waits for images before printing.
- */
-function printHtml(title: string, body: string) {
-  const prev = document.getElementById("__kiz_print_frame")
-  if (prev) prev.remove()
-
-  const iframe = document.createElement("iframe")
-  iframe.id = "__kiz_print_frame"
-  iframe.setAttribute("aria-hidden", "true")
-  iframe.style.position = "fixed"
-  iframe.style.left = "-9999px"
-  iframe.style.top = "0"
-  iframe.style.width = "1px"
-  iframe.style.height = "1px"
-  iframe.style.border = "0"
-  document.body.appendChild(iframe)
-
-  const doc = iframe.contentWindow?.document
-  if (!doc) {
-    iframe.remove()
-    return
-  }
-
-  doc.open()
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>${PRINT_STYLES}</style></head><body>${body}</body></html>`)
-  doc.close()
-
-  const win = iframe.contentWindow
-  const trigger = () => {
-    try {
-      win?.focus()
-      win?.print()
-    } finally {
-      setTimeout(() => iframe.remove(), 1500)
-    }
-  }
-
-  const images = Array.from(doc.images)
-  if (images.length === 0) {
-    setTimeout(trigger, 200)
-    return
-  }
-  let remaining = images.length
-  const oneDone = () => {
-    remaining -= 1
-    if (remaining <= 0) trigger()
-  }
-  images.forEach((img) => {
-    if (img.complete) oneDone()
-    else {
-      img.onload = oneDone
-      img.onerror = oneDone
-    }
-  })
-  // Safety net in case an image never fires.
-  setTimeout(() => {
-    if (document.getElementById("__kiz_print_frame")) trigger()
-  }, 2500)
-}
-
 function buildPosterHtml(s: SessionRow, logos: PrintLogos) {
   const isIn = s.type === "check_in"
   const action = isIn ? "CHECK-IN" : "CHECK-OUT"
@@ -470,6 +366,8 @@ function buildPosterHtml(s: SessionRow, logos: PrintLogos) {
 
 export function CheckinAdminClient({
   readOnly,
+  role,
+  activeTab,
   sessions,
   records,
   roster,
@@ -477,6 +375,8 @@ export function CheckinAdminClient({
   directionsImageUrl,
 }: {
   readOnly: boolean
+  role: string
+  activeTab: number
   sessions: SessionRow[]
   records: RecordRow[]
   roster: RosterEntry[]
@@ -484,9 +384,38 @@ export function CheckinAdminClient({
   directionsImageUrl: string | null
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState(readOnly ? 1 : 0)
   const [toast, setToast] = useState<{ msg: string; sev: "success" | "error" } | null>(null)
   const notify = (msg: string, sev: "success" | "error" = "success") => setToast({ msg, sev })
+
+  // Auto-refresh the records when a student checks in (QR or in-app) so the
+  // admin is aware without touching Refresh. We poll a cheap version and only
+  // re-render the server page when it actually changed.
+  const recordsVersion = useRef<{ latest: string | null; count: number } | null>(null)
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      if (document.hidden) return
+      try {
+        const next = await getCheckInRecordsVersion()
+        if (!alive) return
+        const prev = recordsVersion.current
+        recordsVersion.current = next
+        if (prev && (prev.count !== next.count || prev.latest !== next.latest)) {
+          if (next.count > prev.count) notify("A student just checked in — the list has been refreshed.")
+          router.refresh()
+        }
+      } catch {
+        // Ignore transient poll failures (e.g. an expired session).
+      }
+    }
+    const id = window.setInterval(poll, 5000)
+    poll()
+    return () => {
+      alive = false
+      window.clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Sessions state
   const [newName, setNewName] = useState("")
@@ -521,8 +450,13 @@ export function CheckinAdminClient({
   // Records filters
   const [sessionFilter, setSessionFilter] = useState<string>("all")
   const [blockFilter, setBlockFilter] = useState<string>("all")
+  const [remarkFilter, setRemarkFilter] = useState<"all" | "with" | "without">("all")
   const [q, setQ] = useState("")
   const [detail, setDetail] = useState<ConsolidatedRow | null>(null)
+
+  // Per-student remark editor (inside the detail dialog).
+  const [remarkDraft, setRemarkDraft] = useState("")
+  const [savingRemark, setSavingRemark] = useState(false)
 
   // Export dialog — scope by block (all or one) then pick a format.
   const [exportOpen, setExportOpen] = useState(false)
@@ -689,6 +623,21 @@ export function CheckinAdminClient({
     }
   }
 
+  async function onSaveRemark() {
+    if (!detail) return
+    setSavingRemark(true)
+    const res = await adminSetStudentRemark(detail.matricId, remarkDraft)
+    setSavingRemark(false)
+    if (res.ok) {
+      const next = { ...detail, remark: remarkDraft.trim() || null, remarkAt: remarkDraft.trim() ? new Date().toISOString() : null }
+      setDetail(next)
+      notify(remarkDraft.trim() ? `Remark saved for ${detail.name}.` : `Remark cleared for ${detail.name}.`)
+      router.refresh()
+    } else {
+      notify(res.error ?? "Couldn't save the remark", "error")
+    }
+  }
+
   const students = useMemo(() => consolidate(roster, records), [roster, records])
 
   const recordCheckInCount = records.filter((r) => r.type === "check_in").length
@@ -700,28 +649,51 @@ export function CheckinAdminClient({
     return [...set].sort(blockCompare)
   }, [students])
 
+  const withRemarkCount = students.filter((s) => hasRemark(s)).length
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return students.filter((s) => {
       if (sessionFilter !== "all" && !s.sessionIds.includes(sessionFilter)) return false
       if (blockFilter !== "all" && s.blockName !== blockFilter) return false
+      if (remarkFilter === "with" && !hasRemark(s)) return false
+      if (remarkFilter === "without" && hasRemark(s)) return false
       if (needle) {
         const hay = `${s.matricId} ${s.name} ${s.roomLabel ?? ""}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
     })
-  }, [students, sessionFilter, blockFilter, q])
+  }, [students, sessionFilter, blockFilter, remarkFilter, q])
 
   const checkedInCount = filtered.filter((s) => s.checkInAt).length
   const checkedOutCount = filtered.filter((s) => s.checkOutAt).length
 
-  // The table shows only students who actually signed; the export (Excel/CSV/
-  // Print) still uses `filtered` so every student on the roster is listed.
-  const checkedInRows = useMemo(() => filtered.filter((s) => s.hasRecord), [filtered])
+  // The table shows only students who actually signed, newest activity first so
+  // a fresh check-in/check-out lands at the top. The export (Excel/CSV/Print)
+  // still uses `filtered` (block/room order) so every roster student is listed.
+  const checkedInRows = useMemo(
+    () => filtered.filter((s) => s.hasRecord).sort((a, b) => latestRecordAt(b) - latestRecordAt(a)),
+    [filtered],
+  )
 
   const statusOf = (s: ConsolidatedRow) =>
     s.checkOutAt ? "Checked out" : s.checkInAt ? "Checked in" : "Not checked in"
+
+  /** A row is "flagged" when the admin left a non-empty remark. */
+  function hasRemark(s: ConsolidatedRow): boolean {
+    return Boolean(s.remark && s.remark.trim())
+  }
+
+  /** Remark flattened to one line for the table/export (keeps it compact). */
+  function remarkText(s: ConsolidatedRow): string {
+    return (s.remark ?? "").replace(/\s*\n+\s*/g, " · ").trim()
+  }
+
+  function openDetail(row: ConsolidatedRow) {
+    setDetail(row)
+    setRemarkDraft(row.remark ?? "")
+  }
 
   /** Short room label for exports ("101" / "101 (Bed A)"), no block prefix. */
   function roomDisplay(s: ConsolidatedRow): string {
@@ -732,7 +704,7 @@ export function CheckinAdminClient({
     return bed ? `${code} (Bed ${bed})` : code
   }
 
-  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status"]
+  const EXPORT_HEADERS = ["No.", "Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status", "Remark"]
   const toRows = (list: ConsolidatedRow[]) =>
     list.map((s, i) => [
       i + 1,
@@ -743,6 +715,7 @@ export function CheckinAdminClient({
       s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
       s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
       statusOf(s),
+      remarkText(s),
     ])
 
   function openExport() {
@@ -796,8 +769,9 @@ export function CheckinAdminClient({
       "Check-in (KL)": s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "",
       "Check-out (KL)": s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "",
       Status: statusOf(s),
+      Remark: remarkText(s),
     }))
-    const csv = toCsv(["Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status"], rows)
+    const csv = toCsv(["Matric No.", "Name", "Block", "Room", "Check-in (KL)", "Check-out (KL)", "Status", "Remark"], rows)
     const label = exportBlock === "all" ? "" : `-${exportBlock}`
     downloadBlob(
       new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" }),
@@ -824,6 +798,7 @@ export function CheckinAdminClient({
           <td>${s.checkInAt ? formatMalaysia(new Date(s.checkInAt)) : "—"}</td>
           <td>${s.checkOutAt ? formatMalaysia(new Date(s.checkOutAt)) : "—"}</td>
           <td class="sig">${sigCell([s.checkInSignatureUrl, s.checkOutSignatureUrl])}</td>
+          <td>${escHtml(remarkText(s) || "—")}</td>
         </tr>`,
       )
       .join("")
@@ -832,14 +807,37 @@ export function CheckinAdminClient({
       "Check-in / Check-out Records",
       `${docHeader(logos, "Check-in / Check-out Records", sub)}
        <div class="muted">Generated ${formatMalaysia(new Date())} · Malaysia time (UTC+8) · ${list.length} student(s)</div>
-       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block</th><th>Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="8">No students.</td></tr>`}</tbody></table>`,
+       <table><thead><tr><th>#</th><th>Matric</th><th>Name</th><th>Block</th><th>Room</th><th>Check-in (KL)</th><th>Check-out (KL)</th><th>Signature</th><th>Remark</th></tr></thead><tbody>${rowsHtml || `<tr><td colspan="9">No students.</td></tr>`}</tbody></table>`,
     )
     setExportOpen(false)
   }
 
   const columns: GridColDef[] = [
     { field: "matricId", headerName: "Matric", width: 120 },
-    { field: "name", headerName: "Name", width: 210 },
+    {
+      field: "name",
+      headerName: "Name",
+      width: 230,
+      renderCell: (p) => {
+        const s = p.row as ConsolidatedRow
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+            {hasRemark(s) && (
+              <Box
+                component="span"
+                title="Has a remark"
+                sx={{ display: "inline-flex", color: color.warning.ink, flexShrink: 0 }}
+              >
+                <KIcon icon="flag" size={16} filled />
+              </Box>
+            )}
+            <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {s.name}
+            </Box>
+          </Box>
+        )
+      },
+    },
     {
       field: "blockName",
       headerName: "Block",
@@ -879,18 +877,47 @@ export function CheckinAdminClient({
         ),
     },
     {
+      field: "remark",
+      headerName: "Remark",
+      width: 200,
+      valueGetter: (_value, row) => remarkText(row as ConsolidatedRow),
+      renderCell: (p) => {
+        const s = p.row as ConsolidatedRow
+        if (!hasRemark(s)) return <span style={{ color: "var(--mui-palette-text-disabled)" }}>—</span>
+        return (
+          <Box
+            component="span"
+            title={s.remark ?? ""}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.5,
+              maxWidth: "100%",
+              color: color.warning.ink,
+              fontWeight: 600,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <KIcon icon="flag" size={15} />
+            {remarkText(s)}
+          </Box>
+        )
+      },
+    },
+    {
       field: "signature",
       headerName: "Signature",
       width: 110,
-      renderCell: (p) => <Button size="small" onClick={() => setDetail(p.row)}>View</Button>,
+      renderCell: (p) => <Button size="small" onClick={() => openDetail(p.row)}>View</Button>,
     },
   ]
 
   return (
     <Box>
       <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
+        value={activeTab}
         sx={{
           mb: 3,
           minHeight: 40,
@@ -899,11 +926,29 @@ export function CheckinAdminClient({
           "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 600 },
         }}
       >
-        {!readOnly && <Tab label="Sessions" value={0} icon={<KIcon icon="qr_code_2" size={18} />} iconPosition="start" />}
-        <Tab label="Records" value={1} icon={<KIcon icon="fact_check" size={18} />} iconPosition="start" />
+        {!readOnly && (
+          <Tab
+            component={Link}
+            href={`/${role}/urus-checkin?tab=sessions`}
+            label="Sessions"
+            value={0}
+            icon={<KIcon icon="qr_code_2" size={18} />}
+            iconPosition="start"
+            sx={{ textDecoration: "none" }}
+          />
+        )}
+        <Tab
+          component={Link}
+          href={`/${role}/urus-checkin?tab=records`}
+          label="Records"
+          value={1}
+          icon={<KIcon icon="fact_check" size={18} />}
+          iconPosition="start"
+          sx={{ textDecoration: "none" }}
+        />
       </Tabs>
 
-      {tab === 0 && !readOnly && (
+      {activeTab === 0 && !readOnly && (
         <Box>
           <Bento sx={{ mb: 2 }}>
             <BentoItem span={4} spanXs={2}>
@@ -1093,7 +1138,7 @@ export function CheckinAdminClient({
         </Box>
       )}
 
-      {tab === 1 && (
+      {activeTab === 1 && (
         <Box>
           <Bento sx={{ mb: 2 }}>
             <BentoItem span={4} spanXs={2}>
@@ -1135,6 +1180,18 @@ export function CheckinAdminClient({
               ))}
             </TextField>
             <TextField
+              select
+              label="Remark"
+              value={remarkFilter}
+              onChange={(e) => setRemarkFilter(e.target.value as "all" | "with" | "without")}
+              size="small"
+              sx={{ minWidth: 165 }}
+            >
+              <MenuItem value="all">All students</MenuItem>
+              <MenuItem value="with">With remark ({withRemarkCount})</MenuItem>
+              <MenuItem value="without">Without remark</MenuItem>
+            </TextField>
+            <TextField
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search matric / name / room…"
@@ -1171,7 +1228,8 @@ export function CheckinAdminClient({
                 ? "Students appear here once they sign at the counter or in the app. Use Export to download the full roster."
                 : "No checked-in students match these filters."
             }
-            onRowClick={(r) => setDetail(r)}
+            onRowClick={(r) => openDetail(r)}
+            isRowHighlighted={(r) => hasRemark(r)}
           />
         </Box>
       )}
@@ -1271,6 +1329,57 @@ export function CheckinAdminClient({
                   )}
                 </Box>
               ))}
+
+              {/* Admin-only problem flag for this student. */}
+              <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.75, flexWrap: "wrap" }}>
+                  <KIcon icon="flag" size={16} />
+                  <Typography sx={{ fontWeight: 700, fontSize: 13 }}>Remark</Typography>
+                  {detail.remarkAt && (
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      · updated {formatMalaysia(new Date(detail.remarkAt))}
+                    </Typography>
+                  )}
+                </Box>
+                {readOnly || !detail.onRoster ? (
+                  <Alert severity={hasRemark(detail) ? "warning" : "info"} variant="outlined" sx={{ borderRadius: 2 }}>
+                    {!detail.onRoster
+                      ? "This student isn't on the active intake roster, so a remark can't be saved here."
+                      : hasRemark(detail)
+                        ? detail.remark
+                        : "No remark."}
+                  </Alert>
+                ) : (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                    <TextField
+                      value={remarkDraft}
+                      onChange={(e) => setRemarkDraft(e.target.value)}
+                      placeholder="e.g. Deposit not paid · room condition issue · no key returned"
+                      multiline
+                      minRows={2}
+                      maxRows={5}
+                      fullWidth
+                      slotProps={{ htmlInput: { maxLength: 500 } }}
+                      helperText={`${remarkDraft.length}/500 — admin-only, shown in the records list and the export report.`}
+                    />
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                      {hasRemark(detail) && (
+                        <Button variant="outlined" disabled={savingRemark} onClick={() => setRemarkDraft("")}>
+                          Clear
+                        </Button>
+                      )}
+                      <KButton
+                        icon="save"
+                        loading={savingRemark}
+                        disabled={remarkDraft.trim() === (detail.remark ?? "").trim()}
+                        onClick={onSaveRemark}
+                      >
+                        Save remark
+                      </KButton>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
             </DialogContent>
           </>
         )}

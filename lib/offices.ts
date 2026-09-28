@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { unlink } from "fs/promises"
 import path from "path"
@@ -14,7 +14,7 @@ const MAX_SIZE = 12 * 1024 * 1024
 async function requireAdmin(): Promise<Role> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   return session.user.role as Role
 }
 
@@ -42,14 +42,33 @@ async function removeStoredFile(url: string | null | undefined) {
 
 export type OfficeInput = {
   name: string
+  nameEn: string | null
   description: string | null
+  categoryLabel: string | null
+  categoryIcon: string | null
+  categoryTone: string | null
+  services: string[]
+  location: string | null
+  hoursLabel: string | null
+  phone: string | null
 }
 
 export async function updateOffice(id: string, data: OfficeInput) {
   const role = await requireAdmin()
   await prisma.office.update({
     where: { id },
-    data: { name: data.name, description: data.description ?? null },
+    data: {
+      name: data.name,
+      nameEn: data.nameEn ?? null,
+      description: data.description ?? null,
+      categoryLabel: data.categoryLabel ?? null,
+      categoryIcon: data.categoryIcon ?? null,
+      categoryTone: data.categoryTone ?? null,
+      services: data.services,
+      location: data.location ?? null,
+      hoursLabel: data.hoursLabel ?? null,
+      phone: data.phone ?? null,
+    },
   })
   revalidateFor(role)
 }

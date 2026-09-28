@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
 import { normalizeSocialIcon } from "@/lib/social-meta"
@@ -101,7 +101,7 @@ export async function getStayConnectedSection(): Promise<StayConnectedSection> {
 export async function getStayConnectedAdminData(): Promise<StayConnectedSection> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
 
   const [enabled, title, subtitle, rows] = await Promise.all([
     readSetting(ENABLED_KEY),
@@ -126,7 +126,7 @@ export async function getStayConnectedAdminData(): Promise<StayConnectedSection>
 async function requireAdmin(): Promise<Role> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Unauthorized")
-  requireRole(session.user.role as Role, ["admin_kiz", "superadmin"])
+  requireRole(session.user.role as Role, ADMIN_ROLES)
   return session.user.role as Role
 }
 
