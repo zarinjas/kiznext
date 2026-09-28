@@ -225,22 +225,15 @@ the grid picker picks it up automatically).
 The QR encodes the matric ID as plain text. Anyone who knows a matric ID can
 generate an identical code. Fine for casual identification, not for access control.
 
-### #11 — AR Directory needs real-device calibration (low)
+### #11 — ~~AR Directory needs real-device calibration~~ mostly resolved (low)
 
-The compass code path is best-effort across browsers (iOS `webkitCompassHeading`
-vs Android `deviceorientationabsolute` `alpha`), and the seeded destination pins
-are first-pass estimates spread across the real KIZ footprint. Both should be
-verified on a physical phone and re-pinned in `urus-direktori` from Google Maps
-("What's here?" → copy lat/lng). GPS indoors is coarse (±5–10 m), so distance
-readouts for indoor rooms (Dewan Sutera, etc.) are directional hints only. The
-arrow is now a Google-Street-View-style **standing marker** — projected to the
-horizontal screen position of its bearing via an assumed camera FOV
-(`HALF_FOV = 34°` half-angle in `components/shared/ar/ar-navigator.tsx`), sliding
-as you turn and growing/dropping as you approach. The assumed FOV is a guess;
-if the pin sits too far to one side when centred ahead (or vice-versa), tune
-`HALF_FOV` against a real phone. True world-anchored 3D (as opposed to this
-directional projection) would need camera-pose tracking — out of scope for a
-compass-only web app.
+Superseded by the 2026-09-18/21 AR pass — see the AR Directory row in
+**Built** above for the current design (rotating chevron, real OSRM routing,
+heading-up mini-map). GPS indoors is still coarse (±5–10 m), so distance
+readouts for indoor destinations remain directional hints only, and the
+compass fix (Android `deviceorientationabsolute` alpha was inverted) has only
+been confirmed on Android — iOS `webkitCompassHeading` was untouched since it
+was already correct, but hasn't had a dedicated real-iPhone test this session.
 
 ---
 
@@ -261,18 +254,13 @@ Not started, roughly in priority order.
   (bookings per week, ticket status mix). MUI X Charts are installed and ready.
 - **Dynamic / signed QR** — addresses #9.
 - **Tests** — no test framework is set up at all.
-- **AR Directory: 3 destinations still Unverified** — `Blok K18B`, `Dapur
-  Siswa`, `Parcel Locker` — coordinates are interpolated/estimated, not
-  confirmed against a real device or Google Maps pin. (`Blok K19D`, `Pejabat
-  Pentadbiran KIZ`, `Cafeteria`, `Futsal Court`, `Sick Bay`, `Pejabat UKM Real
-  Estate`, and `Meeting Room` were fixed with real on-device coordinates
-  2026-09-18, on top of the 13 fixed 2026-09-16. `Bilik Seminar` turned out to
-  be two distinct bookable rooms — split into `Seminar Room 1`/`Seminar Room
-  2`, both real-pinned, matching the Facility Booking system's existing
-  "Seminar Room 1"/"Seminar Room 2".) Confirm each remaining one on a real
-  device (the "Capture GPS here" button in `/urus-direktori` while standing at
-  the real spot is the fastest way) or via Google Maps, then toggle "GPS
-  verified" on.
+- ~~AR Directory: destinations still Unverified~~ — resolved 2026-09-18. All
+  22 active destinations now carry real, on-device-confirmed coordinates
+  (`verified: true`). `Blok K18B` (duplicate of `KIZ Student Premier
+  Housing`), `Dapur Siswa` and `Parcel Locker` were removed rather than
+  chased down. `Bilik Seminar` turned out to be two distinct bookable rooms —
+  split into `Seminar Room 1`/`Seminar Room 2`, matching the Facility Booking
+  system's existing rooms of the same names.
 - **AR mini-map hotlinks OpenStreetMap's free public tile servers** —
   `components/shared/ar/ar-minimap.tsx` pulls tiles straight from
   `tile.openstreetmap.org`, which explicitly discourages production-scale
