@@ -9,6 +9,7 @@ import { KEmpty } from "@/components/kiz/primitives/empty-state"
 import { ReactionPills, type ReactionCounts } from "./reaction-pills"
 import { AnnouncementDialog } from "./announcement-dialog"
 import { announcementTagMeta, type AnnouncementReactionType } from "@/lib/announcement-meta"
+import { richTextToPlainText } from "@/lib/rich-text"
 import { color, radius } from "@/lib/theme"
 import { TIMEZONE } from "@/lib/timezone"
 import { markAnnouncementRead, toggleAnnouncementReaction } from "./actions"
@@ -390,7 +391,7 @@ function AnnouncementCardView({
           ...clamp(3),
         }}
       >
-        {a.content}
+        {richTextToPlainText(a.content)}
       </Typography>
 
       {a.attachmentType === "image" && a.attachmentUrl && (

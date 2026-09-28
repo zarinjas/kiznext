@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { requireRole, ADMIN_ROLES } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import type { Role } from "@/lib/rbac"
+import { sanitizeRichText } from "@/lib/rich-text"
 
 export async function createAnnouncement(
   title: string,
@@ -23,7 +24,7 @@ export async function createAnnouncement(
   await prisma.announcement.create({
     data: {
       title,
-      content,
+      content: sanitizeRichText(content),
       tag,
       attachmentUrl,
       attachmentType,
@@ -57,7 +58,7 @@ export async function updateAnnouncement(
     where: { id },
     data: {
       title,
-      content,
+      content: sanitizeRichText(content),
       tag,
       attachmentUrl,
       attachmentType,

@@ -11,6 +11,7 @@ import { EditAnnouncementButton } from "./edit-announcement-button"
 import { FormSection } from "@/components/kiz/patterns/form-section"
 import { KIcon } from "@/components/kiz/primitives/icon"
 import { KEmpty } from "@/components/kiz/primitives/empty-state"
+import { richTextToPlainText } from "@/lib/rich-text"
 import { color, radius } from "@/lib/theme"
 
 export default async function UrusPengumumanPage() {
@@ -103,7 +104,7 @@ export default async function UrusPengumumanPage() {
               </Box>
               <Box sx={{ borderTop: "1px solid", borderColor: "divider", px: 2, py: 1.75 }}>
                 <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                  {a.content}
+                  {richTextToPlainText(a.content)}
                 </Typography>
                 {a.attachmentUrl && (
                   <Box

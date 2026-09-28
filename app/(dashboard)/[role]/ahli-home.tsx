@@ -13,6 +13,7 @@ import { HomeWidgets } from "@/components/shared/home/home-widgets"
 import { StayConnected } from "@/components/shared/home/stay-connected"
 import { color, font, radius, gradient } from "@/lib/theme"
 import { announcementTagMeta } from "@/lib/announcement-meta"
+import { richTextToPlainText } from "@/lib/rich-text"
 import type { HomeTodo, PinnedAnnouncementView, ResidentHomeData } from "@/lib/dashboard"
 
 /**
@@ -689,7 +690,7 @@ function PinnedAnnouncementCard({
             overflow: "hidden",
           }}
         >
-          {a.content}
+          {richTextToPlainText(a.content)}
         </Typography>
       </Box>
     </Box>

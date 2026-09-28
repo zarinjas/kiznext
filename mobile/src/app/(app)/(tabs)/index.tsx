@@ -6,6 +6,7 @@ import {
   moduleTint,
   formatWallClockTime,
   nowHhmmMalaysia,
+  richTextToPlainText,
 } from "@kiz/shared"
 import { Image } from "expo-image"
 import { router, useFocusEffect, type Href } from "expo-router"
@@ -467,7 +468,7 @@ function Announcement({ home }: { home: ResidentHome }) {
             <View style={styles.announcementCopy}>
               <Text style={styles.date}>{item.when}</Text>
               <Text numberOfLines={2} style={styles.announcementTitle}>{item.title}</Text>
-              <Text numberOfLines={2} style={styles.summary}>{item.content}</Text>
+              <Text numberOfLines={2} style={styles.summary}>{richTextToPlainText(item.content)}</Text>
             </View>
             {thumbnail ? (
               <Image source={{ uri: thumbnail }} style={styles.thumbnail} contentFit="cover" transition={150} />

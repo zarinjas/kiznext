@@ -9,9 +9,13 @@ import MenuItem from "@mui/material/MenuItem"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
 import Button from "@mui/material/Button"
+import Snackbar from "@mui/material/Snackbar"
+import Alert from "@mui/material/Alert"
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement } from "./actions"
 import { KButton } from "@/components/kiz/primitives/k-button"
 import { KIcon } from "@/components/kiz/primitives/icon"
+import { RichTextEditor } from "@/components/kiz/primitives/rich-text-editor"
+import { richTextToPlainText } from "@/lib/rich-text"
 import { color } from "@/lib/theme"
 
 interface Props {
@@ -36,6 +40,9 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
   const [attachmentUrl, setAttachmentUrl] = useState(edit?.attachmentUrl || "")
   const [attachmentType, setAttachmentType] = useState(edit?.attachmentType || "")
   const [uploading, setUploading] = useState(false)
+  const [notice, setNotice] = useState<{ severity: "success" | "error"; text: string } | null>(null)
+  // Bumped after a successful publish to remount the fields (clears the editor).
+  const [formKey, setFormKey] = useState(0)
 
   // min date is applied after mount so the SSR HTML and the first client render
   // agree (avoids a hydration mismatch on the `min` attribute near midnight).
@@ -86,22 +93,54 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
     const scheduledAt = (form.get("scheduledAt") as string) || null
     const expiresAt = (form.get("expiresAt") as string) || null
 
+    if (!richTextToPlainText(content).trim()) {
+      setLoading(false)
+      setNotice({ severity: "error", text: "Please write some content before publishing." })
+      return
+    }
+
     try {
       if (edit) {
         await updateAnnouncement(edit.id, title, content, tag, attachmentUrl || null, attachmentType || null, isPinned, scheduledAt, expiresAt)
+        setNotice({ severity: "success", text: "Announcement saved." })
+        router.refresh()
+        window.setTimeout(() => onDone?.(), 900)
       } else {
         await createAnnouncement(title, content, tag, attachmentUrl || null, attachmentType || null, isPinned, scheduledAt, expiresAt)
+        setNotice({ severity: "success", text: "Announcement published to all residents." })
+        setAttachmentUrl("")
+        setAttachmentType("")
+        setFormKey((k) => k + 1)
+        router.refresh()
       }
+    } catch (err) {
+      setNotice({ severity: "error", text: err instanceof Error ? err.message : "Something went wrong — please try again." })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!edit) return
+    if (!window.confirm("Delete this announcement?")) return
+
+    setLoading(true)
+    try {
+      await deleteAnnouncement(edit.id)
+      setNotice({ severity: "success", text: "Announcement deleted." })
       router.refresh()
-      onDone?.()
+      window.setTimeout(() => onDone?.(), 900)
+    } catch (err) {
+      setNotice({ severity: "error", text: err instanceof Error ? err.message : "Couldn't delete — please try again." })
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit}>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <Box key={formKey} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <TextField id="tag" name="tag" label="Tag" select required defaultValue={edit?.tag || "general"}>
           <MenuItem value="general">General</MenuItem>
           <MenuItem value="important">Important</MenuItem>
@@ -109,7 +148,7 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
           <MenuItem value="event">Event</MenuItem>
         </TextField>
         <TextField id="title" name="title" label="Title" defaultValue={edit?.title} required />
-        <TextField id="content" name="content" label="Content" multiline minRows={4} defaultValue={edit?.content} required />
+        <RichTextEditor name="content" defaultValue={edit?.content} placeholder="Write the announcement… Use the toolbar for bold, lists and links." />
 
         <Box>
           <Box sx={{ fontSize: 12.5, fontWeight: 600, color: "text.secondary", mb: 1 }}>
@@ -158,12 +197,8 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
           {edit && (
             <Button
               variant="outlined"
-              onClick={async () => {
-                if (window.confirm("Delete this announcement?")) {
-                  await deleteAnnouncement(edit.id)
-                  router.refresh()
-                }
-              }}
+              onClick={handleDelete}
+              disabled={loading}
               sx={{ color: "error.main", borderColor: "divider" }}
             >
               Delete
@@ -172,5 +207,17 @@ export function AnnouncementForm({ role: _role, edit, onDone }: Props) {
         </Box>
       </Box>
     </form>
+
+    <Snackbar
+      open={!!notice}
+      autoHideDuration={5000}
+      onClose={() => setNotice(null)}
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+    >
+      <Alert severity={notice?.severity} variant="standard" onClose={() => setNotice(null)}>
+        {notice?.text}
+      </Alert>
+    </Snackbar>
+    </>
   )
 }

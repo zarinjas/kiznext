@@ -1,4 +1,4 @@
-import { ANNOUNCEMENT_REACTIONS, announcementTagMeta, formatMalaysia } from "@kiz/shared"
+import { ANNOUNCEMENT_REACTIONS, announcementTagMeta, formatMalaysia, richTextToPlainText } from "@kiz/shared"
 import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { router } from "expo-router"
@@ -200,7 +200,7 @@ function AnnouncementCard({
           {announcement.title}
         </Text>
         <Text variant="body" marginTop="xs" numberOfLines={3}>
-          {announcement.content}
+          {richTextToPlainText(announcement.content)}
         </Text>
 
         <Box
@@ -358,7 +358,7 @@ function AnnouncementBody({
             {formatMalaysia(new Date(announcement.createdAt))}
           </Text>
 
-          <Text variant="body">{announcement.content}</Text>
+          <Text variant="body">{richTextToPlainText(announcement.content)}</Text>
 
           {attachment && isImage ? (
             // `contain` + a width cap: a full-bleed 220pt-tall crop stretched
