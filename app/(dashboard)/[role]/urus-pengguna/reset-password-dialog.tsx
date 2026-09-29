@@ -46,7 +46,12 @@ export function ResetPasswordDialog({ user, onClose }: Props) {
     setLoading(true)
     setError("")
     try {
-      await resetUserPassword(user.id, password)
+      const result = await resetUserPassword(user.id, password)
+      if (!result.ok) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
       router.refresh()
       onClose()
     } catch (err) {

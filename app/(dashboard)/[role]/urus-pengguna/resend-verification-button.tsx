@@ -25,7 +25,11 @@ export function ResendVerificationButton({ userId, userName }: Props) {
     setLoading(true)
     setNotice(null)
     try {
-      await resendUserVerification(userId)
+      const result = await resendUserVerification(userId)
+      if (!result.ok) {
+        setNotice({ severity: "error", text: result.error })
+        return
+      }
       setNotice({ severity: "success", text: `Verification email re-sent to ${userName}.` })
       router.refresh()
     } catch (err) {
