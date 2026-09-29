@@ -35,6 +35,8 @@ export interface GenerateOptions {
   responseSchema?: unknown
   /** Optional inline image for vision models (OCR, describe, translate). */
   image?: GenerateImage
+  /** Overrides the default 45s request timeout — shorter for lightweight backup calls. */
+  timeoutMs?: number
 }
 
 interface GeminiPart {
@@ -77,7 +79,7 @@ interface OpenAiChatResponse {
 }
 
 /** An OpenAI-compatible chat endpoint (Ollama, OpenRouter, Groq, …). */
-interface OpenAiTarget {
+export interface OpenAiTarget {
   /** Base URL without the trailing `/chat/completions`. */
   baseUrl: string
   /** Bearer token; omit for a keyless local server like Ollama. */
@@ -87,6 +89,8 @@ interface OpenAiTarget {
   label: string
   /** Extra headers, e.g. OpenRouter's attribution header. */
   extraHeaders?: Record<string, string>
+  /** Extra body fields merged into the request, e.g. DeepSeek's `thinking` toggle. */
+  extraBody?: Record<string, unknown>
 }
 
 async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string> {
@@ -108,7 +112,9 @@ async function callGemini(cfg: AiConfig, opts: GenerateOptions): Promise<string>
         generationConfig: buildGenerationConfig(cfg, opts, noThinking),
         ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
       },
-      "Gemini"
+      "Gemini",
+      undefined,
+      opts.timeoutMs
     )
 
   let data: GeminiResponse
@@ -168,6 +174,7 @@ async function callOpenAiCompatible(opts: GenerateOptions, target: OpenAiTarget)
     max_tokens: opts.maxOutputTokens ?? 1024,
     stream: false,
     ...(wantJson && withResponseFormat ? { response_format: { type: "json_object" } } : {}),
+    ...(target.extraBody ?? {}),
   })
 
   const headers: Record<string, string> = { ...(target.extraHeaders ?? {}) }
@@ -175,13 +182,13 @@ async function callOpenAiCompatible(opts: GenerateOptions, target: OpenAiTarget)
 
   let data: OpenAiChatResponse
   try {
-    data = await postJson<OpenAiChatResponse>(url, buildBody(true), target.label, headers)
+    data = await postJson<OpenAiChatResponse>(url, buildBody(true), target.label, headers, opts.timeoutMs)
   } catch (err) {
     // Some (free) models reject `response_format: json_object` — retry without
     // it and rely on the prompt's "JSON only" instruction. Mirrors the Gemini
     // thinking-config retry above.
     if (wantJson && err instanceof AiError && err.status === 400 && /response_format|json/i.test(err.message)) {
-      data = await postJson<OpenAiChatResponse>(url, buildBody(false), target.label, headers)
+      data = await postJson<OpenAiChatResponse>(url, buildBody(false), target.label, headers, opts.timeoutMs)
     } else {
       throw err
     }
@@ -196,10 +203,11 @@ async function postJson<T>(
   url: string,
   body: unknown,
   label: string,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  timeoutMs: number = TIMEOUT_MS
 ): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -239,9 +247,7 @@ export async function generateText(cfg: AiConfig, opts: GenerateOptions): Promis
   return callGemini(cfg, opts)
 }
 
-/** Generate a JSON object and parse it. Throws `AiError` on invalid JSON. */
-export async function generateJson<T>(cfg: AiConfig, opts: GenerateOptions): Promise<T> {
-  const raw = await generateText(cfg, { ...opts, json: true })
+function parseJsonReply<T>(raw: string): T {
   const cleaned = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()
   try {
     return JSON.parse(cleaned) as T
@@ -249,4 +255,21 @@ export async function generateJson<T>(cfg: AiConfig, opts: GenerateOptions): Pro
     console.error("[ai:generateJson] malformed JSON from model:", cleaned.slice(0, 500))
     throw new AiError("Model returned malformed JSON")
   }
+}
+
+/** Generate a JSON object and parse it. Throws `AiError` on invalid JSON. */
+export async function generateJson<T>(cfg: AiConfig, opts: GenerateOptions): Promise<T> {
+  const raw = await generateText(cfg, { ...opts, json: true })
+  return parseJsonReply<T>(raw)
+}
+
+/**
+ * Same as `generateJson`, but against an explicit OpenAI-compatible target
+ * instead of the admin's configured main provider — used by call sites (like
+ * KIZ Lens) that talk to their own dedicated provider (e.g. DeepSeek,
+ * Groq) independent of the app's main chat provider setting.
+ */
+export async function generateJsonFrom<T>(target: OpenAiTarget, opts: GenerateOptions): Promise<T> {
+  const raw = await callOpenAiCompatible({ ...opts, json: true }, target)
+  return parseJsonReply<T>(raw)
 }

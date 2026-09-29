@@ -1,8 +1,7 @@
 "use server"
 
 import { auth } from "@/lib/auth"
-import { getAiConfig } from "@/lib/ai/config"
-import { translateImage, isSupportedLang, type ArTranslateResult } from "@/lib/ar-translate"
+import { translateImage, isSupportedLang, isArLensUsable, type ArTranslateResult } from "@/lib/ar-translate"
 
 export interface ScanInput {
   /** Base64 JPEG bytes captured from the camera (no data-URL prefix). */
@@ -31,8 +30,7 @@ export async function scanTranslate(input: ScanInput): Promise<ScanResult> {
   if (imageBase64.length > MAX_BASE64) return { ok: false, error: "That image is too large — try again." }
   if (!isSupportedLang(input.targetLang)) return { ok: false, error: "Pick a language first." }
 
-  const ai = await getAiConfig()
-  if (!ai.enabled) {
+  if (!(await isArLensUsable())) {
     return { ok: false, error: "KIZ Lens needs its AI key configured — ask an admin to set it in App Settings → AI." }
   }
 

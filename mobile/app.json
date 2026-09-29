@@ -79,7 +79,8 @@
           "cameraPermission": "MyKIZ uses the camera to take photos for reports."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

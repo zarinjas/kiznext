@@ -43,6 +43,13 @@ interface Props {
   openrouterApiKeyFromEnv: boolean
   initialOpenrouterBaseUrl: string
   initialOpenrouterModel: string
+  ocrSpaceApiKeySet: boolean
+  googleVisionApiKeySet: boolean
+  groqApiKeySet: boolean
+  initialGroqVisionModel: string
+  initialGroqTranslateModel: string
+  deepseekApiKeySet: boolean
+  initialDeepseekModel: string
   avatarUrl: string | null
   frames: ConciergeFrames
   knowledgeCount: number
@@ -67,6 +74,13 @@ export function AiSettingsForm({
   openrouterApiKeyFromEnv,
   initialOpenrouterBaseUrl,
   initialOpenrouterModel,
+  ocrSpaceApiKeySet,
+  googleVisionApiKeySet,
+  groqApiKeySet,
+  initialGroqVisionModel,
+  initialGroqTranslateModel,
+  deepseekApiKeySet,
+  initialDeepseekModel,
   avatarUrl,
   frames,
   knowledgeCount,
@@ -90,8 +104,19 @@ export function AiSettingsForm({
   const [openrouterKey, setOpenrouterKey] = useState("")
   const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState(initialOpenrouterBaseUrl)
   const [openrouterModel, setOpenrouterModel] = useState(initialOpenrouterModel)
+  const [ocrSpaceKey, setOcrSpaceKey] = useState("")
+  const [removeOcrSpaceKey, setRemoveOcrSpaceKey] = useState(false)
+  const [googleVisionKey, setGoogleVisionKey] = useState("")
+  const [removeGoogleVisionKey, setRemoveGoogleVisionKey] = useState(false)
+  const [groqKey, setGroqKey] = useState("")
+  const [groqVisionModel, setGroqVisionModel] = useState(initialGroqVisionModel)
+  const [groqTranslateModel, setGroqTranslateModel] = useState(initialGroqTranslateModel)
+  const [deepseekKey, setDeepseekKey] = useState("")
+  const [deepseekModel, setDeepseekModel] = useState(initialDeepseekModel)
   const [removeKey, setRemoveKey] = useState(false)
   const [removeOpenrouterKey, setRemoveOpenrouterKey] = useState(false)
+  const [removeGroqKey, setRemoveGroqKey] = useState(false)
+  const [removeDeepseekKey, setRemoveDeepseekKey] = useState(false)
   const [models, setModels] = useState<OpenrouterModel[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState("")
@@ -132,13 +157,32 @@ export function AiSettingsForm({
         removeOpenrouterKey,
         openrouterBaseUrl,
         openrouterModel,
+        ocrSpaceApiKey: ocrSpaceKey,
+        removeOcrSpaceKey,
+        googleVisionApiKey: googleVisionKey,
+        removeGoogleVisionKey,
+        groqApiKey: groqKey,
+        removeGroqKey,
+        groqVisionModel,
+        groqTranslateModel,
+        deepseekApiKey: deepseekKey,
+        removeDeepseekKey,
+        deepseekModel,
       })
       if (result.success) {
         setSuccess("KIZ-AI settings saved.")
         setApiKey("")
         setOpenrouterKey("")
+        setOcrSpaceKey("")
+        setGoogleVisionKey("")
+        setGroqKey("")
+        setDeepseekKey("")
         setRemoveKey(false)
         setRemoveOpenrouterKey(false)
+        setRemoveOcrSpaceKey(false)
+        setRemoveGoogleVisionKey(false)
+        setRemoveGroqKey(false)
+        setRemoveDeepseekKey(false)
         router.refresh()
       } else {
         setError(result.error ?? "Couldn't save — try again.")
@@ -512,6 +556,186 @@ export function AiSettingsForm({
               )}
             </>
           )}
+
+          <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2.5, mt: 0.5 }}>
+            <Typography sx={{ fontWeight: 640, letterSpacing: "-0.01em" }}>KIZ Lens fast path</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25, mb: 2 }}>
+              Independent of the chat provider above — KIZ Lens (AR translate) splits each scan into a
+              text-reading step (OCR.space, then the Groq vision model below, then Google Vision as
+              backups) and a translation step (DeepSeek, then the Groq text model below, then
+              OpenRouter — the key/model configured above), before falling back to the main provider
+              above. Leave all blank to keep using only the provider selected above.
+            </Typography>
+          </Box>
+
+          <TextField
+            label="OCR.space API key"
+            type="password"
+            value={ocrSpaceKey}
+            onChange={(e) => {
+              setOcrSpaceKey(e.target.value)
+              if (e.target.value && removeOcrSpaceKey) setRemoveOcrSpaceKey(false)
+            }}
+            placeholder={ocrSpaceApiKeySet ? "Saved — leave blank to keep it" : "K8…"}
+            autoComplete="off"
+            fullWidth
+            disabled={removeOcrSpaceKey}
+            helperText={
+              removeOcrSpaceKey
+                ? "The stored key will be removed when you save."
+                : ocrSpaceApiKeySet
+                  ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
+                  : "Fastest text-reading step, free forever (25,000 scans/month, no card) — get an instant key at ocr.space/OCRAPI/freekey."
+            }
+          />
+          {ocrSpaceApiKeySet && !removeOcrSpaceKey && (
+            <Box>
+              <Button
+                size="small"
+                onClick={() => {
+                  setRemoveOcrSpaceKey(true)
+                  setOcrSpaceKey("")
+                }}
+                startIcon={<KIcon icon="delete" size={15} />}
+                sx={{ color: color.danger.main, textTransform: "none" }}
+              >
+                Remove API key
+              </Button>
+            </Box>
+          )}
+
+          <TextField
+            label="Google Vision API key"
+            type="password"
+            value={googleVisionKey}
+            onChange={(e) => {
+              setGoogleVisionKey(e.target.value)
+              if (e.target.value && removeGoogleVisionKey) setRemoveGoogleVisionKey(false)
+            }}
+            placeholder={googleVisionApiKeySet ? "Saved — leave blank to keep it" : "AIza…"}
+            autoComplete="off"
+            fullWidth
+            disabled={removeGoogleVisionKey}
+            helperText={
+              removeGoogleVisionKey
+                ? "The stored key will be removed when you save."
+                : googleVisionApiKeySet
+                  ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
+                  : "Last-resort backup — Google requires a billing account on the project even for the free 1,000 scans/month tier. Create a key in Google Cloud Console → APIs & Services → Credentials (enable the Cloud Vision API and billing first)."
+            }
+          />
+          {googleVisionApiKeySet && !removeGoogleVisionKey && (
+            <Box>
+              <Button
+                size="small"
+                onClick={() => {
+                  setRemoveGoogleVisionKey(true)
+                  setGoogleVisionKey("")
+                }}
+                startIcon={<KIcon icon="delete" size={15} />}
+                sx={{ color: color.danger.main, textTransform: "none" }}
+              >
+                Remove API key
+              </Button>
+            </Box>
+          )}
+
+          <TextField
+            label="Groq API key"
+            type="password"
+            value={groqKey}
+            onChange={(e) => {
+              setGroqKey(e.target.value)
+              if (e.target.value && removeGroqKey) setRemoveGroqKey(false)
+            }}
+            placeholder={groqApiKeySet ? "Saved — leave blank to keep it" : "gsk_…"}
+            autoComplete="off"
+            fullWidth
+            disabled={removeGroqKey}
+            helperText={
+              removeGroqKey
+                ? "The stored key will be removed when you save."
+                : groqApiKeySet
+                  ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
+                  : "Backs up both steps below, free forever (no card) — create a key at console.groq.com → API keys. Runs on Groq's own LPU hardware, so it stays fast and consistent."
+            }
+          />
+          {groqApiKeySet && !removeGroqKey && (
+            <Box>
+              <Button
+                size="small"
+                onClick={() => {
+                  setRemoveGroqKey(true)
+                  setGroqKey("")
+                }}
+                startIcon={<KIcon icon="delete" size={15} />}
+                sx={{ color: color.danger.main, textTransform: "none" }}
+              >
+                Remove API key
+              </Button>
+            </Box>
+          )}
+          <TextField
+            label="Groq vision model (OCR backup)"
+            value={groqVisionModel}
+            onChange={(e) => setGroqVisionModel(e.target.value)}
+            helperText="Backup for reading text off the image, if OCR.space fails. Default: qwen/qwen3.8-27b (the only vision-capable model currently on Groq)"
+            fullWidth
+          />
+          <TextField
+            label="Groq text model (translate backup)"
+            value={groqTranslateModel}
+            onChange={(e) => setGroqTranslateModel(e.target.value)}
+            helperText="Backup for translating the extracted text, if DeepSeek fails. Default: openai/gpt-oss-20b"
+            fullWidth
+          />
+
+          <TextField
+            label="DeepSeek API key"
+            type="password"
+            value={deepseekKey}
+            onChange={(e) => {
+              setDeepseekKey(e.target.value)
+              if (e.target.value && removeDeepseekKey) setRemoveDeepseekKey(false)
+            }}
+            placeholder={deepseekApiKeySet ? "Saved — leave blank to keep it" : "sk-…"}
+            autoComplete="off"
+            fullWidth
+            disabled={removeDeepseekKey}
+            helperText={
+              removeDeepseekKey
+                ? "The stored key will be removed when you save."
+                : deepseekApiKeySet
+                  ? "The key is hidden. Leave blank to keep it, or paste a new key to replace it."
+                  : "Main translation step — create a key at platform.deepseek.com."
+            }
+          />
+          {deepseekApiKeySet && !removeDeepseekKey && (
+            <Box>
+              <Button
+                size="small"
+                onClick={() => {
+                  setRemoveDeepseekKey(true)
+                  setDeepseekKey("")
+                }}
+                startIcon={<KIcon icon="delete" size={15} />}
+                sx={{ color: color.danger.main, textTransform: "none" }}
+              >
+                Remove API key
+              </Button>
+            </Box>
+          )}
+          <TextField
+            label="DeepSeek model"
+            value={deepseekModel}
+            onChange={(e) => setDeepseekModel(e.target.value)}
+            helperText="A small/fast model — this step never sees the image, just extracted text. Default: deepseek-flash"
+            fullWidth
+          />
+          <Alert severity="info" sx={{ mt: -0.5 }}>
+            If DeepSeek isn&apos;t set or fails, translation backs up to OpenRouter using the key/model
+            configured above — no separate field needed here.
+          </Alert>
 
           <TextField
             select

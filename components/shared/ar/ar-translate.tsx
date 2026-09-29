@@ -811,7 +811,7 @@ export function ArTranslate({ languages, suggestedLang }: Props) {
             </Button>
             <Button
               variant="contained"
-              onClick={handleScan}
+              onClick={frozen ? resetScan : handleScan}
               disabled={!cameraOn || scanning}
               startIcon={<KIcon icon={frozen ? "refresh" : "document_scanner"} size={19} />}
               sx={{

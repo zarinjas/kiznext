@@ -1,6 +1,5 @@
 import Constants from "expo-constants"
 import * as Device from "expo-device"
-import * as Notifications from "expo-notifications"
 import { Platform } from "react-native"
 import { apiDelete, apiPost } from "./api"
 
@@ -10,9 +9,29 @@ import { apiDelete, apiPost } from "./api"
  * Push tokens require a development/release build — they do not work in Expo Go
  * on Android. `app.json` must carry `extra.eas.projectId` (created by
  * `eas init`) for `getExpoPushTokenAsync` to resolve.
+ *
+ * Since Expo SDK 53, merely loading `expo-notifications` on Android inside
+ * Expo Go throws an uncaught error the moment the module initialises (it
+ * registers a push-token listener as an import side effect, and that API was
+ * removed from Expo Go) — so this file never statically imports the module.
+ * Every function below dynamically imports it first, and only when we're not
+ * in that unsupported environment, so Expo Go on Android can open the app at
+ * all; local/in-app notifications and everything else keep working, only the
+ * push-token path no-ops there.
  */
 
-export function configureNotificationHandler(): void {
+function isExpoGoAndroid(): boolean {
+  return Platform.OS === "android" && Constants.appOwnership === "expo"
+}
+
+async function loadNotifications() {
+  if (isExpoGoAndroid()) return null
+  return import("expo-notifications")
+}
+
+export async function configureNotificationHandler(): Promise<void> {
+  const Notifications = await loadNotifications()
+  if (!Notifications) return
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
@@ -36,10 +55,15 @@ export type PushStatus =
   | { state: "denied" }
   | { state: "simulator" }
   | { state: "unconfigured" }
+  | { state: "expo-go" }
   | { state: "error"; message: string }
 
 export async function getPushStatus(): Promise<PushStatus> {
   if (!Device.isDevice) return { state: "simulator" }
+  if (isExpoGoAndroid()) return { state: "expo-go" }
+
+  const Notifications = await loadNotifications()
+  if (!Notifications) return { state: "expo-go" }
 
   const { status } = await Notifications.getPermissionsAsync()
   if (status !== "granted") return { state: "denied" }
@@ -79,6 +103,12 @@ export function pushStatusLabel(status: PushStatus): { title: string; detail: st
         detail: "This build has no push project configured.",
         retry: false,
       }
+    case "expo-go":
+      return {
+        title: "Unavailable",
+        detail: "Push notifications need a development or release build, not Expo Go.",
+        retry: false,
+      }
     case "error":
       return { title: "Problem", detail: status.message, retry: true }
   }
@@ -86,6 +116,9 @@ export function pushStatusLabel(status: PushStatus): { title: string; detail: st
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (!Device.isDevice) return null
+
+  const Notifications = await loadNotifications()
+  if (!Notifications) return null
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {

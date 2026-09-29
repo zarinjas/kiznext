@@ -37,6 +37,13 @@ export default async function UrusAiPage() {
         openrouterApiKeyFromEnv={ai.openrouterApiKeyFromEnv}
         initialOpenrouterBaseUrl={ai.openrouterBaseUrl}
         initialOpenrouterModel={ai.openrouterModel}
+        ocrSpaceApiKeySet={ai.ocrSpaceApiKeySet}
+        googleVisionApiKeySet={ai.googleVisionApiKeySet}
+        groqApiKeySet={ai.groqApiKeySet}
+        initialGroqVisionModel={ai.groqVisionModel}
+        initialGroqTranslateModel={ai.groqTranslateModel}
+        deepseekApiKeySet={ai.deepseekApiKeySet}
+        initialDeepseekModel={ai.deepseekModel}
         avatarUrl={ai.avatarUrl}
         frames={ai.frames}
         knowledgeCount={ai.knowledgeCount}

@@ -20,7 +20,7 @@ import { theme } from "@/ui/theme"
 
 export { ErrorBoundary } from "@/components/error-boundary"
 
-configureNotificationHandler()
+configureNotificationHandler().catch(() => {})
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 /** Registers the device's Expo push token once a user is signed in. */

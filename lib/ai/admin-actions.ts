@@ -10,6 +10,7 @@ import sharp from "sharp"
 import { saveUpload } from "@/lib/image-upload"
 import {
   AI_SETTING_KEYS,
+  AR_LENS_SETTING_KEYS,
   DEFAULT_AI_MODEL,
   DEFAULT_GEMINI_EMBED_MODEL,
   DEFAULT_CONCIERGE_NAME,
@@ -18,7 +19,11 @@ import {
   DEFAULT_OLLAMA_EMBED_MODEL,
   DEFAULT_OPENROUTER_BASE_URL,
   DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_GROQ_VISION_MODEL,
+  DEFAULT_GROQ_TRANSLATE_MODEL,
+  DEFAULT_DEEPSEEK_MODEL,
   getConciergeFrames,
+  getArLensConfig,
   type ConciergeEmotion,
   type ConciergeFrames,
 } from "./config"
@@ -54,6 +59,7 @@ async function upsertSetting(key: string, value: string) {
 export async function getAiAdminConfig() {
   await requireAiAdmin()
   const cfg = await getAiConfig()
+  const arLens = await getArLensConfig()
   const [keyRow, orKeyRow, knowledge, withEmbedding] = await Promise.all([
     prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.apiKey } }),
     prisma.appSetting.findUnique({ where: { key: AI_SETTING_KEYS.openrouterApiKey } }),
@@ -85,6 +91,13 @@ export async function getAiAdminConfig() {
     knowledgeCount: knowledge,
     embeddedCount: withEmbedding,
     enabled: cfg.enabled,
+    ocrSpaceApiKeySet: Boolean(arLens.ocrSpaceApiKey),
+    googleVisionApiKeySet: Boolean(arLens.googleVisionApiKey),
+    groqApiKeySet: Boolean(arLens.groqApiKey),
+    groqVisionModel: arLens.groqVisionModel,
+    groqTranslateModel: arLens.groqTranslateModel,
+    deepseekApiKeySet: Boolean(arLens.deepseekApiKey),
+    deepseekModel: arLens.deepseekModel,
   }
 }
 
@@ -104,6 +117,17 @@ interface AiConfigInput {
   removeOpenrouterKey: boolean
   openrouterBaseUrl: string
   openrouterModel: string
+  ocrSpaceApiKey: string
+  removeOcrSpaceKey: boolean
+  googleVisionApiKey: string
+  removeGoogleVisionKey: boolean
+  groqApiKey: string
+  removeGroqKey: boolean
+  groqVisionModel: string
+  groqTranslateModel: string
+  deepseekApiKey: string
+  removeDeepseekKey: boolean
+  deepseekModel: string
 }
 
 export async function saveAiConfig(input: AiConfigInput): Promise<{ success: boolean; error?: string }> {
@@ -148,6 +172,33 @@ export async function saveAiConfig(input: AiConfigInput): Promise<{ success: boo
       AI_SETTING_KEYS.openrouterModel,
       input.openrouterModel.trim() || DEFAULT_OPENROUTER_MODEL
     )
+
+    if (input.removeOcrSpaceKey) {
+      await prisma.appSetting.deleteMany({ where: { key: AR_LENS_SETTING_KEYS.ocrSpaceApiKey } })
+    } else if (input.ocrSpaceApiKey.trim()) {
+      await upsertSetting(AR_LENS_SETTING_KEYS.ocrSpaceApiKey, input.ocrSpaceApiKey.trim())
+    }
+
+    if (input.removeGoogleVisionKey) {
+      await prisma.appSetting.deleteMany({ where: { key: AR_LENS_SETTING_KEYS.googleVisionApiKey } })
+    } else if (input.googleVisionApiKey.trim()) {
+      await upsertSetting(AR_LENS_SETTING_KEYS.googleVisionApiKey, input.googleVisionApiKey.trim())
+    }
+
+    if (input.removeGroqKey) {
+      await prisma.appSetting.deleteMany({ where: { key: AR_LENS_SETTING_KEYS.groqApiKey } })
+    } else if (input.groqApiKey.trim()) {
+      await upsertSetting(AR_LENS_SETTING_KEYS.groqApiKey, input.groqApiKey.trim())
+    }
+    await upsertSetting(AR_LENS_SETTING_KEYS.groqVisionModel, input.groqVisionModel.trim() || DEFAULT_GROQ_VISION_MODEL)
+    await upsertSetting(AR_LENS_SETTING_KEYS.groqTranslateModel, input.groqTranslateModel.trim() || DEFAULT_GROQ_TRANSLATE_MODEL)
+
+    if (input.removeDeepseekKey) {
+      await prisma.appSetting.deleteMany({ where: { key: AR_LENS_SETTING_KEYS.deepseekApiKey } })
+    } else if (input.deepseekApiKey.trim()) {
+      await upsertSetting(AR_LENS_SETTING_KEYS.deepseekApiKey, input.deepseekApiKey.trim())
+    }
+    await upsertSetting(AR_LENS_SETTING_KEYS.deepseekModel, input.deepseekModel.trim() || DEFAULT_DEEPSEEK_MODEL)
 
     revalidatePath("/", "layout")
     return { success: true }

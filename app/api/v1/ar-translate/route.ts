@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticate, unauthorized, badRequest, serverError } from "@/lib/mobile-auth"
-import { getAiConfig } from "@/lib/ai/config"
-import { translateImage, isSupportedLang, getSuggestedLang } from "@/lib/ar-translate"
+import { translateImage, isSupportedLang, getSuggestedLang, isArLensUsable } from "@/lib/ar-translate"
 import { AR_LANGUAGES } from "@/lib/ar-translate-meta"
 
 export const runtime = "nodejs"
@@ -49,8 +48,7 @@ export async function POST(req: NextRequest) {
   if (image.length > MAX_BASE64) return badRequest("That image is too large — try again.")
   if (!isSupportedLang(targetLang)) return badRequest("Pick a language first.")
 
-  const ai = await getAiConfig()
-  if (!ai.enabled) {
+  if (!(await isArLensUsable())) {
     return NextResponse.json(
       { error: { code: "AI_NOT_CONFIGURED", message: "KIZ Lens needs its AI key configured — ask an admin to set it in App Settings → AI." } },
       { status: 503 }

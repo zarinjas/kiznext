@@ -43,6 +43,92 @@ export const AI_SETTING_KEYS = {
   openrouterModel: "ai_openrouter_model",
 } as const
 
+// ── KIZ Lens fast path (OCR.space / Google Vision / Groq / DeepSeek) ────────
+// Independent of the main `chatProvider` above. KIZ Lens splits each scan
+// into two separate jobs, each with its own provider chain:
+//   OCR (read text + boxes off the image): OCR.space, then Groq's vision
+//     model as a backup, then Google Vision as a last resort.
+//   Translate (plain extracted text → target language, no image at all):
+//     DeepSeek, then Groq's text model, then OpenRouter (the same
+//     OpenRouter key/model configured above for the main chat provider —
+//     reused here, not a separate field).
+// Groq backs up both stages with a different model for each. It runs on its
+// own custom LPU hardware rather than GPUs, so it stays fast and consistent
+// under load — chosen over a GPU-hosted provider (which had a one-off 22s
+// spike in testing) for exactly that reason — and its free tier needs no
+// card and has no finite credit balance to run out, unlike a typical GPU
+// inference marketplace.
+// Any provider can be left unconfigured — an unset API key just skips that
+// step of its chain. If every step of both chains is unavailable, the whole
+// thing falls back to the original combined single-call design against the
+// main provider (see translateImageCombined in lib/ar-translate.ts).
+export const AR_LENS_SETTING_KEYS = {
+  ocrSpaceApiKey: "ar_lens_ocrspace_api_key",
+  googleVisionApiKey: "ar_lens_google_vision_api_key",
+  groqApiKey: "ar_lens_groq_api_key",
+  groqVisionModel: "ar_lens_groq_vision_model",
+  groqTranslateModel: "ar_lens_groq_translate_model",
+  deepseekApiKey: "ar_lens_deepseek_api_key",
+  deepseekModel: "ar_lens_deepseek_model",
+} as const
+
+export const GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+// OCR backup — the only vision-capable model currently on Groq. Ships with
+// tunable reasoning that must be turned off per-request (see the
+// `reasoning_effort` in lib/ar-translate.ts) or it burns the token budget on
+// hidden reasoning before the real answer, same class of issue as DeepSeek.
+export const DEFAULT_GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
+// Translate backup: just rephrasing a handful of already-extracted lines —
+// a small model is plenty. Ships as a reasoning model with a mandatory
+// `reasoning_effort` (see lib/ar-translate.ts) — "low" keeps the hidden
+// reasoning brief instead of burning the token budget before the answer.
+export const DEFAULT_GROQ_TRANSLATE_MODEL = "openai/gpt-oss-20b"
+
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
+// Translation of already-extracted plain text is a much lighter task than
+// reading the image — the cheap/fast Flash tier is plenty for this step.
+export const DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
+
+export interface ArLensConfig {
+  ocrSpaceApiKey: string | null
+  googleVisionApiKey: string | null
+  groqApiKey: string | null
+  groqVisionModel: string
+  groqTranslateModel: string
+  deepseekApiKey: string | null
+  deepseekModel: string
+}
+
+export async function getArLensConfig(): Promise<ArLensConfig> {
+  const [
+    ocrSpaceApiKeyRaw,
+    googleVisionApiKeyRaw,
+    groqApiKeyRaw,
+    groqVisionModelRaw,
+    groqTranslateModelRaw,
+    deepseekApiKeyRaw,
+    deepseekModelRaw,
+  ] = await Promise.all([
+    readSetting(AR_LENS_SETTING_KEYS.ocrSpaceApiKey),
+    readSetting(AR_LENS_SETTING_KEYS.googleVisionApiKey),
+    readSetting(AR_LENS_SETTING_KEYS.groqApiKey),
+    readSetting(AR_LENS_SETTING_KEYS.groqVisionModel),
+    readSetting(AR_LENS_SETTING_KEYS.groqTranslateModel),
+    readSetting(AR_LENS_SETTING_KEYS.deepseekApiKey),
+    readSetting(AR_LENS_SETTING_KEYS.deepseekModel),
+  ])
+
+  return {
+    ocrSpaceApiKey: ocrSpaceApiKeyRaw?.trim() || null,
+    googleVisionApiKey: googleVisionApiKeyRaw?.trim() || null,
+    groqApiKey: groqApiKeyRaw?.trim() || null,
+    groqVisionModel: groqVisionModelRaw?.trim() || DEFAULT_GROQ_VISION_MODEL,
+    groqTranslateModel: groqTranslateModelRaw?.trim() || DEFAULT_GROQ_TRANSLATE_MODEL,
+    deepseekApiKey: deepseekApiKeyRaw?.trim() || null,
+    deepseekModel: deepseekModelRaw?.trim() || DEFAULT_DEEPSEEK_MODEL,
+  }
+}
+
 export type ConciergeEmotion = "idle" | "thinking" | "happy"
 
 /** Up to 3 uploaded frames per emotion, played as a crossfade loop. */

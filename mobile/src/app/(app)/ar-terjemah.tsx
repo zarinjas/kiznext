@@ -5,6 +5,8 @@ import { CameraView, useCameraPermissions, type CameraCapturedPicture } from "ex
 import { Image } from "expo-image"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, ScrollView } from "react-native"
+import { Gesture, GestureDetector } from "react-native-gesture-handler"
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 
 import { ApiError } from "@/lib/api"
 import { demoLensResult, useDemo } from "@/lib/demo"
@@ -21,9 +23,15 @@ import {
   KPill,
   PressScale,
   Screen,
+  SPRING,
   Text,
   type Theme,
 } from "@/ui"
+
+/** Sheet peek height when collapsed — just the grab handle + header row. */
+const SHEET_PEEK = 72
+/** Sheet height when expanded, as a fraction of the camera stage. */
+const SHEET_EXPANDED_RATIO = 0.46
 
 interface Frozen {
   uri: string
@@ -80,6 +88,40 @@ export default function ArTerjemahScreen() {
     [frozen, stage]
   )
 
+  // Detected-text sheet — swipe down to peek at the full frame underneath,
+  // swipe back up (or tap the handle) to see the list again. `sheetY` is 0
+  // when expanded and `sheetHeight - SHEET_PEEK` when collapsed.
+  const sheetHeight = Math.round(stage.h * SHEET_EXPANDED_RATIO)
+  const sheetY = useSharedValue(0)
+  const sheetDragStart = useSharedValue(0)
+
+  const sheetPan = Gesture.Pan()
+    .onStart(() => {
+      sheetDragStart.value = sheetY.value
+    })
+    .onUpdate((e) => {
+      const max = sheetHeight - SHEET_PEEK
+      sheetY.value = Math.max(0, Math.min(max, sheetDragStart.value + e.translationY))
+    })
+    .onEnd((e) => {
+      const max = sheetHeight - SHEET_PEEK
+      const flingDown = e.velocityY > 500
+      const flingUp = e.velocityY < -500
+      const target = flingDown ? max : flingUp ? 0 : sheetY.value > max / 2 ? max : 0
+      sheetY.value = withSpring(target, SPRING)
+    })
+
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sheetY.value }] }))
+
+  const toggleSheet = useCallback(() => {
+    const max = sheetHeight - SHEET_PEEK
+    // Reanimated shared values are intentionally mutable refs — `.value =`
+    // is the library's own API, not a state update — so this is safe despite
+    // `sheetY` also appearing in this callback's dependency list.
+    // eslint-disable-next-line react-hooks/immutability
+    sheetY.value = withSpring(sheetY.value > max / 2 ? 0 : max, SPRING)
+  }, [sheetHeight, sheetY])
+
   const runScan = useCallback(
     async (frame: Frozen, lang: string) => {
       setScanning(true)
@@ -92,6 +134,8 @@ export default function ArTerjemahScreen() {
       if (demo) {
         await new Promise((r) => setTimeout(r, 900))
         setResult(demoLensResult(lang) as ArTranslateResult)
+        // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value, not React state
+        sheetY.value = withSpring(0, SPRING)
         setScanning(false)
         notifySuccess()
         return
@@ -104,7 +148,12 @@ export default function ArTerjemahScreen() {
           mimeType: "image/jpeg",
         })
         setResult(res)
-        if (res.blocks.length > 0) notifySuccess()
+        // A fresh result should always open the sheet expanded rather than
+        // staying collapsed from a previous look.
+        if (res.blocks.length > 0) {
+          sheetY.value = withSpring(0, SPRING)
+          notifySuccess()
+        }
       } catch (e) {
         setResult(null)
         notifyError()
@@ -113,7 +162,7 @@ export default function ArTerjemahScreen() {
         setScanning(false)
       }
     },
-    [demo]
+    [demo, sheetY]
   )
 
   const handleScan = useCallback(async () => {
@@ -336,62 +385,77 @@ export default function ArTerjemahScreen() {
             </Box>
           ) : null}
 
-          {/* Detected text list */}
+          {/* Detected text sheet — drag the handle (or the header) to peek at
+              the full frame underneath, or pull it back up. */}
           {!scanning && frozen && result && result.blocks.length > 0 ? (
-            <Box
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: 0,
-                maxHeight: "46%",
-                backgroundColor: theme.colors.surface,
-                borderTopLeftRadius: theme.borderRadii.cardLg,
-                borderTopRightRadius: theme.borderRadii.cardLg,
-                borderTopWidth: 1,
-                borderColor: theme.colors.border,
-              }}
+            <Animated.View
+              style={[
+                {
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: sheetHeight,
+                  backgroundColor: theme.colors.surface,
+                  borderTopLeftRadius: theme.borderRadii.cardLg,
+                  borderTopRightRadius: theme.borderRadii.cardLg,
+                  borderTopWidth: 1,
+                  borderColor: theme.colors.border,
+                  overflow: "hidden",
+                },
+                sheetStyle,
+              ]}
             >
-              <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-                <Box flexDirection="row" alignItems="center" gap="s" marginBottom="s">
-                  <Text variant="label">DETECTED TEXT · {result.blocks.length}</Text>
-                  {sourceLangLabel(result.sourceLang) ? (
-                    <Box
-                      flexDirection="row"
-                      alignItems="center"
-                      gap="xs"
-                      paddingHorizontal="s"
-                      paddingVertical="xs"
-                      borderRadius="pill"
-                      backgroundColor="brand50"
-                    >
-                      <Icon name="auto_awesome" size={13} color={theme.colors.brand700} />
-                      <Text style={{ color: theme.colors.brand700, fontSize: 11, fontWeight: "700" }}>
-                        {sourceLangLabel(result.sourceLang)}
-                      </Text>
-                    </Box>
-                  ) : null}
-                  <PressScale
-                    onPress={() => speak(result.blocks.map((b) => b.translation).join(". "), activeLang)}
-                    style={{ marginLeft: "auto" }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Listen to the whole translation"
-                  >
-                    <Box
-                      flexDirection="row"
-                      alignItems="center"
-                      gap="xs"
-                      paddingHorizontal="m"
-                      minHeight={40}
-                      justifyContent="center"
-                      borderRadius="pill"
-                      backgroundColor="brand50"
-                    >
-                      <Icon name="volume_up" size={15} color={theme.colors.brand700} />
-                      <Text style={{ color: theme.colors.brand700, fontSize: 11.5, fontWeight: "700" }}>Listen</Text>
+              <GestureDetector gesture={sheetPan}>
+                <Box>
+                  <PressScale onPress={toggleSheet} haptic={false} accessibilityRole="button" accessibilityLabel="Drag to resize">
+                    <Box alignItems="center" paddingTop="s" paddingBottom="xs">
+                      <Box width={38} height={4} borderRadius="pill" backgroundColor="borderStrong" />
                     </Box>
                   </PressScale>
+                  <Box flexDirection="row" alignItems="center" gap="s" paddingHorizontal="l" paddingBottom="s">
+                    <Text variant="label">DETECTED TEXT · {result.blocks.length}</Text>
+                    {sourceLangLabel(result.sourceLang) ? (
+                      <Box
+                        flexDirection="row"
+                        alignItems="center"
+                        gap="xs"
+                        paddingHorizontal="s"
+                        paddingVertical="xs"
+                        borderRadius="pill"
+                        backgroundColor="brand50"
+                      >
+                        <Icon name="auto_awesome" size={13} color={theme.colors.brand700} />
+                        <Text style={{ color: theme.colors.brand700, fontSize: 11, fontWeight: "700" }}>
+                          {sourceLangLabel(result.sourceLang)}
+                        </Text>
+                      </Box>
+                    ) : null}
+                    <PressScale
+                      onPress={() => speak(result.blocks.map((b) => b.translation).join(". "), activeLang)}
+                      style={{ marginLeft: "auto" }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Listen to the whole translation"
+                    >
+                      <Box
+                        flexDirection="row"
+                        alignItems="center"
+                        gap="xs"
+                        paddingHorizontal="m"
+                        minHeight={40}
+                        justifyContent="center"
+                        borderRadius="pill"
+                        backgroundColor="brand50"
+                      >
+                        <Icon name="volume_up" size={15} color={theme.colors.brand700} />
+                        <Text style={{ color: theme.colors.brand700, fontSize: 11.5, fontWeight: "700" }}>Listen</Text>
+                      </Box>
+                    </PressScale>
+                  </Box>
                 </Box>
+              </GestureDetector>
+
+              <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 28 }}>
                 {result.blocks.map((block, i) => (
                   <Box
                     key={i}
@@ -420,7 +484,7 @@ export default function ArTerjemahScreen() {
                   </Box>
                 ))}
               </ScrollView>
-            </Box>
+            </Animated.View>
           ) : null}
         </Box>
 
@@ -452,7 +516,7 @@ export default function ArTerjemahScreen() {
               <KButton
                 label={frozen ? "Re-scan" : "Scan"}
                 icon={frozen ? "refresh" : "document_scanner"}
-                onPress={handleScan}
+                onPress={frozen ? resetScan : handleScan}
                 disabled={scanning}
                 loading={scanning}
               />
