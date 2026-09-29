@@ -19,3 +19,8 @@ export function absoluteUrl(path: string | null | undefined): string | null {
   if (/^https?:\/\//.test(path)) return path
   return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`
 }
+
+/** Absolute URL to a public page on the web app (privacy, terms, …). */
+export function webUrl(path: string): string {
+  return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`
+}

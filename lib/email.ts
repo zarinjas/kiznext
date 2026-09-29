@@ -260,6 +260,68 @@ function buildPasswordResetHtml({
   })
 }
 
+// ── Login link email ─────────────────────────────────────────────────────────
+
+export interface LoginLinkMail {
+  to: string
+  name: string
+  matricId: string
+  loginUrl: string
+}
+
+/**
+ * Sends the "set your password to sign in" message for an account an admin
+ * created. In local dev without an API key the link is written to the server
+ * console instead of sent.
+ */
+export async function sendLoginLinkEmail({ to, name, matricId, loginUrl }: LoginLinkMail): Promise<void> {
+  const client = await resendClient()
+
+  if (!client) {
+    if (process.env.NODE_ENV !== "production") {
+      console.info(`[email:dev] login link for ${to}: ${loginUrl}`)
+      return
+    }
+    throw new Error("Email is not configured. Set your Resend API key in App Settings.")
+  }
+
+  const html = buildLoginLinkHtml({ name, matricId, loginUrl })
+
+  const { error } = await client.emails.send({
+    from: await sender(),
+    to,
+    subject: "Set your password to sign in — KIZ Super App",
+    html,
+  })
+
+  if (error) throw new Error(error.message)
+}
+
+function buildLoginLinkHtml({
+  name,
+  matricId,
+  loginUrl,
+}: {
+  name: string
+  matricId: string
+  loginUrl: string
+}): string {
+  return renderEmailShell({
+    heading: "Welcome to KIZ Super App",
+    bodyHtml: `Hi ${escapeHtml(name)},<br />
+      An account has been created for you. Set your password below, then sign in with
+      Matric No. <strong style="color:#111827;">${escapeHtml(matricId)}</strong>.`,
+    cta: { label: "Set my password", url: loginUrl },
+    footerHtml: `
+      <p style="margin:0 0 6px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#8a8f98;">
+        This link works once and expires in 7 days. If you weren't expecting this email, you can safely ignore it.
+      </p>
+      <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#8a8f98;">
+        Need help? Contact the KIZ management office.
+      </p>`,
+  })
+}
+
 // ── Broadcast notification email ─────────────────────────────────────────────
 
 export interface BroadcastMailRecipient {

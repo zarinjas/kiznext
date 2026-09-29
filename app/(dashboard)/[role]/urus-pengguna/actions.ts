@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { requireRole, ADMIN_ROLES, type Role } from "@/lib/rbac"
-import { issueVerificationTokenAndEmail } from "@/lib/registration"
+import { issueLoginLinkAndEmail, issueVerificationTokenAndEmail } from "@/lib/registration"
 
 /**
  * User management (urus-pengguna) — create, edit, soft-delete, and reset
@@ -290,6 +290,35 @@ export async function activateUser(id: string): Promise<UserActionResult> {
     return { ok: true }
   } catch (err) {
     return { ok: false, error: toActionError(err, "Couldn't activate that account — try again.") }
+  }
+}
+
+/**
+ * Emails an admin-created account a one-time link to set its own password and
+ * sign in. The recipient needs no knowledge of the password the admin typed.
+ */
+export async function sendUserLoginLink(id: string): Promise<UserActionResult> {
+  try {
+    const session = await assertAdmin()
+    const sessionRole = session.user.role as Role
+
+    const target = await prisma.user.findUnique({ where: { id } })
+    if (!target || target.deletedAt) return { ok: false, error: "User not found" }
+    if (!canManageRole(sessionRole, target.role)) {
+      return { ok: false, error: "Only the Super Admin can manage Super Admin accounts" }
+    }
+    if (target.accountStatus !== "active") {
+      return { ok: false, error: "Activate this account before sending a login link" }
+    }
+    if (!target.email) {
+      return { ok: false, error: "Add an email address to this account first" }
+    }
+
+    await issueLoginLinkAndEmail(target)
+    revalidatePath(`/${sessionRole}/urus-pengguna`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: toActionError(err, "Couldn't send the login link — try again.") }
   }
 }
 

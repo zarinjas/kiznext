@@ -4,9 +4,9 @@ import { useTheme } from "@shopify/restyle"
 import { Image } from "expo-image"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
-import { Linking, Switch } from "react-native"
+import { Alert, Linking, Switch } from "react-native"
 
-import { ApiError, apiFetch } from "@/lib/api"
+import { ApiError, apiDelete, apiFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { pickAndUploadAvatar } from "@/lib/avatar"
 import { useDemo } from "@/lib/demo"
@@ -18,7 +18,7 @@ import {
   isBiometricEnabled,
   setBiometricEnabled,
 } from "@/lib/biometric"
-import { absoluteUrl } from "@/lib/config"
+import { absoluteUrl, webUrl } from "@/lib/config"
 import type { MobileUser } from "@/lib/types"
 import {
   Box,
@@ -52,6 +52,7 @@ export default function ProfileScreen() {
   const [bioLabel, setBioLabel] = useState("Biometric unlock")
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; phone?: string }>({})
   const [push, setPush] = useState<PushStatus | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const pushInfo = push ? pushStatusLabel(push) : null
 
   // Push registration used to fail silently, so a resident could have
@@ -153,6 +154,37 @@ export default function ProfileScreen() {
     } finally {
       setBusy(false)
     }
+  }
+
+  function openLegal(path: string) {
+    Linking.openURL(webUrl(path)).catch(() => toast.error("Couldn't open that link."))
+  }
+
+  async function deleteAccount() {
+    setDeleting(true)
+    try {
+      await apiDelete("/account")
+      await signOut()
+      router.replace("/login")
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Couldn't delete your account. Please try again."
+      )
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  function confirmDeleteAccount() {
+    if (deleting) return
+    Alert.alert(
+      "Delete your account?",
+      "This deactivates your account immediately, releases your room and signs you out. Past records are kept as institutional records. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete account", style: "destructive", onPress: () => void deleteAccount() },
+      ]
+    )
   }
 
   const avatarUri = absoluteUrl(user.avatarUrl)
@@ -373,6 +405,31 @@ export default function ProfileScreen() {
             await AsyncStorage.removeItem("kiz.onboarding.seen")
             toast.success("Walkthrough will show on next app launch.")
           }}
+        />
+      </ListGroup>
+
+      <Box height={24} />
+
+      <ListGroup title="Legal & privacy">
+        <ListRow
+          icon="privacy_tip"
+          title="Privacy Policy"
+          onPress={() => openLegal("/privacy")}
+        />
+        <ListRow
+          icon="description"
+          title="Terms & Conditions"
+          onPress={() => openLegal("/terms")}
+        />
+        <ListRow
+          icon="delete_forever"
+          title={
+            <Text variant="bodyStrong" style={{ color: theme.colors.dangerInk }}>
+              {deleting ? "Deleting account…" : "Delete account"}
+            </Text>
+          }
+          subtitle="Deactivate your account and release your room"
+          onPress={confirmDeleteAccount}
         />
       </ListGroup>
 

@@ -100,7 +100,7 @@ export default async function RoleDashboardPage({
 
   const info = welcomeMessages[session.user.role]
 
-  const [pendingFacility, pendingGuestHouse, openTickets, activeLostFound] =
+  const [pendingFacility, pendingGuestHouse, openTickets, activeLostFound, account] =
     await Promise.all([
       prisma.facilityBooking.count({ where: { status: "pending", deletedAt: null } }),
       prisma.guestHouseBooking.count({ where: { status: "pending", deletedAt: null } }),
@@ -108,13 +108,14 @@ export default async function RoleDashboardPage({
         where: { status: { in: ["submitted", "under_review", "in_progress", "more_info_required"] }, deletedAt: null },
       }),
       prisma.lostFoundItem.count({ where: { status: { not: "claimed" }, deletedAt: null } }),
+      prisma.user.findUnique({ where: { id: session.user.id }, select: { name: true } }),
     ])
 
   return (
     <AdminHome
       title={info.title}
       description={info.description}
-      userName={session.user.name ?? ""}
+      userName={account?.name ?? session.user.name ?? ""}
       role={session.user.role}
       stats={{
         pendingFacility,

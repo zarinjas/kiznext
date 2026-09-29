@@ -22,6 +22,7 @@ import { ResetPasswordDialog } from "./reset-password-dialog"
 import { DeleteUserButton } from "./delete-user-button"
 import { ActivateUserButton } from "./activate-user-button"
 import { ResendVerificationButton } from "./resend-verification-button"
+import { SendLoginLinkButton } from "./send-login-link-button"
 
 export interface UserRow {
   id: string
@@ -183,7 +184,7 @@ export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }
       headerName: "",
       sortable: false,
       filterable: false,
-      width: 176,
+      width: 208,
       renderCell: ({ row }) => (
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.75 }}>
           {row.accountStatus === "unverified" && (
@@ -194,6 +195,7 @@ export function UsersClient({ users, currentUserId, isSuperAdmin, blockOptions }
           )}
           {row.accountStatus === "active" && (
             <>
+              <SendLoginLinkButton userId={row.id} userName={row.name} hasEmail={!!row.email} />
               <Tooltip title="Edit">
                 <IconButton size="small" onClick={() => setEditing(row)} aria-label={`Edit ${row.name}`}>
                   <KIcon icon="edit" size={18} />

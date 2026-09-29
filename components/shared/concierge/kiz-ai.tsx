@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type MouseEvent } from "react"
 import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
+import { motion, useMotionValue } from "framer-motion"
 import Box from "@mui/material/Box"
 import Drawer from "@mui/material/Drawer"
 import Typography from "@mui/material/Typography"
@@ -35,6 +35,9 @@ const SUGGESTIONS = [
   "Bila saya boleh pilih bilik?",
   "How do I report a lost item?",
 ]
+
+/** Where the draggable launcher's position / hidden state is remembered. */
+const LAUNCHER_KEY = "kiz-ai:launcher"
 
 /** Frame-loop speed per emotion (ms between frames). */
 const EMOTION_INTERVAL: Record<ConciergeEmotion, number> = {
@@ -152,18 +155,42 @@ export function KizAi({
   const [loading, setLoading] = useState(false)
   const [escalating, setEscalating] = useState<string | null>(null)
   const [emotion, setEmotion] = useState<ConciergeEmotion>("idle")
+  const [dismissed, setDismissed] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const moodTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dragBounds = useRef<HTMLDivElement>(null)
+  const dragX = useMotionValue(0)
+  const dragY = useMotionValue(0)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, loading])
 
   useEffect(() => {
-    const onOpen = () => setOpen(true)
+    const onOpen = () => {
+      setDismissed(false)
+      setOpen(true)
+    }
     window.addEventListener("kiz-ai:open", onOpen)
     return () => window.removeEventListener("kiz-ai:open", onOpen)
   }, [])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(LAUNCHER_KEY)
+        if (!raw) return
+        const saved = JSON.parse(raw) as { x?: number; y?: number; dismissed?: boolean }
+        if (typeof saved.x === "number") dragX.set(saved.x)
+        if (typeof saved.y === "number") dragY.set(saved.y)
+        if (saved.dismissed) setDismissed(true)
+      } catch {
+        /* ignore malformed storage */
+      }
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [dragX, dragY])
 
   useEffect(() => {
     return () => {
@@ -172,6 +199,17 @@ export function KizAi({
   }, [])
 
   if (!enabled) return null
+
+  /** Persist the launcher's dragged position and/or hidden state. */
+  function saveLauncher(patch: { x?: number; y?: number; dismissed?: boolean }) {
+    try {
+      const raw = localStorage.getItem(LAUNCHER_KEY)
+      const prev = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+      localStorage.setItem(LAUNCHER_KEY, JSON.stringify({ ...prev, ...patch }))
+    } catch {
+      /* ignore storage failures (private mode, etc.) */
+    }
+  }
 
   /** Show "happy" briefly, then settle back to idle. */
   function flashHappy() {
@@ -520,16 +558,21 @@ export function KizAi({
 
   return (
     <>
+      {/* Invisible full-viewport layer that keeps the launcher draggable but on-screen */}
+      <Box ref={dragBounds} sx={{ position: "fixed", inset: 0, zIndex: 24, pointerEvents: "none" }} />
+
       {/* Floating launcher */}
-      {!open && (
+      {!open && !dismissed && (
         <Box
-          component={motion.button}
-          aria-label={`Open ${name}`}
-          onClick={() => setOpen(true)}
-          animate={{ y: [0, -6, 0] }}
-          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          component={motion.div}
+          drag
+          dragConstraints={dragBounds}
+          dragMomentum={false}
+          dragElastic={0.08}
+          onDragEnd={() => saveLauncher({ x: dragX.get(), y: dragY.get() })}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{ x: dragX, y: dragY }}
           sx={{
             position: "fixed",
             right: { xs: 16, md: 24 },
@@ -537,27 +580,78 @@ export function KizAi({
             zIndex: 25,
             width: 60,
             height: 60,
-            p: 0,
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            filter: "drop-shadow(0 8px 16px rgba(9,9,11,0.22))",
+            touchAction: "none",
           }}
         >
-          <RobotSprite key={emotion} frames={frames[emotion]} fallback={avatarUrl} size={60} intervalMs={EMOTION_INTERVAL[emotion]} />
           <Box
+            component={motion.button}
+            aria-label={`Open ${name}`}
+            onClick={() => setOpen(true)}
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            sx={{
+              width: 60,
+              height: 60,
+              p: 0,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              filter: "drop-shadow(0 8px 16px rgba(9,9,11,0.22))",
+            }}
+          >
+            <RobotSprite key={emotion} frames={frames[emotion]} fallback={avatarUrl} size={60} intervalMs={EMOTION_INTERVAL[emotion]} />
+            <Box
+              sx={{
+                position: "absolute",
+                top: 1,
+                right: 1,
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                backgroundColor: color.success.main,
+                border: "2px solid",
+                borderColor: "background.paper",
+              }}
+            />
+          </Box>
+
+          {/* Small dismiss control — hides the launcher, restorable from the top bar */}
+          <Box
+            component={motion.button}
+            aria-label={`Hide ${name}`}
+            onClick={(e: MouseEvent) => {
+              e.stopPropagation()
+              setDismissed(true)
+              setHovered(false)
+              saveLauncher({ dismissed: true })
+            }}
+            initial={false}
+            animate={{ opacity: hovered || isMobile ? 1 : 0, scale: hovered || isMobile ? 1 : 0.7 }}
+            transition={{ duration: 0.15 }}
             sx={{
               position: "absolute",
-              top: 1,
-              right: 1,
-              width: 12,
-              height: 12,
+              top: -6,
+              left: -6,
+              width: 20,
+              height: 20,
+              p: 0,
               borderRadius: "50%",
-              backgroundColor: color.success.main,
-              border: "2px solid",
-              borderColor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundColor: "background.paper",
+              color: "text.secondary",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 1px 3px rgba(9,9,11,0.18)",
+              pointerEvents: hovered || isMobile ? "auto" : "none",
             }}
-          />
+          >
+            <KIcon icon="close" size={13} />
+          </Box>
         </Box>
       )}
 

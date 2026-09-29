@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/db"
-import { appOrigin, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email"
+import { appOrigin, sendLoginLinkEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email"
 import { markInvitationAccepted, resolvePendingInvitation } from "@/lib/invitations"
 import { cleanMatric } from "@/lib/room-selection"
 import type { AccountStatus, Role } from "@/lib/rbac"
@@ -27,6 +27,8 @@ export const STUDENT_EMAIL_DOMAIN = "siswa.ukm.edu.my"
 export const STAFF_EMAIL_DOMAIN = "ukm.edu.my"
 export const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000
+/** Admin-sent login links are given longer, since the recipient may not be at a desk. */
+export const LOGIN_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const MIN_PASSWORD_LENGTH = 8
 
 export function normalizeMatric(raw: string): string {
@@ -81,6 +83,42 @@ export async function issueVerificationTokenAndEmail(user: {
     name: user.name,
     matricId: user.matricId,
     verifyUrl,
+  })
+}
+
+/**
+ * Admin-initiated: emails a one-time link so a pre-created account can choose
+ * its own password and sign in. Reuses the single-use password-reset token
+ * store, so only one live link exists at a time (sending again invalidates the
+ * previous one).
+ */
+export async function issueLoginLinkAndEmail(user: {
+  id: string
+  email: string | null
+  name: string
+  matricId: string
+}): Promise<void> {
+  if (!user.email) throw new Error("This account has no email address on file")
+
+  const raw = randomBytes(24).toString("base64url")
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + LOGIN_LINK_TTL_MS)
+
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null, deletedAt: null },
+      data: { deletedAt: now },
+    }),
+    prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash: hashToken(raw), expiresAt },
+    }),
+  ])
+
+  await sendLoginLinkEmail({
+    to: user.email,
+    name: user.name,
+    matricId: user.matricId,
+    loginUrl: `${appOrigin()}/set-kata-laluan?token=${encodeURIComponent(raw)}`,
   })
 }
 

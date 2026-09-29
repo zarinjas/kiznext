@@ -99,6 +99,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = user.role as Role
         token.matricId = user.matricId as string
         token.accountStatus = user.accountStatus as AccountStatus
+        token.name = user.name
+        token.email = user.email
       }
       return token
     },
@@ -107,6 +109,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.role = token.role
       session.user.matricId = token.matricId
       session.user.accountStatus = token.accountStatus
+      session.user.name = token.name ?? session.user.name
+      session.user.email = token.email ?? session.user.email
       return session
     },
   },
