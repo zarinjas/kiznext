@@ -29,7 +29,12 @@ export function ActivateUserButton({ userId, userName, userMatricId }: Props) {
     setLoading(true)
     setError("")
     try {
-      await activateUser(userId)
+      const result = await activateUser(userId)
+      if (!result.ok) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
       setOpen(false)
       router.refresh()
     } catch (err) {

@@ -29,7 +29,12 @@ export function DeleteUserButton({ userId, userName, userMatricId, isSelf }: Pro
     setLoading(true)
     setError("")
     try {
-      await deleteUser(userId)
+      const result = await deleteUser(userId)
+      if (!result.ok) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
       setOpen(false)
       router.refresh()
     } catch (err) {

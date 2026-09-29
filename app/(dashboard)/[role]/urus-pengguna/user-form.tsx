@@ -65,11 +65,17 @@ export function UserForm({ initialData, isSuperAdmin, blockOptions, onClose }: P
     }
 
     try {
-      if (isEditing && initialData?.id) {
-        await updateUser(initialData.id, input)
-      } else {
-        await createUser({ ...input, password })
+      const result =
+        isEditing && initialData?.id
+          ? await updateUser(initialData.id, input)
+          : await createUser({ ...input, password })
+
+      if (!result.ok) {
+        setError(result.error)
+        setLoading(false)
+        return
       }
+
       router.refresh()
       onClose()
     } catch (err) {
