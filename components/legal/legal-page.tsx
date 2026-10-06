@@ -13,6 +13,7 @@ import { LEGAL, type LegalDocSet, type LegalLang } from "@/lib/legal"
 
 const NAV = [
   { href: "/privacy", label: { ms: "Dasar Privasi", en: "Privacy Policy" } },
+  { href: "/data-safety", label: { ms: "Keselamatan Data", en: "Data Safety" } },
   { href: "/terms", label: { ms: "Terma & Syarat", en: "Terms & Conditions" } },
   { href: "/delete-account", label: { ms: "Pemadaman Akaun", en: "Account Deletion" } },
 ]

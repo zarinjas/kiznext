@@ -21,9 +21,13 @@ export const LEGAL = {
   university: "Universiti Kebangsaan Malaysia",
   /** Party responsible for the personal data (the data controller). */
   controller: "Kolej Ibu Zain, Universiti Kebangsaan Malaysia",
-  contactEmail: "support@mykiz.my",
+  /** Registered address of the data controller. */
+  address: "Kolej Ibu Zain, Universiti Kebangsaan Malaysia, 43600 Bangi, Selangor.",
+  contactEmail: "pgtkiz@ukm.edu.my",
+  /** Cloud infrastructure the service runs on. */
+  hosting: "AWS Lightsail dan Amazon S3",
   /** Last material update — update this whenever the text changes. */
-  updated: "29 September 2026",
+  updated: "6 Oktober 2026",
 } as const
 
 export type LegalLang = "ms" | "en"
@@ -49,8 +53,8 @@ export interface LegalDocSet {
 
 const contactLine = (lang: LegalLang) =>
   lang === "ms"
-    ? `E-mel ${LEGAL.contactEmail} atau hubungi pejabat pengurusan ${LEGAL.college} (waktu pejabat: Isnin–Jumaat, 8:00 pagi – 5:00 petang, waktu Malaysia).`
-    : `Email ${LEGAL.contactEmail} or contact the ${LEGAL.college} management office (office hours: Monday–Friday, 8:00 am – 5:00 pm, Malaysian time).`
+    ? `E-mel ${LEGAL.contactEmail}, hubungi pejabat pengurusan ${LEGAL.college} (waktu pejabat: Isnin–Jumaat, 8:00 pagi – 5:00 petang, waktu Malaysia), atau tulis kepada ${LEGAL.address}.`
+    : `Email ${LEGAL.contactEmail}, contact the ${LEGAL.college} management office (office hours: Monday–Friday, 8:00 am – 5:00 pm, Malaysian time), or write to ${LEGAL.address}.`
 
 // ── Privacy Policy ──────────────────────────────────────────────────────────
 
@@ -71,6 +75,7 @@ export const privacyDoc: LegalDocSet = {
         bullets: [
           "Identiti & hubungan: nama penuh, No. Matrik, alamat e-mel (termasuk e-mel @siswa.ukm.edu.my), nombor telefon dan peranan anda.",
           "Maklumat kolej: blok dan nombor bilik, status kediaman, gambar kad pengenalan pelajar digital dan kod QR kad penduduk.",
+          "Maklumat daripada senarai rasmi pendaftaran: fakulti, tahun pengajian, jantina, serta data sensitif seperti bangsa, agama dan status OKU/B40, yang diproses hanya untuk pengagihan bilik, kebajikan dan rekod institusi.",
           "Maklumat akaun: kata laluan disimpan dalam bentuk cincangan (bcrypt) — kami tidak pernah melihat kata laluan asal anda — serta status akaun dan token pengesahan/reset yang telah dicincang.",
           "Aktiviti dalam aplikasi: tempahan fasiliti dan rumah tetamu, tiket dan mesej helpdesk, mesej chat komuniti, bungkusan, barang tercicir, pengumuman yang dibaca/diakui, rekod daftar masuk, laundry dan pesanan kafe.",
           "Peranti & teknikal: token pemberitahuan push (Expo), jenis platform, nama peranti dan masa akses terakhir.",
@@ -102,7 +107,7 @@ export const privacyDoc: LegalDocSet = {
       {
         heading: "6. Perkongsian data",
         paragraphs: [
-          "Data anda boleh dikongsi dalam kalangan pentadbiran kolej dan universiti yang berkaitan untuk tujuan pentadbiran dan keselamatan. Kami juga menggunakan penyedia perkhidmatan pihak ketiga: Resend (penghantaran e-mel), Expo (pemberitahuan push) dan Google Sheets (penyelarasan senarai penghuni yang diluluskan) — penyedia ini memproses data bagi pihak kami sahaja.",
+          "Data anda boleh dikongsi dalam kalangan pentadbiran kolej dan universiti yang berkaitan untuk tujuan pentadbiran dan keselamatan. Kami juga menggunakan penyedia perkhidmatan pihak ketiga: Resend (penghantaran e-mel), Expo/APNs/FCM (pemberitahuan push), AWS Lightsail dan Amazon S3 (penghosan pelayan dan storan fail), penyedia AI seperti Google Gemini atau Ollama (terjemahan helpdesk dan pembantu KIZ-AI), Google Sheets (penyelarasan senarai penghuni yang diluluskan), WhatsApp (pesanan kafe — hanya apabila anda sendiri menekan pautan), dan OpenStreetMap (jubin peta Direktori AR) — penyedia ini memproses data bagi pihak kami sahaja.",
           "Kami tidak menjual atau menyewa Data Peribadi anda. Data hanya didedahkan kepada pihak berkuasa apabila diwajibkan oleh undang-undang.",
         ],
       },
@@ -115,7 +120,7 @@ export const privacyDoc: LegalDocSet = {
       {
         heading: "8. Keselamatan",
         paragraphs: [
-          "Kata laluan dan token disimpan dalam bentuk cincangan, sambungan dilindungi HTTPS, dan akses dalam sistem dikawal mengikut peranan (RBAC). Walaupun tiada sistem yang 100% selamat, kami mengambil langkah munasabah untuk melindungi data anda.",
+          "Kata laluan dan token disimpan dalam bentuk cincangan, sambungan dilindungi HTTPS, akses dalam sistem dikawal mengikut peranan (RBAC), dan data dihoskan pada infrastruktur AWS (Lightsail dan S3). Walaupun tiada sistem yang 100% selamat, kami mengambil langkah munasabah untuk melindungi data anda.",
         ],
       },
       {
@@ -165,6 +170,7 @@ export const privacyDoc: LegalDocSet = {
         bullets: [
           "Identity & contact: full name, Matric No., email address (including your @siswa.ukm.edu.my address), phone number and role.",
           "College information: block and room number, residency status, digital student ID image and resident card QR code.",
+          "Information from the official registration list: faculty, year of study, gender, and sensitive data such as race, religion and OKU/B40 status, processed only for room allocation, welfare and institutional records.",
           "Account information: your password stored as a bcrypt hash — we never see your original password — plus account status and hashed verification/reset tokens.",
           "In-app activity: facility and guest-house bookings, helpdesk tickets and messages, community chat messages, parcels, lost & found, announcements read/acknowledged, check-in records, laundry and cafe orders.",
           "Device & technical: push notification token (Expo), platform type, device name and last-seen time.",
@@ -196,7 +202,7 @@ export const privacyDoc: LegalDocSet = {
       {
         heading: "6. Sharing your data",
         paragraphs: [
-          "Your data may be shared within the relevant college and university administration for administrative and safety purposes. We also use third-party service providers: Resend (email delivery), Expo (push notifications) and Google Sheets (syncing the approved-resident list) — these providers process data only on our behalf.",
+          "Your data may be shared within the relevant college and university administration for administrative and safety purposes. We also use third-party service providers: Resend (email delivery), Expo/APNs/FCM (push notifications), AWS Lightsail and Amazon S3 (server hosting and file storage), AI providers such as Google Gemini or Ollama (helpdesk translation and the KIZ-AI assistant), Google Sheets (syncing the approved-resident list), WhatsApp (cafe orders — only when you press the link yourself), and OpenStreetMap (AR Directory map tiles) — these providers process data only on our behalf.",
           "We do not sell or rent your Personal Data. Data is disclosed to authorities only where required by law.",
         ],
       },
@@ -209,7 +215,7 @@ export const privacyDoc: LegalDocSet = {
       {
         heading: "8. Security",
         paragraphs: [
-          "Passwords and tokens are stored as hashes, connections are protected with HTTPS, and access within the system is role-based (RBAC). While no system is 100% secure, we take reasonable steps to protect your data.",
+          "Passwords and tokens are stored as hashes, connections are protected with HTTPS, and access within the system is role-based (RBAC), with data hosted on AWS infrastructure (Lightsail and S3). While no system is 100% secure, we take reasonable steps to protect your data.",
         ],
       },
       {
@@ -555,6 +561,153 @@ export const deletionDoc: LegalDocSet = {
       },
       {
         heading: "Questions",
+        paragraphs: [contactLine("en")],
+      },
+    ],
+  },
+}
+
+// ── Data Safety ─────────────────────────────────────────────────────────────
+
+export const dataSafetyDoc: LegalDocSet = {
+  ms: {
+    title: "Keselamatan Data",
+    summary: `Ringkasan data yang dikumpul dan dikongsi oleh ${LEGAL.product}, serta amalan keselamatan kami — selaras dengan borang Data Safety Google Play dan keperluan kedai aplikasi.`,
+    sections: [
+      {
+        heading: "1. Gambaran keseluruhan",
+        paragraphs: [
+          `Halaman ini meringkaskan data yang dikumpul dan dikongsi oleh ${LEGAL.product} untuk rujukan pantas pengguna dan pematuhan keperluan kedai aplikasi. Penerangan penuh ada dalam Dasar Privasi.`,
+        ],
+      },
+      {
+        heading: "2. Data yang kami kumpul",
+        bullets: [
+          "Maklumat peribadi: nama penuh, No. Matrik, alamat e-mel, nombor telefon dan peranan.",
+          "Maklumat kediaman & akaun: blok dan nombor bilik, status kediaman, kad pelajar digital, status akaun, dan kata laluan yang disimpan sebagai cincangan (bcrypt).",
+          "Maklumat daripada senarai rasmi: fakulti, tahun pengajian, jantina, serta data sensitif (bangsa, agama, status B40/OKU) untuk pengagihan bilik dan kebajikan.",
+          "Mesej: mesej chat komuniti dan helpdesk, termasuk terjemahan automatik.",
+          "Foto, video & fail: gambar profil, lampiran chat/helpdesk, foto barang tercicir, dan imej tandatangan daftar masuk.",
+          "Aktiviti dalam aplikasi: tempahan fasiliti/rumah tetamu, tiket, bungkusan, pengumuman yang dibaca/diakui, reaksi dan pesanan kafe.",
+          "Peranti: token pemberitahuan push, jenis platform dan nama peranti.",
+        ],
+      },
+      {
+        heading: "3. Data yang dikongsi dengan pihak ketiga",
+        bullets: [
+          "Resend — penghantaran e-mel pengesahan dan pemberitahuan.",
+          "Expo / APNs / FCM — pemberitahuan push ke peranti anda.",
+          "AWS Lightsail & Amazon S3 — penghosan pelayan dan storan fail.",
+          "Google Gemini atau Ollama — terjemahan helpdesk dan pembantu AI KIZ-AI.",
+          "Google Sheets — penyelarasan senarai penghuni yang diluluskan (hanya baca).",
+          "WhatsApp — pesanan kafe, hanya apabila anda sendiri menekan pautan.",
+          "OpenStreetMap — jubin peta untuk Direktori AR.",
+        ],
+      },
+      {
+        heading: "4. Data yang TIDAK kami kumpul",
+        bullets: [
+          "Maklumat kewangan atau pembayaran — tiada gerbang bayaran; bayaran dibuat secara manual di kaunter.",
+          "Lokasi kedudukan — diproses pada peranti anda untuk Direktori AR sahaja dan tidak disimpan pada pelayan.",
+          "Senarai kenalan, SMS, log panggilan, atau ID pengiklanan.",
+          "Data perubatan/klinikal.",
+        ],
+      },
+      {
+        heading: "5. Amalan keselamatan",
+        bullets: [
+          "Pengesahan e-mel wajib dan kawalan akses mengikut peranan (RBAC).",
+          "Kata laluan dan token disimpan dalam bentuk cincangan (bcrypt / SHA-256).",
+          "Semua trafik dilindungi HTTPS.",
+          "Data dihoskan pada infrastruktur AWS (Lightsail dan S3).",
+          "Pengesahan identiti menggunakan No. Matrik sebagai kunci utama.",
+        ],
+      },
+      {
+        heading: "6. Kawalan & pilihan anda",
+        paragraphs: [
+          "Anda boleh mengemas kini profil, mengawal pemberitahuan melalui tetapan peranti, dan memadam akaun pada bila-bila masa (lihat halaman Pemadaman Akaun).",
+        ],
+      },
+      {
+        heading: "7. Pemadaman data",
+        paragraphs: [
+          "Pemadaman akaun dilakukan serta-merta apabila anda mengesahkan permintaan. Rekod institusi tertentu dinyahaktifkan daripada akses harian dan disimpan untuk tujuan audit dan undang-undang.",
+        ],
+      },
+      {
+        heading: "8. Hubungi kami",
+        paragraphs: [contactLine("ms")],
+      },
+    ],
+  },
+  en: {
+    title: "Data Safety",
+    summary: `A summary of the data ${LEGAL.product} collects and shares, and our security practices — aligned with the Google Play Data Safety form and app-store requirements.`,
+    sections: [
+      {
+        heading: "1. Overview",
+        paragraphs: [
+          `This page summarises the data collected and shared by ${LEGAL.product} for quick reference and app-store compliance. The full description is in the Privacy Policy.`,
+        ],
+      },
+      {
+        heading: "2. Data we collect",
+        bullets: [
+          "Personal information: full name, Matric No., email address, phone number and role.",
+          "Residence & account information: block and room number, residency status, digital student ID, account status, and a bcrypt-hashed password.",
+          "Information from the official registration list: faculty, year of study, gender, and sensitive data (race, religion, OKU/B40 status) used for room allocation and welfare.",
+          "Messages: community chat and helpdesk messages, including automatic translations.",
+          "Photos, videos & files: profile photo, chat/helpdesk attachments, lost & found photos, and check-in signature images.",
+          "In-app activity: facility/guest-house bookings, tickets, parcels, announcements read/acknowledged, reactions and cafe orders.",
+          "Device: push notification token, platform type and device name.",
+        ],
+      },
+      {
+        heading: "3. Data shared with third parties",
+        bullets: [
+          "Resend — sending verification emails and notifications.",
+          "Expo / APNs / FCM — push notifications to your device.",
+          "AWS Lightsail & Amazon S3 — server hosting and file storage.",
+          "Google Gemini or Ollama — helpdesk translation and the KIZ-AI assistant.",
+          "Google Sheets — syncing the approved-resident list (read-only).",
+          "WhatsApp — cafe orders, only when you press the link yourself.",
+          "OpenStreetMap — map tiles for the AR Directory.",
+        ],
+      },
+      {
+        heading: "4. Data we do NOT collect",
+        bullets: [
+          "Financial or payment information — there is no payment gateway; payment is made manually at the counter.",
+          "Device location — processed on your device for the AR Directory only and not stored on our servers.",
+          "Contacts, SMS, call logs, or advertising ID.",
+          "Medical/clinical data.",
+        ],
+      },
+      {
+        heading: "5. Security practices",
+        bullets: [
+          "Mandatory email verification and role-based access control (RBAC).",
+          "Passwords and tokens are stored as hashes (bcrypt / SHA-256).",
+          "All traffic is protected with HTTPS.",
+          "Data is hosted on AWS infrastructure (Lightsail and S3).",
+          "Identity is verified using the Matric No. as the primary key.",
+        ],
+      },
+      {
+        heading: "6. Your controls & choices",
+        paragraphs: [
+          "You can update your profile, control notifications through your device settings, and delete your account at any time (see the Account Deletion page).",
+        ],
+      },
+      {
+        heading: "7. Data deletion",
+        paragraphs: [
+          "Account deletion happens immediately once you confirm the request. Certain institutional records are deactivated from day-to-day access and retained for audit and legal purposes.",
+        ],
+      },
+      {
+        heading: "8. Contact us",
         paragraphs: [contactLine("en")],
       },
     ],
